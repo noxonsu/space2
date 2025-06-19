@@ -4,7 +4,7 @@ from flask import render_template
 from .llm_service import LLMService # Изменено на LLMService
 from .parsing_service import ParsingService # Для анализа на лету
 # Импортируем новые функции кэширования для SEO
-from .cache_service import get_cached_paragraph_analysis, save_paragraph_analysis_to_cache, _generate_hash # Удаляем get_seo_cached_analysis, save_seo_analysis_to_cache
+from .cache_service import CacheService
 import markdown # Добавляем импорт markdown
 
 class SeoService:
@@ -12,6 +12,7 @@ class SeoService:
         self.llm_service = llm_service # Изменено на llm_service
         self.parsing_service = parsing_service
         self.content_base_path = content_base_path
+        self.cache_service = CacheService()
 
     def _get_logger(self):
         from flask import current_app # Импортируем здесь, чтобы избежать циклических зависимостей на уровне модуля
@@ -107,13 +108,13 @@ class SeoService:
         
         # Анализ каждого абзаца с LLM, используя analyze_paragraph_in_context
         analyzed_paragraphs = []
-        file_hash = _generate_hash(contract_text) # Генерируем хеш для всего договора
+        file_hash = self.cache_service._generate_hash(contract_text) # Генерируем хеш для всего договора
 
         for i, paragraph in enumerate(paragraphs): # Анализируем все абзацы
             if logger:
-                logger.info(f"SeoService: Подготовка к анализу пункта {i+1}/{len(paragraphs)} для file_hash: {file_hash}, paragraph_hash: {_generate_hash(paragraph)}")
+                logger.info(f"SeoService: Подготовка к анализу пункта {i+1}/{len(paragraphs)} для file_hash: {file_hash}, paragraph_hash: {self.cache_service._generate_hash(paragraph)}")
 
-            analysis_html = get_cached_paragraph_analysis(file_hash, paragraph) # Пытаемся получить HTML из кэша
+            analysis_html = self.cache_service.get_cached_paragraph_analysis(file_hash, paragraph) # Пытаемся получить HTML из кэша
 
             if analysis_html:
                 if logger:
@@ -128,7 +129,7 @@ class SeoService:
                         # Конвертируем в HTML
                         analysis_html = markdown.markdown(analysis_markdown)
                         # Сохраняем HTML в индивидуальный кэш абзацев
-                        save_paragraph_analysis_to_cache(file_hash, paragraph, analysis_html)
+                        self.cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph, analysis_html)
                         if logger:
                             logger.info(f"SeoService: Анализ пункта {i+1} выполнен, сконвертирован в HTML и сохранен в индивидуальный кэш.")
                     else:

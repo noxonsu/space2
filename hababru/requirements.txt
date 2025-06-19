@@ -4,4 +4,7 @@ requests
 PyYAML
 markdown
 beautifulsoup4
-markitdown[all] # Добавляем markitdown со всеми зависимостями
+markitdown[all]
+pytest
+fpdf
+python-docx

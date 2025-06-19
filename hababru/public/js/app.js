@@ -321,8 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Данные из window.seoPageContractTextRaw и window.seoPageAnalysisDataRaw уже должны быть валидными JSON строками или null
             // decodeURIComponent не нужен, если данные правильно переданы через tojson | safe
-            const contractTextForSeo = window.seoPageContractTextRaw ? JSON.parse(window.seoPageContractTextRaw) : "";
-            const analysisDataForSeo = window.seoPageAnalysisDataRaw ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
+            const contractTextForSeo = (typeof window.seoPageContractTextRaw === 'string' && window.seoPageContractTextRaw) ? JSON.parse(window.seoPageContractTextRaw) : "";
+            const analysisDataForSeo = (typeof window.seoPageAnalysisDataRaw === 'string' && window.seoPageAnalysisDataRaw) ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
             
             // Убедимся, что analysisDataForSeo.paragraphs или analysisDataForSeo.analysis_results используются
             let resultsArray = [];

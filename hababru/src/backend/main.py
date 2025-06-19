@@ -10,6 +10,7 @@ from .api.v1.contract_analyzer import contract_analyzer_bp
 from .services.llm_service import LLMService # Изменено на LLMService
 from .services.seo_service import SeoService
 from .services.parsing_service import ParsingService # Для анализа на лету
+from .services.cache_service import CacheService # Добавляем импорт CacheService
 
 # Загрузка переменных окружения из .env файла
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
@@ -26,6 +27,9 @@ llm_service = LLMService( # Изменено на llm_service
 )
 parsing_service = ParsingService(llm_service=llm_service) # Изменено на llm_service
 
+# Инициализация CacheService
+cache_service = CacheService()
+
 # Инициализация SeoService с зависимостями
 seo_service = SeoService(
     llm_service=llm_service, # Изменено на llm_service
@@ -36,6 +40,7 @@ seo_service = SeoService(
 # Сохраняем экземпляры сервисов в конфигурации приложения, чтобы они были доступны в Blueprint
 app.config['PARSING_SERVICE'] = parsing_service
 app.config['LLM_SERVICE'] = llm_service # Изменено на LLM_SERVICE
+app.config['CACHE_SERVICE'] = cache_service # Добавляем CacheService в app.config
 
 # Регистрация Blueprint для API
 app.register_blueprint(contract_analyzer_bp, url_prefix='/api/v1')

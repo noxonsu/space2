@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 import markdown
 
 # Используем обновленный cache_service
-from ...services import cache_service
+from ...services.cache_service import CacheService
 
 contract_analyzer_bp = Blueprint('contract_analyzer', __name__)
 
@@ -15,6 +15,9 @@ def get_parsing_service():
 
 def get_llm_service():
     return current_app.config.get('LLM_SERVICE')
+
+def get_cache_service():
+    return current_app.config.get('CACHE_SERVICE')
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'uploads')
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx'}
@@ -50,8 +53,9 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                 cache_service.fail_analysis_task(task_id, error_msg)
                 return
 
+            _cache_service = get_cache_service() # Get instance
             total_paragraphs = len(paragraphs)
-            cache_service.update_analysis_task_progress(task_id, 0)
+            _cache_service.update_analysis_task_progress(task_id, 0)
             
             # 2. Анализ каждого пункта с LLM API (с проверкой кэша абзацев)
             logger.info(f'TASK {task_id}: Анализ каждого пункта с LLM API...')
@@ -60,16 +64,16 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                 logger.info(f'TASK {task_id}: Подготовка к анализу пункта {i+1}/{total_paragraphs}.')
                 
                 # Проверяем кэш для текущего абзаца, используя file_hash
-                cached_paragraph_analysis_html = cache_service.get_cached_paragraph_analysis(file_hash, paragraph_text)
+                cached_paragraph_analysis_html = _cache_service.get_cached_paragraph_analysis(file_hash, paragraph_text)
                 
                 if cached_paragraph_analysis_html:
-                    logger.info(f"TASK {task_id}: Анализ пункта {i+1} (хэш абзаца: {cache_service._generate_hash(paragraph_text)}) найден в кэше.")
+                    logger.info(f"TASK {task_id}: Анализ пункта {i+1} (хэш абзаца: {_cache_service._generate_hash(paragraph_text)}) найден в кэше.")
                     analysis_results_list.append({
                         "paragraph": paragraph_text,
                         "analysis": cached_paragraph_analysis_html
                     })
                 else:
-                    logger.info(f'TASK {task_id}: Анализ пункта {i+1}/{total_paragraphs} (хэш абзаца: {cache_service._generate_hash(paragraph_text)}): "{paragraph_text[:50]}..."')
+                    logger.info(f'TASK {task_id}: Анализ пункта {i+1}/{total_paragraphs} (хэш абзаца: {_cache_service._generate_hash(paragraph_text)}): "{paragraph_text[:50]}..."')
                     try:
                         analysis_api_response_text = _llm_service.analyze_paragraph_in_context(paragraph_text, full_contract_text)
                         
@@ -81,7 +85,7 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                                 "analysis": analysis_html 
                             })
                             # Сохраняем результат анализа абзаца в кэш
-                            cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph_text, analysis_html)
+                            _cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph_text, analysis_html)
                             logger.info(f'TASK {task_id}: Анализ пункта {i+1} успешно сконвертирован в HTML и сохранен в кэш абзацев.')
                         else:
                             analysis_results_list.append({
@@ -96,17 +100,17 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                             "analysis": f"Ошибка при анализе пункта: {llm_e}"
                         })
                 
-                cache_service.update_analysis_task_progress(task_id, i + 1)
+                _cache_service.update_analysis_task_progress(task_id, i + 1)
                 
             response_data = {"analysis_results": analysis_results_list, "contract_text_md": full_contract_text}
             logger.info(f'TASK {task_id}: Анализ всех пунктов завершен.')
 
-            cache_service.complete_analysis_task(task_id, response_data)
+            _cache_service.complete_analysis_task(task_id, response_data)
             logger.info(f'TASK {task_id}: Задача анализа завершена успешно.')
 
         except Exception as e:
             logger.error(f'TASK {task_id}: Ошибка при выполнении анализа: {e}', exc_info=True)
-            cache_service.fail_analysis_task(task_id, str(e))
+            _cache_service.fail_analysis_task(task_id, str(e))
 
 @contract_analyzer_bp.route('/upload_contract', methods=['POST'])
 def upload_contract():
@@ -149,8 +153,9 @@ def start_analysis():
         current_app.logger.error('API: Отсутствует полный текст договора для анализа.')
         return jsonify({"error": "Отсутствует полный текст договора для анализа"}), 400
 
+    _cache_service = get_cache_service() # Get instance
     # Генерируем хеш файла для организации кэша
-    file_hash = cache_service._generate_hash(full_contract_text)
+    file_hash = _cache_service._generate_hash(full_contract_text)
     current_app.logger.info(f'API: Сгенерирован file_hash: {file_hash} для анализа.')
 
     # 1. Предварительная сегментация текста для определения общего количества пунктов
@@ -169,25 +174,25 @@ def start_analysis():
 
     # 2. Проверка активных задач по file_hash
     current_app.logger.info(f'API: Проверка активных задач для file_hash: {file_hash}...')
-    active_task_id = cache_service.get_active_analysis_task_by_file_hash(file_hash)
+    active_task_id = _cache_service.get_active_analysis_task_by_file_hash(file_hash)
     if active_task_id:
         current_app.logger.info(f"API: Найдена активная задача {active_task_id} для file_hash {file_hash}. Возвращаем ее статус.")
-        status_data = cache_service.get_analysis_task_status(active_task_id)
+        status_data = _cache_service.get_analysis_task_status(active_task_id)
         return jsonify(status_data), 200
 
     # 3. Проверка, закэшированы ли все абзацы для данного file_hash
     current_app.logger.info(f'API: Проверка полного кэша для file_hash: {file_hash}...')
     # Передаем список текстов абзацев в check_all_paragraphs_cached
-    all_cached_results = cache_service.check_all_paragraphs_cached(file_hash, paragraphs)
+    all_cached_results = _cache_service.check_all_paragraphs_cached(file_hash, paragraphs)
     if all_cached_results:
         current_app.logger.info(f"API: Все абзацы для file_hash {file_hash} найдены в кэше.")
         # Создаем "завершенную" задачу и возвращаем ее ID с результатами
-        task_id = cache_service.create_analysis_task(file_hash, total_paragraphs, item_type="paragraph")
-        cache_service.complete_analysis_task(task_id, all_cached_results)
+        task_id = _cache_service.create_analysis_task(file_hash, total_paragraphs, item_type="paragraph")
+        _cache_service.complete_analysis_task(task_id, all_cached_results)
         return jsonify({"task_id": task_id, "status": "COMPLETED", "message": "Анализ уже полностью в кэше.", "results": all_cached_results}), 200
 
     # 4. Создание новой задачи анализа, если не все абзацы закэшированы и нет активной задачи
-    task_id = cache_service.create_analysis_task(file_hash, total_paragraphs, item_type="paragraph")
+    task_id = _cache_service.create_analysis_task(file_hash, total_paragraphs, item_type="paragraph")
     current_app.logger.info(f'API: Запущена новая задача анализа с ID: {task_id} для file_hash: {file_hash}')
 
     # 5. Запуск анализа в отдельном потоке
@@ -208,7 +213,8 @@ def hello_world():
 @contract_analyzer_bp.route('/get_analysis_status/<task_id>', methods=['GET'])
 def get_analysis_status(task_id):
     current_app.logger.info(f'API: Получен запрос на /get_analysis_status для task_id: {task_id}')
-    status = cache_service.get_analysis_task_status(task_id)
+    _cache_service = get_cache_service() # Get instance
+    status = _cache_service.get_analysis_task_status(task_id)
     if status:
         current_app.logger.info(f'API: Статус задачи {task_id}: {status.get("status")}, Прогресс: {status.get("progress_percentage")}%')
         return jsonify(status), 200

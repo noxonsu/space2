@@ -7,13 +7,14 @@ from flask import current_app
 from typing import List, Dict, Any
 
 # Импортируем функции кэширования сегментации и генерации хэша
-from .cache_service import _generate_hash, get_cached_segmentation, save_segmentation_to_cache
+from .cache_service import CacheService
 
 class LLMService:
     def __init__(self, deepseek_api_key: str, openai_api_key: str):
         self.deepseek_api_key = deepseek_api_key
         self.openai_api_key = openai_api_key
         self.use_openai = bool(openai_api_key) # Если ключ OpenAI есть, используем OpenAI
+        self.cache_service = CacheService()
 
         if self.use_openai:
             self.api_url = "https://api.openai.com/v1/chat/completions"
@@ -162,8 +163,8 @@ class LLMService:
         logger = self.logger
         logger.info(f"{self.service_name}Service: Вызов segment_text_into_paragraphs для текста (первые 250 символов): '{text_content[:250]}'")
 
-        text_hash = _generate_hash(text_content)
-        cached_paragraphs = get_cached_segmentation(text_hash)
+        text_hash = self.cache_service._generate_hash(text_content)
+        cached_paragraphs = self.cache_service.get_cached_segmentation(text_hash)
         if cached_paragraphs:
             logger.info(f"{self.service_name}Service: Результат сегментации для хэша {text_hash} найден в кэше.")
             return cached_paragraphs
@@ -207,7 +208,7 @@ class LLMService:
 
         logger.info(f"{self.service_name}Service: Получено {len(filtered_paragraphs)} отфильтрованных пунктов после сегментации.")
         
-        save_segmentation_to_cache(text_hash, filtered_paragraphs)
+        self.cache_service.save_segmentation_to_cache(text_hash, filtered_paragraphs)
         logger.info(f"{self.service_name}Service: Результат сегментации для хэша {text_hash} сохранен в кэш.")
 
         return filtered_paragraphs
