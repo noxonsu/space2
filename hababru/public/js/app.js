@@ -68,8 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const span = document.createElement('span');
                 span.classList.add('contract-paragraph');
                 span.dataset.paragraphIndex = index;
-                // Используем 'paragraph' из analysisItem для текста сегмента
-                span.textContent = (analysisItem.paragraph || analysisItem.original_paragraph || `Пункт ${index + 1} (текст не найден)`) + ' '; // Добавлен пробел
+                // Используем 'paragraph_html' из analysisItem для HTML-текста сегмента
+                span.innerHTML = (analysisItem.paragraph_html || analysisItem.paragraph || analysisItem.original_paragraph || `Пункт ${index + 1} (текст не найден)`) + ' '; // Добавлен пробел
                 
                 span.addEventListener('mouseover', () => highlightParagraphAndShowAnalysis(index));
                 span.addEventListener('mouseout', () => removeHighlightAndShowDefault(index)); // Изменено

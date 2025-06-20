@@ -82,7 +82,7 @@ h1, h2 {
 #analysis-panel-container,
 .analysis-results /* Для совместимости */ {
     flex: 1;
-    padding: 15px;
+    padding: 10px;
     border: 1px solid #ddd;
     border-radius: 5px;
     background-color: #fff; /* Изменено на белый */
@@ -93,7 +93,7 @@ h1, h2 {
 #contract-text-display {
     min-height: 300px; /* Из SEO-стилей */
     border: 1px solid #ccc; /* Из SEO-стилей */
-    padding: 10px; /* Из SEO-стилей */
+    padding: 5px; /* Из SEO-стилей */
     box-sizing: border-box; /* Из SEO-стилей */
     font-family: 'Courier New', Courier, monospace; /* Из SEO-стилей */
     white-space: pre-wrap; /* Из SEO-стилей */
@@ -104,10 +104,10 @@ h1, h2 {
 /* Стили для отдельных параграфов/сегментов договора */
 .contract-paragraph {
     display: block; /* Из SEO-стилей */
-    padding: 5px; /* Увеличено с 2px 0 для лучшей кликабельности */
+    padding: 2px 0; /* Уменьшено для более плотного текста */
     border-radius: 3px;
-    line-height: 1.6;
-    margin: 0 0 5px 0; /* Добавлен небольшой отступ снизу */
+    line-height: 1.4; /* Уменьшено для более плотного текста */
+    margin: 0; /* Убран отступ снизу */
     white-space: pre-wrap; 
 }
 

@@ -162,12 +162,9 @@ hababru/
     *   Добавьте следующие переменные:
         ```
         DEEPSEEK_API_KEY=ВАШ_DEEPSEEK_API_KEY
-        YANDEX_CLIENT_ID=ВАШ_YANDEX_CLIENT_ID
-        YANDEX_CLIENT_SECRET=ВАШ_YANDEX_CLIENT_SECRET
-        YANDEX_REDIRECT_URI=ВАШ_YANDEX_REDIRECT_URI
-        YANDEX_OAUTH_TOKEN=ВАШ_YANDEX_OAUTH_TOKEN # Получите его после авторизации и подачи заявки
+        OPENAI_KEY=
         ```
-    *   **Важно**: Для `YANDEX_OAUTH_TOKEN` вам необходимо вручную получить токен и подать заявку на доступ к API Яндекс.Вордстата, как описано в документации.
+
     *   **Примечание**: Агент не будет изменять содержимое файла `.env`.
 
 
@@ -178,10 +175,10 @@ hababru/
             ```bash
 
             # Или используя python3 напрямую
-            pm2 stop "habab_allalldsps"
-            pm2 delete habab_allalldsps
-            pm2 flush habab_allalldsps
-            pm2 start "python3 -m hababru.src.backend.main" --name "habab_allalldsps" 
+            pm2 stop "habab_allalldsps" || true
+            pm2 delete "habab_allalldsps" || true
+            pm2 flush "habab_allalldsps" || true
+            pm2 start "python3 -m hababru.src.backend.main" --name "habab_allalldsps"
             
             # для просмотра логов (таймаут нужен т.к. cline не продолжает работу пока не выйти в баш обратно из команды)
             timeout 10 pm2 logs habab_allalldsps

@@ -66,10 +66,13 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                 # Проверяем кэш для текущего абзаца, используя file_hash
                 cached_paragraph_analysis_html = _cache_service.get_cached_paragraph_analysis(file_hash, paragraph_text)
                 
+                paragraph_html = markdown.markdown(paragraph_text) # Convert paragraph text to HTML
+                
                 if cached_paragraph_analysis_html:
                     logger.info(f"TASK {task_id}: Анализ пункта {i+1} (хэш абзаца: {_cache_service._generate_hash(paragraph_text)}) найден в кэше.")
                     analysis_results_list.append({
                         "paragraph": paragraph_text,
+                        "paragraph_html": paragraph_html, # Add HTML version of paragraph
                         "analysis": cached_paragraph_analysis_html
                     })
                 else:
@@ -82,6 +85,7 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                             analysis_html = markdown.markdown(analysis_api_response_text)
                             analysis_results_list.append({
                                 "paragraph": paragraph_text,
+                                "paragraph_html": paragraph_html, # Add HTML version of paragraph
                                 "analysis": analysis_html 
                             })
                             # Сохраняем результат анализа абзаца в кэш
@@ -90,6 +94,7 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                         else:
                             analysis_results_list.append({
                                 "paragraph": paragraph_text,
+                                "paragraph_html": paragraph_html, # Add HTML version of paragraph
                                 "analysis": "Не удалось получить анализ для этого пункта."
                             })
                             logger.warning(f'TASK {task_id}: Не удалось получить анализ для пункта {i+1}. LLM вернул пустой ответ.')
@@ -97,6 +102,7 @@ def _run_analysis_task(task_id, file_hash, full_contract_text, app_context):
                         logger.error(f'TASK {task_id}: Ошибка при вызове LLM API для пункта {i+1}: {llm_e}', exc_info=True)
                         analysis_results_list.append({
                             "paragraph": paragraph_text,
+                            "paragraph_html": paragraph_html, # Add HTML version of paragraph
                             "analysis": f"Ошибка при анализе пункта: {llm_e}"
                         })
                 
