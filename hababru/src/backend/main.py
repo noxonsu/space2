@@ -27,8 +27,8 @@ llm_service = LLMService( # Изменено на llm_service
 )
 parsing_service = ParsingService(llm_service=llm_service) # Изменено на llm_service
 
-# Инициализация CacheService
-cache_service = CacheService()
+# Инициализация CacheService, передавая корневой путь приложения
+cache_service = CacheService(cache_dir=os.path.join(app.root_path, 'data', 'cache'))
 
 # Инициализация SeoService с зависимостями
 seo_service = SeoService(

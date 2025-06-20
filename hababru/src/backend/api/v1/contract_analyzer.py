@@ -253,3 +253,24 @@ def get_sample_contract():
     except FileNotFoundError:
         current_app.logger.error(f'API: Пример договора не найден по пути: {sample_text_path}')
         return jsonify({"error": "Пример договора не найден"}), 404
+
+@contract_analyzer_bp.route('/get_contract/<contract_id>', methods=['GET'])
+def get_contract(contract_id):
+    current_app.logger.info(f'API: Получен запрос на /get_contract для contract_id: {contract_id}')
+    _cache_service = get_cache_service()
+    file_cache_dir = _cache_service.get_file_cache_dir(contract_id)
+    contract_file_path = os.path.join(file_cache_dir, 'contract.txt')
+    current_app.logger.info(f'API: Проверка существования файла: {contract_file_path}') # Add logging
+
+    if os.path.exists(contract_file_path):
+        try:
+            with open(contract_file_path, 'r', encoding='utf-8') as f:
+                contract_text = f.read()
+            current_app.logger.info(f'API: Текст договора для ID {contract_id} успешно загружен.')
+            return jsonify({"contract_text": contract_text}), 200
+        except Exception as e:
+            current_app.logger.error(f'API: Ошибка при чтении текста договора для ID {contract_id}: {e}')
+            return jsonify({"error": "Не удалось загрузить текст договора"}), 500
+    else:
+        current_app.logger.warning(f'API: Текст договора для ID {contract_id} не найден.')
+        return jsonify({"error": "Текст договора не найден"}), 404

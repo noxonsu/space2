@@ -196,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pollingIntervalId = null;
         }
         resetProgressBar();
+        if (progressBarContainer) progressBarContainer.style.display = 'block'; // Make container visible immediately
         if (analysisProgressDiv) analysisProgressDiv.textContent = 'Запуск анализа...';
         if (analysisPanel) analysisPanel.innerHTML = '<p>Анализ в процессе. Пожалуйста, подождите...</p>';
 
@@ -308,30 +309,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Инициализация при загрузке страницы
-    // Проверяем, есть ли параметр 'test' в URL или данные для SEO-страницы
     const urlParams = new URLSearchParams(window.location.search);
     const testFileName = urlParams.get('test');
 
-    if (testFileName) {
+    // --- Check for /analyze/<contract_id> first ---
+    const pathSegments = window.location.pathname.split('/');
+    const analyzeIndex = pathSegments.indexOf('analyze');
+    let contractIdFromUrl = null;
+
+    if (analyzeIndex !== -1 && analyzeIndex < pathSegments.length - 1) {
+        contractIdFromUrl = pathSegments[analyzeIndex + 1];
+        console.log('Обнаружен contract_id в URL:', contractIdFromUrl);
+
+        // Hide upload section and show main content section immediately
+        if (uploadSection) uploadSection.style.display = 'none';
+        if (mainContentSection) mainContentSection.style.display = 'flex';
+
+        // Load contract text and start analysis
+        loadContractAndAnalyze(contractIdFromUrl);
+        return; // Exit initialization logic after handling /analyze page
+
+    } else if (testFileName) {
+        // Existing logic for ?test=...
         console.log('Обнаружен параметр test в URL:', testFileName);
         loadTestContractAndAnalyze(testFileName);
-    } else if (window.seoPageAnalysisDataRaw || window.seoPageContractTextRaw) { // Изменено на OR, чтобы обрабатывать даже если одно из полей пустое
-        // Если это SEO-страница и данные уже встроены в HTML
+    } else if (window.seoPageAnalysisDataRaw || window.seoPageContractTextRaw) {
+        // Existing logic for SEO pages
         console.log('Обнаружены данные для SEO-страницы. Декодируем и отображаем встроенный анализ.');
         try {
-            // Данные из window.seoPageContractTextRaw и window.seoPageAnalysisDataRaw уже должны быть валидными JSON строками или null
-            // decodeURIComponent не нужен, если данные правильно переданы через tojson | safe
             const contractTextForSeo = (typeof window.seoPageContractTextRaw === 'string' && window.seoPageContractTextRaw) ? JSON.parse(window.seoPageContractTextRaw) : "";
             const analysisDataForSeo = (typeof window.seoPageAnalysisDataRaw === 'string' && window.seoPageAnalysisDataRaw) ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
             
-            // Убедимся, что analysisDataForSeo.paragraphs или analysisDataForSeo.analysis_results используются
             let resultsArray = [];
             if (analysisDataForSeo) {
                 if (Array.isArray(analysisDataForSeo.paragraphs)) {
                     resultsArray = analysisDataForSeo.paragraphs;
-                } else if (Array.isArray(analysisDataForSeo.analysis_results)) { // Для совместимости со старым форматом
+                } else if (Array.isArray(analysisDataForSeo.analysis_results)) {
                     resultsArray = analysisDataForSeo.analysis_results;
-                } else if (Array.isArray(analysisDataForSeo)) { // Если сам объект является массивом результатов
+                } else if (Array.isArray(analysisDataForSeo)) {
                      resultsArray = analysisDataForSeo;
                 }
             }
@@ -361,11 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = `<p>Ошибка при загрузке данных страницы: ${e.message}</p>`;
             if(analysisPanel) analysisPanel.innerHTML = "";
         }
-    } else if (testFileName) {
-        console.log('Обнаружен параметр test в URL:', testFileName);
-        loadTestContractAndAnalyze(testFileName);
     } else {
-        // Обычная главная страница, не SEO и не тестовый режим
+        // Original logic for the main page
         loadSampleContract();
     }
 
@@ -446,69 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
             }
         });
-    }
-
-    // --- New logic for /analyze/<contract_id> page ---
-    const pathSegments = window.location.pathname.split('/');
-    const analyzeIndex = pathSegments.indexOf('analyze');
-    let contractIdFromUrl = null;
-
-    if (analyzeIndex !== -1 && analyzeIndex < pathSegments.length - 1) {
-        contractIdFromUrl = pathSegments[analyzeIndex + 1];
-        console.log('Обнаружен contract_id в URL:', contractIdFromUrl);
-
-        // Hide upload section and show main content section immediately
-        if (uploadSection) uploadSection.style.display = 'none';
-        if (mainContentSection) mainContentSection.style.display = 'flex';
-
-        // Load contract text and start analysis
-        loadContractAndAnalyze(contractIdFromUrl);
-
-    } else if (urlParams.get('test')) {
-        // Existing logic for ?test=...
-        console.log('Обнаружен параметр test в URL:', testFileName);
-        loadTestContractAndAnalyze(testFileName);
-    } else if (window.seoPageAnalysisDataRaw || window.seoPageContractTextRaw) {
-        // Existing logic for SEO pages
-        console.log('Обнаружены данные для SEO-страницы. Декодируем и отображаем встроенный анализ.');
-        try {
-            const contractTextForSeo = (typeof window.seoPageContractTextRaw === 'string' && window.seoPageContractTextRaw) ? JSON.parse(window.seoPageContractTextRaw) : "";
-            const analysisDataForSeo = (typeof window.seoPageAnalysisDataRaw === 'string' && window.seoPageAnalysisDataRaw) ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
-            
-            let resultsArray = [];
-            if (analysisDataForSeo) {
-                if (Array.isArray(analysisDataForSeo.paragraphs)) {
-                    resultsArray = analysisDataForSeo.paragraphs;
-                } else if (Array.isArray(analysisDataForSeo.analysis_results)) {
-                    resultsArray = analysisDataForSeo.analysis_results;
-                } else if (Array.isArray(analysisDataForSeo)) {
-                     resultsArray = analysisDataForSeo;
-                }
-            }
-            
-            console.log('SEO Page: Contract Text:', contractTextForSeo ? contractTextForSeo.substring(0,100) : "N/A");
-            console.log('SEO Page: Analysis Data (processed):', resultsArray);
-
-            if (contractTextForSeo) {
-                if (resultsArray && resultsArray.length > 0) {
-                    displayContractAndAnalysis(contractTextForSeo, resultsArray);
-                } else {
-                    startAnalysisAndPollStatus(contractTextForSeo);
-                }
-            } else {
-                console.warn('SEO Page: Текст договора отсутствует, загрузка примера не предусмотрена для SEO страниц с ошибками данных.');
-                if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = "<p>Ошибка: Текст договора для этой страницы не найден.</p>";
-                if(analysisPanel) analysisPanel.innerHTML = "<p>Анализ невозможен без текста договора.</p>";
-            }
-
-        } catch (e) {
-            console.error('Ошибка при обработке данных SEO-страницы:', e);
-            if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = `<p>Ошибка при загрузке данных страницы: ${e.message}</p>`;
-            if(analysisPanel) analysisPanel.innerHTML = "";
-        }
-    } else {
-        // Original logic for the main page
-        loadSampleContract();
     }
 
     // Function to load contract text by ID and start analysis
