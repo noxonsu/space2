@@ -433,21 +433,142 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                const uploadedContractText = uploadData.contract_text;
-                console.log('analyzeButton: Получен текст загруженного договора (первые 200 символов):', uploadedContractText.substring(0, 200));
+                const contractId = uploadData.contract_id; // Get the contract_id from the response
+                console.log('analyzeButton: Файл успешно загружен, Contract ID:', contractId);
                 
-                // Отображаем текст сразу
-                // displayContractAndAnalysis(uploadedContractText, []); // Убрано, т.к. анализ запускается ниже и сам вызовет display
-
-                // Запускаем асинхронный анализ, который в случае успеха вызовет displayContractAndAnalysis
-                startAnalysisAndPollStatus(uploadedContractText);
+                // Redirect to the new analysis page
+                window.location.href = `/analyze/${contractId}`;
 
             } catch (error) {
-                console.error('analyzeButton: Критическая ошибка при загрузке/анализе файла:', error);
-                alert('Критическая ошибка при загрузке или анализе файла: ' + error.message);
+                console.error('analyzeButton: Критическая ошибка при загрузке файла:', error);
+                alert('Критическая ошибка при загрузке файла: ' + error.message);
                 if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = 'Ошибка при обработке файла.';
                 if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
             }
         });
+    }
+
+    // --- New logic for /analyze/<contract_id> page ---
+    const pathSegments = window.location.pathname.split('/');
+    const analyzeIndex = pathSegments.indexOf('analyze');
+    let contractIdFromUrl = null;
+
+    if (analyzeIndex !== -1 && analyzeIndex < pathSegments.length - 1) {
+        contractIdFromUrl = pathSegments[analyzeIndex + 1];
+        console.log('Обнаружен contract_id в URL:', contractIdFromUrl);
+
+        // Hide upload section and show main content section immediately
+        if (uploadSection) uploadSection.style.display = 'none';
+        if (mainContentSection) mainContentSection.style.display = 'flex';
+
+        // Load contract text and start analysis
+        loadContractAndAnalyze(contractIdFromUrl);
+
+    } else if (urlParams.get('test')) {
+        // Existing logic for ?test=...
+        console.log('Обнаружен параметр test в URL:', testFileName);
+        loadTestContractAndAnalyze(testFileName);
+    } else if (window.seoPageAnalysisDataRaw || window.seoPageContractTextRaw) {
+        // Existing logic for SEO pages
+        console.log('Обнаружены данные для SEO-страницы. Декодируем и отображаем встроенный анализ.');
+        try {
+            const contractTextForSeo = (typeof window.seoPageContractTextRaw === 'string' && window.seoPageContractTextRaw) ? JSON.parse(window.seoPageContractTextRaw) : "";
+            const analysisDataForSeo = (typeof window.seoPageAnalysisDataRaw === 'string' && window.seoPageAnalysisDataRaw) ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
+            
+            let resultsArray = [];
+            if (analysisDataForSeo) {
+                if (Array.isArray(analysisDataForSeo.paragraphs)) {
+                    resultsArray = analysisDataForSeo.paragraphs;
+                } else if (Array.isArray(analysisDataForSeo.analysis_results)) {
+                    resultsArray = analysisDataForSeo.analysis_results;
+                } else if (Array.isArray(analysisDataForSeo)) {
+                     resultsArray = analysisDataForSeo;
+                }
+            }
+            
+            console.log('SEO Page: Contract Text:', contractTextForSeo ? contractTextForSeo.substring(0,100) : "N/A");
+            console.log('SEO Page: Analysis Data (processed):', resultsArray);
+
+            if (contractTextForSeo) {
+                if (resultsArray && resultsArray.length > 0) {
+                    displayContractAndAnalysis(contractTextForSeo, resultsArray);
+                } else {
+                    startAnalysisAndPollStatus(contractTextForSeo);
+                }
+            } else {
+                console.warn('SEO Page: Текст договора отсутствует, загрузка примера не предусмотрена для SEO страниц с ошибками данных.');
+                if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = "<p>Ошибка: Текст договора для этой страницы не найден.</p>";
+                if(analysisPanel) analysisPanel.innerHTML = "<p>Анализ невозможен без текста договора.</p>";
+            }
+
+        } catch (e) {
+            console.error('Ошибка при обработке данных SEO-страницы:', e);
+            if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = `<p>Ошибка при загрузке данных страницы: ${e.message}</p>`;
+            if(analysisPanel) analysisPanel.innerHTML = "";
+        }
+    } else {
+        // Original logic for the main page
+        loadSampleContract();
+    }
+
+    // Function to load contract text by ID and start analysis
+    async function loadContractAndAnalyze(contractId) {
+        try {
+            console.log(`loadContractAndAnalyze: Запрос текста договора для ID: ${contractId}`);
+            const response = await fetch(`/api/v1/get_contract/${contractId}`);
+            const data = await response.json();
+
+            if (data.error || !data.contract_text) {
+                console.error(`loadContractAndAnalyze: Ошибка загрузки текста договора для ID ${contractId}:`, data.error || 'Текст не получен');
+                if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Не удалось загрузить текст договора для ID ${contractId}. Ошибка: ${data.error || 'Текст не получен'}`;
+                if (analysisPanel) analysisPanel.textContent = '';
+                return;
+            }
+
+            const contractTextMd = data.contract_text;
+            console.log(`loadContractAndAnalyze: Получен текст договора для ID ${contractId} (первые 200 символов):`, contractTextMd.substring(0, 200));
+
+            // Start analysis with the loaded text
+            startAnalysisAndPollStatus(contractTextMd);
+
+        } catch (error) {
+            console.error(`loadContractAndAnalyze: Критическая ошибка при загрузке текста договора для ID ${contractId}:`, error);
+            if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Критическая ошибка при загрузке текста договора для ID ${contractId}.`;
+            if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
+        }
+    }
+
+    async function loadTestContractAndAnalyze(fileName) {
+        try {
+            console.log(`loadTestContractAndAnalyze: Запрос данных для тестового файла: ${fileName}`);
+            // Запрос на специальный эндпоинт, который вернет только текст договора
+            const response = await fetch(`/api/v1/get_test_contract?file=${encodeURIComponent(fileName)}`);
+            const data = await response.json();
+
+            if (data.error) {
+                console.error(`loadTestContractAndAnalyze: Ошибка загрузки тестового файла ${fileName}:`, data.error);
+                if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Не удалось загрузить тестовый файл: ${fileName}. Ошибка: ${data.error}`;
+                if (analysisPanel) analysisPanel.textContent = '';
+                if (mainContentSection) mainContentSection.style.display = 'flex';
+                if (uploadSection) uploadSection.style.display = 'block';
+                return;
+            }
+            
+            const contractTextMd = data.contract_text; // Изменено с contract_text_md на contract_text
+
+            if (contractTextMd) {
+                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.к. анализ запускается ниже и сам вызовет display
+                startAnalysisAndPollStatus(contractTextMd); // Запускаем анализ, который в случае успеха вызовет displayContractAndAnalysis
+            } else {
+                 console.error(`loadTestContractAndAnalyze: Отсутствует текст договора для тестового файла ${fileName}`);
+                if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Текст договора для тестового файла ${fileName} не найден.`;
+                if (analysisPanel) analysisPanel.textContent = '';
+            }
+
+        } catch (error) {
+            console.error(`loadTestContractAndAnalyze: Критическая ошибка при загрузке тестового файла ${fileName}:`, error);
+            if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Критическая ошибка при обработке тестового файла: ${fileName}.`;
+            if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
+        }
     }
 });

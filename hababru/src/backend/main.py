@@ -74,6 +74,15 @@ def favicon():
 def serve_robots_txt():
     return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
 
+# Маршрут для страницы анализа договора по ID
+@app.route('/analyze/<contract_id>')
+def analyze_contract_page(contract_id):
+    app.logger.info(f"Запрос на страницу анализа договора с ID: {contract_id}")
+    # Рендерим index_template.html и передаем contract_id
+    # Фронтенд будет использовать этот ID для загрузки текста и запуска анализа
+    return render_template('index_template.html', contract_id=contract_id, is_seo_page=False)
+
+
 # Маршрут для обслуживания файлов из data/sample_contracts
 @app.route('/data/sample_contracts/<path:filename>')
 def serve_sample_contract(filename):
@@ -173,4 +182,4 @@ if __name__ == '__main__':
     except Exception as e:
         app.logger.warning(f"Не удалось убить процесс на порту 5001: {e}")
     
-    app.run(debug=True, port=5001) 
+    app.run(debug=True, port=5001)

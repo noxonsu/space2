@@ -141,7 +141,19 @@ def upload_contract():
         
         if contract_text:
             current_app.logger.info('API: Файл успешно сконвертирован в Markdown.')
-            return jsonify({"message": "Файл успешно загружен и обработан", "contract_text": contract_text}), 200
+            _cache_service = get_cache_service()
+            file_hash = _cache_service._generate_hash(contract_text)
+            file_cache_dir = _cache_service.get_file_cache_dir(file_hash)
+            contract_file_path = os.path.join(file_cache_dir, 'contract.txt')
+
+            try:
+                with open(contract_file_path, 'w', encoding='utf-8') as f:
+                    f.write(contract_text)
+                current_app.logger.info(f'API: Текст договора сохранен в кэш: {contract_file_path}')
+                return jsonify({"message": "Файл успешно загружен и обработан", "contract_id": file_hash}), 200
+            except Exception as e:
+                current_app.logger.error(f'API: Ошибка при сохранении текста договора в кэш: {e}')
+                return jsonify({"error": "Не удалось сохранить текст договора"}), 500
         else:
             current_app.logger.error('API: Не удалось обработать файл.')
             return jsonify({"error": "Не удалось обработать файл"}), 500
