@@ -157,7 +157,17 @@ hababru/
     git clone <URL_репозитория>
     cd hababru
     ```
-2.  **Настройка переменных окружения:**
+
+2.  **Установка зависимостей и активация виртуального окружения:**
+    ```bash
+    python3.12 -m venv venv
+    source venv/bin/activate  # Для Linux/macOS
+    # или
+    venv\Scripts\activate     # Для Windows
+    pip install -r requirements.txt
+    ```
+
+3.  **Настройка переменных окружения:**
     *   Создайте файл `.env` в корневой директории проекта `hababru/`.
     *   Добавьте следующие переменные:
         ```
@@ -167,25 +177,28 @@ hababru/
 
     *   **Примечание**: Агент не будет изменять содержимое файла `.env`.
 
-
-3.  **Запуск бэкенда:**
-    *   
+4.  **Запуск бэкенда:**
+    *   **Убедитесь, что виртуальное окружение активировано:**
+        ```bash
+        source venv/bin/activate  # Для Linux/macOS
+        # или
+        venv\Scripts\activate     # Для Windows
+        ```
+    
     *   **Запуск через PM2 (рекомендуется для production):**
         Запустите приложение с помощью PM2:
             ```bash
-
-            # Или используя python3 напрямую
-            pm2 stop "habab_allalldsps" || true
-            pm2 delete "habab_allalldsps" || true
-            pm2 flush "habab_allalldsps" || true
-            pm2 start "python3 -m hababru.src.backend.main" --name "habab_allalldsps"
+            pm2 stop "habab_space2" || true
+            pm2 delete "habab_space2" || true
+            pm2 flush "habab_space2" || true
+            pm2 start "python3 -m src.backend.main" --name "habab_space2"
+            ```
             
             # для просмотра логов (таймаут нужен т.к. cline не продолжает работу пока не выйти в баш обратно из команды)
-            timeout 10 pm2 logs habab_allalldsps
+            timeout 10 pm2 logs habab_space2
             ```
-       
 
-4.  **Доступ к сервису:**
+5.  **Доступ к сервису:**
     *   Основной интерфейс будет доступен по адресу `http://127.0.0.1:5001/` (или другой порт, указанный в конфигурации Flask).
     *   SEO-страницы будут доступны по соответствующим URL (например, `http://127.0.0.1:5001/analiz-dogovora-arendy`).
 
@@ -309,5 +322,4 @@ graph TD
     X_ANALYSIS_SYSTEM --> Y_LIVE_ANALYSIS[Результат анализа (на лету)];
     Y_LIVE_ANALYSIS & Z_METADATA --> AA_TEMPLATE{Передача всех данных в HTML-шаблон};
     AA_TEMPLATE --> AB_HTML[HTML Ответ];
-```
 ```

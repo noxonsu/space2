@@ -162,7 +162,7 @@ def seo_page(slug):
 #     except Exception as e:
 #         app.logger.warning(f"Не удалось убить процесс на порту 5001: {e}")
     
-#     app.run(debug=True, port=5002) # Изменяем порт на 5002
+
 
 if __name__ == '__main__':
     # Убиваем любой процесс, использующий порт 5001 перед запуском
@@ -173,4 +173,4 @@ if __name__ == '__main__':
     except Exception as e:
         app.logger.warning(f"Не удалось убить процесс на порту 5001: {e}")
     
-    app.run(debug=True, port=5002) # Изменяем порт на 5002
+    app.run(debug=True, port=5001) 

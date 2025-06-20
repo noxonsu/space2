@@ -65,15 +65,33 @@
         </section>
         {% endif %}
         
-        {% if not is_seo_page %}
         <section id="seo-links" style="padding: 20px; background-color: #fff; border-top: 1px solid #eee; margin-top: 20px;">
             <h2>Полезные ссылки по проверке договоров</h2>
             <ul>
-                <li><a href="/analiz-dogovora-arendy">Анализ договора аренды</a></li>
-                {# Другие ссылки можно будет добавить здесь #}
+                <li><a href="{{ url_for('seo_page', slug='arendy') }}">Проверка договора аренды онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='arendy-kvartiry') }}">Проверка договора аренды квартиры онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='arendy-mezhdu-fizicheskimi-litsami') }}">Проверка договора аренды между физическими лицами онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='arendy-nezhilogo-pomescheniya') }}">Проверка договора аренды нежилого помещения онлайн нейroсетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='brachnogo-dogovora') }}">Проверка договора брачного договора онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='dareniya') }}">Проверка договора дарения онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='ddu') }}">Проверка договора ДДУ онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='dolevogo-uchastiya-ddu') }}">Проверка договора долевого участия (ДДУ) онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='ipotechnyh-dogovorov') }}">Проверка договора ипотечных договоров онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='ipoteki') }}">Проверка договора ипотеки онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='kupli-prodazhi') }}">Проверка договора купли-продажи онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='meny') }}">Проверка договора мены онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='nayma') }}">Проверка договора найма онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='okazaniya-uslug') }}">Проверка договора оказания услуг онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='perevozki') }}">Проверка договора перевозки онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='podryada') }}">Проверка договора подряда онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='podryada-mezhdu-fizicheskimi-litsami') }}">Проверка договора подряда между физическими лицами онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='postavki') }}">Проверка договора поставки онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='strahovaniya') }}">Проверка договора страхования онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='trudovogo-dogovora') }}">Проверка трудового договора онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='uslug') }}">Проверка договора услуг онлайн нейросетью. Анализ условий и консультаця</a></li>
+                <li><a href="{{ url_for('seo_page', slug='zayma') }}">Проверка договора займа онлайн нейросетью. Анализ условий и консультаця</a></li>
             </ul>
         </section>
-        {% endif %}
 
     </main>
     <footer>

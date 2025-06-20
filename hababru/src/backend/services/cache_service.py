@@ -172,7 +172,7 @@ class CacheService:
         return None
 
     def save_segmentation_to_cache(self, text_content_hash, paragraphs_list):
-        cache__file_path = os.path.join(self.SEGMENTATION_CACHE_DIR, f"{text_content_hash}.json")
+        cache_file_path = os.path.join(self.SEGMENTATION_CACHE_DIR, f"{text_content_hash}.json") # Corrected variable name
 
         try:
             with open(cache_file_path, 'w', encoding='utf-8') as f:
