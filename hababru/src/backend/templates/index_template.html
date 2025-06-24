@@ -115,13 +115,14 @@
         <p>&copy; 2025 Сервис проверки договоров</p>
     </footer>
 
+    <div id="seo-data" style="display:none;"
+         data-is-seo-page="{{ is_seo_page | default(false) | tojson }}"
+         data-main-keyword="{% if main_keyword is not none %}{{ main_keyword | tojson }}{% else %}null{% endif %}"
+         data-contract-text-raw="{% if contract_text_raw is not none %}{{ contract_text_raw | e }}{% else %}null{% endif %}"
+         data-analysis-results-raw="{% if analysis_results_raw is not none %}{{ analysis_results_raw | e }}{% else %}null{% endif %}">
+    </div>
     <script>
-        window.appConfig = {
-            isSeoPage: {{ is_seo_page | default(false) | tojson }},
-            mainKeyword: {% if main_keyword is not none %}{{ main_keyword | tojson }}{% else %}null{% endif %},
-            seoPageContractTextRaw: {% if contract_text_raw is not none %}{{ contract_text_raw | tojson }}{% else %}null{% endif %},
-            seoPageAnalysisDataRaw: {% if analysis_results_raw is not none %}{{ analysis_results_raw | tojson }}{% else %}null{% endif %}
-        };
+        window.appConfig = {}; // Initialize an empty object
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

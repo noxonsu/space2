@@ -67,9 +67,9 @@ class SeoService:
         # Важно: contract_text_raw и analysis_results_raw должны быть строками, содержащими JSON, или None
         import json # Добавляем импорт json для сериализации
 
-        contract_text_raw_json = json.dumps(generated_contract_text) if generated_contract_text else None
-        analysis_results_raw_json = json.dumps(analysis_results) if analysis_results else None
-
+        # Prepare data for the template.
+        # These will be passed as Python objects/strings, and Jinja2's |tojson filter
+        # will handle the JSON serialization and JavaScript escaping.
         template_data = {
             "is_seo_page": True,
             "page_title": front_matter.get("title", slug),
@@ -80,8 +80,90 @@ class SeoService:
             "related_keywords_list": front_matter.get("related_keywords", []), # Для отображения списка на странице
             "page_text_content": markdown.markdown(page_text_content), # Конвертируем Markdown в HTML
             "main_keyword": front_matter.get("main_keyword", slug),
-            "contract_text_raw": contract_text_raw_json, # Передаем как JSON-строку
-            "analysis_results_raw": analysis_results_raw_json # Передаем как JSON-строку
+            "contract_text_raw": generated_contract_text,
+            "analysis_results_raw": analysis_results
+        }
+        
+        if logger:
+            logger.info(f"SeoService: Данные, передаваемые в шаблон 'index_template.html' для '{slug}':")
+            logger.info(f"  is_seo_page: {template_data['is_seo_page']}")
+            logger.info(f"  page_title: {template_data['page_title']}")
+            logger.info(f"  meta_keywords: {template_data['meta_keywords']}")
+            logger.info(f"  meta_description: {template_data['meta_description']}")
+            logger.info(f"  related_keywords_list: {template_data['related_keywords_list']}")
+            logger.info(f"  page_text_content (первые 100): {template_data['page_text_content'][:100]}...")
+            logger.info(f"  main_keyword: {template_data['main_keyword']}")
+            # Log raw strings, not JSON-dumped ones for debugging
+            logger.info(f"  contract_text_raw (raw, первые 100): {template_data['contract_text_raw'][:100] if template_data['contract_text_raw'] else 'None'}...")
+            logger.info(f"  analysis_results_raw (raw, первые 100): {str(template_data['analysis_results_raw'])[:100] if template_data['analysis_results_raw'] else 'None'}...")
+
+        return render_template('index_template.html', **template_data)
+
+    def _perform_on_the_fly_analysis(self, contract_text: str):
+        logger = self._get_logger()
+        if not contract_text:
+            return {"summary": "Договор пуст, анализ невозможен.", "paragraphs": []}
+
+        # Используем llm_service для сегментации, чтобы она кэшировалась
+        paragraphs = self.llm_service.segment_text_into_paragraphs(contract_text) # Изменено на llm_service
+        
+        # Анализ каждого абзаца с LLM, используя analyze_paragraph_in_context
+        analyzed_paragraphs = []
+        file_hash = self.cache_service._generate_hash(contract_text) # Генерируем хеш для всего договора
+
+        for i, paragraph in enumerate(paragraphs): # Анализируем все абзацы
+            if logger:
+                logger.info(f"SeoService: Подготовка к анализу пункта {i+1}/{len(paragraphs)} для file_hash: {file_hash}, paragraph_hash: {self.cache_service._generate_hash(paragraph)}")
+
+            analysis_html = self.cache_service.get_cached_paragraph_analysis(file_hash, paragraph) # Пытаемся получить HTML из кэша
+
+            if analysis_html:
+                if logger:
+                    logger.info(f"SeoService: Анализ пункта {i+1} найден в индивидуальном кэше (HTML).")
+            else:
+                if logger:
+                    logger.info(f"SeoService: Анализ пункта {i+1} не найден в кэше, выполняем через LLM.")
+                try:
+                    # Получаем анализ в Markdown от LLM
+                    analysis_markdown = self.llm_service.analyze_paragraph_in_context(paragraph, contract_text) # Изменено на llm_service
+                    if analysis_markdown:
+                        # Конвертируем в HTML
+                        analysis_html = markdown.markdown(analysis_markdown)
+                        # Сохраняем HTML в индивидуальный кэш абзацев
+                        self.cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph, analysis_html)
+                        if logger:
+                            logger.info(f"SeoService: Анализ пункта {i+1} выполнен, сконвертирован в HTML и сохранен в индивидуальный кэш.")
+                    else:
+                        analysis_html = "Не удалось получить анализ для этого пункта."
+                        if logger:
+                            logger.warning(f"SeoService: Не удалось получить анализ (Markdown) для пункта {i+1}. LLM вернул пустой ответ.")
+                except Exception as e:
+                    if logger:
+                        logger.error(f"SeoService: Ошибка при анализе абзаца {i+1} с LLM: {e}", exc_info=True) # Изменено на LLM
+                    analysis_html = f"Ошибка анализа пункта: {e}"
+            
+            analyzed_paragraphs.append({
+                "original_paragraph": paragraph,
+                "analysis": analysis_html # Добавляем HTML
+            })
+        
+        return {
+            "summary": "Это анализ договора, выполненный 'на лету'.",
+            "paragraphs": analyzed_paragraphs
+        }
+
+        template_data = {
+            "is_seo_page": True,
+            "page_title": front_matter.get("title", slug),
+            "page_h1": front_matter.get("title", slug), # Используем title для H1 на SEO-страницах
+            "meta_keywords": ", ".join(front_matter.get("meta_keywords", [])),
+            "meta_description": front_matter.get("meta_description", ""),
+            "related_keywords_meta": front_matter.get("related_keywords", []), # Для meta name="related-keywords"
+            "related_keywords_list": front_matter.get("related_keywords", []), # Для отображения списка на странице
+            "page_text_content": markdown.markdown(page_text_content), # Конвертируем Markdown в HTML
+            "main_keyword": main_keyword_json, # Pass as JSON string
+            "contract_text_raw": contract_text_raw_json, # Already JSON-string
+            "analysis_results_raw": analysis_results_json # Already JSON-string
         }
         
         if logger:

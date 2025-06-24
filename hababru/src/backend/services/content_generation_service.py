@@ -67,7 +67,6 @@ class ContentGenerationService:
         return response
 
     def _get_or_generate_keywords(self, prompt_keyword: str):
-        print(f"Генерируем ключевые слова через LLM для '{prompt_keyword}' (Яндекс.Вордстат отключен).")
         meta_keywords = self._generate_keywords_with_llm(prompt_keyword, "meta")
         related_keywords = self._generate_keywords_with_llm(prompt_keyword, "related")
         

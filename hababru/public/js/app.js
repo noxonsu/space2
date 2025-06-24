@@ -17,11 +17,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAnalysisTaskId = null; 
     let currentSelectedParagraphIndex = null;
 
-    // Глобальные переменные, устанавливаемые из шаблона index_template.html
-    // window.isSeoPage (boolean)
-    // window.mainKeyword (string or null)
-    // window.seoPageContractTextRaw (stringified JSON or null)
-    // window.seoPageAnalysisDataRaw (stringified JSON or null)
+    // Data from SEO page (if applicable), read from #seo-data div
+    let isSeoPage = false;
+    let mainKeyword = null;
+    let seoPageContractTextRaw = null;
+    let seoPageAnalysisDataRaw = null;
+
+    const seoDataElement = document.getElementById('seo-data');
+    if (seoDataElement) {
+        // Data attributes are always strings. Parse them as JSON.
+        // Use a fallback to 'false' or 'null' string if the attribute is missing.
+        isSeoPage = JSON.parse(seoDataElement.dataset.isSeoPage || 'false');
+        mainKeyword = JSON.parse(seoDataElement.dataset.mainKeyword || 'null');
+        seoPageContractTextRaw = seoDataElement.dataset.contractTextRaw;
+        seoPageAnalysisDataRaw = seoDataElement.dataset.analysisResultsRaw;
+    }
 
     // Функция для сброса состояния прогресс-бара
     function resetProgressBar() {
@@ -296,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('loadSampleContract: Получен текст примера договора (первые 200 символов):', sampleContractText.substring(0, 200));
             
             // Отображаем текст сразу
-            // displayContractAndAnalysis(sampleContractText, []); // Убрано, т.к. анализ запускается ниже и сам вызовет display
+            // displayContractAndAnalysis(sampleContractText, []); // Убрано, т.k. анализ запускается ниже и сам вызовет display
             
             // Запускаем асинхронный анализ, который в случае успеха вызовет displayContractAndAnalysis с результатами
             startAnalysisAndPollStatus(sampleContractText);
@@ -333,12 +343,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Existing logic for ?test=...
         console.log('Обнаружен параметр test в URL:', testFileName);
         loadTestContractAndAnalyze(testFileName);
-    } else if (window.seoPageAnalysisDataRaw || window.seoPageContractTextRaw) {
-        // Existing logic for SEO pages
+    } else if (isSeoPage) { // Check if it's an SEO page
         console.log('Обнаружены данные для SEO-страницы. Декодируем и отображаем встроенный анализ.');
         try {
-            const contractTextForSeo = (typeof window.seoPageContractTextRaw === 'string' && window.seoPageContractTextRaw) ? JSON.parse(window.seoPageContractTextRaw) : "";
-            const analysisDataForSeo = (typeof window.seoPageAnalysisDataRaw === 'string' && window.seoPageAnalysisDataRaw) ? JSON.parse(window.seoPageAnalysisDataRaw) : null;
+            const contractTextForSeo = seoPageContractTextRaw !== 'null' ? JSON.parse(seoPageContractTextRaw) : "";
+            const analysisDataForSeo = seoPageAnalysisDataRaw !== 'null' ? JSON.parse(seoPageAnalysisDataRaw) : null;
             
             let resultsArray = [];
             if (analysisDataForSeo) {
@@ -400,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const contractTextMd = data.contract_text; // Изменено с contract_text_md на contract_text
 
             if (contractTextMd) {
-                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.к. анализ запускается ниже и сам вызовет display
+                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.k. анализ запускается ниже и сам вызовет display
                 startAnalysisAndPollStatus(contractTextMd); // Запускаем анализ, который в случае успеха вызовет displayContractAndAnalysis
             } else {
                  console.error(`loadTestContractAndAnalyze: Отсутствует текст договора для тестового файла ${fileName}`);
@@ -506,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const contractTextMd = data.contract_text; // Изменено с contract_text_md на contract_text
 
             if (contractTextMd) {
-                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.к. анализ запускается ниже и сам вызовет display
+                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.k. анализ запускается ниже и сам вызовет display
                 startAnalysisAndPollStatus(contractTextMd); // Запускаем анализ, который в случае успеха вызовет displayContractAndAnalysis
             } else {
                  console.error(`loadTestContractAndAnalyze: Отсутствует текст договора для тестового файла ${fileName}`);
