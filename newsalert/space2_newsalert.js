@@ -2,7 +2,8 @@ require('dotenv').config({ path: __dirname + '/.env' });
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const express = require('express'); // Add express
+const http = require('http');
+const url = require('url');
 
 const KEYWORDS_FILE_PATH = path.join(__dirname, '.env_keys');
 const NEWS_DATA_FILE_PATH = path.join(__dirname, 'fetched_news.json');
@@ -12,65 +13,109 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // --- Admin Panel Code ---
-const app = express();
-const adminPort = 3656; // Use a different variable name for clarity
+const adminPort = 3656;
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// API endpoint to get keywords
-app.get('/api/keywords', (req, res) => {
-  fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => { // Use KEYWORDS_FILE_PATH
-    if (err) {
-      console.error('Error reading keywords file:', err);
-      return res.status(500).send('Error reading keywords');
-    }
-    const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean); // Use updated split logic
-    res.json(keywords);
+function parseBody(req, callback) {
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
   });
-});
+  req.on('end', () => {
+    try {
+      const parsed = JSON.parse(body);
+      callback(null, parsed);
+    } catch (err) {
+      callback(err, null);
+    }
+  });
+}
 
-// API endpoint to add a keyword
-app.post('/api/keywords', (req, res) => {
-  const { keyword } = req.body;
-  if (!keyword) {
-    return res.status(400).send('Keyword is required');
+const server = http.createServer((req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
+  const method = req.method;
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
   }
-  fs.appendFile(KEYWORDS_FILE_PATH, `\n${keyword}`, (err) => { // Use KEYWORDS_FILE_PATH, correct newline
-    if (err) {
-      console.error('Error adding keyword:', err);
-      return res.status(500).send('Error adding keyword');
-    }
-    res.status(201).send('Keyword added');
-  });
-});
 
-// API endpoint to delete a keyword
-app.delete('/api/keywords/:keyword', (req, res) => {
-  const keywordToDelete = req.params.keyword;
-  fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => { // Use KEYWORDS_FILE_PATH
-    if (err) {
-      console.error('Error reading keywords file:', err);
-      return res.status(500).send('Error reading keywords');
-    }
-    const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean); // Use updated split logic
-    const newKeywords = keywords.filter(k => k !== keywordToDelete);
-    const newData = newKeywords.join('\n'); // Correct newline
-    fs.writeFile(KEYWORDS_FILE_PATH, newData, 'utf8', (err) => { // Use KEYWORDS_FILE_PATH
+  if (pathname === '/' && method === 'GET') {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    fs.readFile(indexPath, (err, data) => {
       if (err) {
-        console.error('Error deleting keyword:', err);
-        return res.status(500).send('Error deleting keyword');
+        res.writeHead(404);
+        res.end('Not found');
+        return;
       }
-      res.send('Keyword deleted');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(data);
     });
-  });
+  } else if (pathname === '/api/keywords' && method === 'GET') {
+    fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => {
+      if (err) {
+        console.error('Error reading keywords file:', err);
+        res.writeHead(500);
+        res.end('Error reading keywords');
+        return;
+      }
+      const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(keywords));
+    });
+  } else if (pathname === '/api/keywords' && method === 'POST') {
+    parseBody(req, (err, body) => {
+      if (err || !body || !body.keyword) {
+        res.writeHead(400);
+        res.end('Keyword is required');
+        return;
+      }
+      fs.appendFile(KEYWORDS_FILE_PATH, `\n${body.keyword}`, (err) => {
+        if (err) {
+          console.error('Error adding keyword:', err);
+          res.writeHead(500);
+          res.end('Error adding keyword');
+          return;
+        }
+        res.writeHead(201);
+        res.end('Keyword added');
+      });
+    });
+  } else if (pathname.startsWith('/api/keywords/') && method === 'DELETE') {
+    const keywordToDelete = decodeURIComponent(pathname.split('/').pop());
+    fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => {
+      if (err) {
+        console.error('Error reading keywords file:', err);
+        res.writeHead(500);
+        res.end('Error reading keywords');
+        return;
+      }
+      const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const newKeywords = keywords.filter(k => k !== keywordToDelete);
+      const newData = newKeywords.join('\n');
+      fs.writeFile(KEYWORDS_FILE_PATH, newData, 'utf8', (err) => {
+        if (err) {
+          console.error('Error deleting keyword:', err);
+          res.writeHead(500);
+          res.end('Error deleting keyword');
+          return;
+        }
+        res.writeHead(200);
+        res.end('Keyword deleted');
+      });
+    });
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
 });
 
-app.listen(adminPort, () => { // Use adminPort
+server.listen(adminPort, () => {
   console.log(`Админ панель запущена на порту ${adminPort}`);
   console.log(`Admin panel listening at http://localhost:${adminPort}`);
 });
