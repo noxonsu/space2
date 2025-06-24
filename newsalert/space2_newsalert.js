@@ -198,7 +198,16 @@ async function fetchNewsForKeyword(keyword) {
                     }
                     console.log('---');
                 });
-                await processAndSendNews(keyword, data.news_results);
+                // Map news_results to the expected format before passing to processAndSendNews
+                const formattedNewsResults = data.news_results.map(item => ({
+                    title: item.title,
+                    link: item.url, // Use 'url' from API response as 'link'
+                    source: item.source,
+                    date: item.lastUpdated, // Use 'lastUpdated' from API response as 'date'
+                    snippet: item.snippet,
+                    thumbnail: item.thumbnail
+                }));
+                await processAndSendNews(keyword, formattedNewsResults);
             } else {
                 console.log(`No news found for keyword: "${keyword}".`);
             }
@@ -210,62 +219,6 @@ async function fetchNewsForKeyword(keyword) {
     }
     // Return empty array in case of error or no results
     return [];
-}
-
-async function saveNewsToFile(keyword, newsItems) {
-    let allNews = [];
-    try {
-        if (fs.existsSync(NEWS_DATA_FILE_PATH)) {
-            const fileData = fs.readFileSync(NEWS_DATA_FILE_PATH, 'utf8');
-            if (fileData) {
-                allNews = JSON.parse(fileData);
-            }
-        }
-    } catch (err) {
-        console.error('Error reading or parsing existing news data file:', err.message);
-        // Continue with an empty array if parsing fails
-        allNews = [];
-    }
-
-    const fetchedAt = new Date().toISOString();
-    const newEntries = newsItems.map(item => ({
-        keyword: keyword,
-        title: item.title,
-        link: item.link,
-        source: item.source ? item.source.name : null,
-        date: item.date,
-        snippet: item.snippet, // Adding snippet
-        thumbnail: item.thumbnail, // Adding thumbnail
-        fetchedAt: fetchedAt
-    }));
-
-    const existingNewsLinks = new Set(allNews.map(item => item.link));
-    const newNewsItems = newEntries.filter(item => !existingNewsLinks.has(item.link));
-
-    if (newNewsItems.length > 0) {
-        console.log(`Found ${newNewsItems.length} new news items for "${keyword}".`);
-        allNews.push(...newNewsItems);
-
-        try {
-            fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
-            console.log(`Successfully saved ${newNewsItems.length} new news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
-        } catch (err) {
-            console.error('Error writing news data to file:', err.message);
-        }
-
-        if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-            console.error('Telegram BOT_TOKEN or CHAT_ID is not set. Skipping Telegram notification.');
-        } else {
-            for (const newsItem of newNewsItems) {
-                const message = `Новость по запросу "${newsItem.keyword}":\n\n${newsItem.title}\n${newsItem.link}\n\nИсточник: ${newsItem.source || 'N/A'}\nДата: ${newsItem.date || 'N/A'}`;
-                await sendTelegramMessage(TELEGRAM_CHAT_ID, message);
-                // Add a small delay between Telegram messages to avoid hitting rate limits
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-        }
-    } else {
-        console.log(`No new news items found for "${keyword}".`);
-    }
 }
 
 async function processAndSendNews(keyword, newsItems) {
@@ -287,9 +240,9 @@ async function processAndSendNews(keyword, newsItems) {
     const newEntries = newsItems.map(item => ({
         keyword: keyword,
         title: item.title,
-        link: item.link,
-        source: item.source || null,
-        date: item.date,
+        link: item.link, // This is already mapped from item.url in fetchNewsForKeyword
+        source: item.source ? item.source.name : null, // Ensure source.name is used if source is an object
+        date: item.date, // This is already mapped from item.lastUpdated in fetchNewsForKeyword
         snippet: item.snippet,
         thumbnail: item.thumbnail,
         fetchedAt: fetchedAt
@@ -308,24 +261,24 @@ async function processAndSendNews(keyword, newsItems) {
 
     if (newNewsItems.length > 0) {
         console.log(`Found ${newNewsItems.length} new news items for "${keyword}".`);
-        allNews.push(...newNewsItems);
-
-        try {
-            fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
-            console.log(`Successfully saved ${newNewsItems.length} new news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
-        } catch (err) {
-            console.error('Error writing news data to file:', err.message);
-        }
 
         if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
             console.error('Telegram BOT_TOKEN or CHAT_ID is not set. Skipping Telegram notification.');
         } else {
             for (const newsItem of newNewsItems) {
-                const message = `Новость по запросу "${newsItem.keyword}":\n\n${newsItem.title}\n${newsItem.url}\n\nИсточник: ${newsItem.source || 'N/A'}\n Дата: ${newsItem.lastUpdated || 'N/A'}`;
+                const message = `Новость по запросу "${newsItem.keyword}":\n\n${newsItem.title}\n${newsItem.link}\n\n Дата: ${newsItem.date || 'N/A'}`;
                 await sendTelegramMessage(TELEGRAM_CHAT_ID, message);
                 // Add a small delay between Telegram messages to avoid hitting rate limits
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
+        }
+        
+        allNews.push(...newNewsItems);
+        try {
+            fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
+            console.log(`Successfully saved ${newNewsItems.length} new news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
+        } catch (err) {
+            console.error('Error writing news data to file:', err.message);
         }
     } else {
         console.log(`No new news items found for "${keyword}".`);
