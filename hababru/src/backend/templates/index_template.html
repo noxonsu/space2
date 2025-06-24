@@ -115,12 +115,7 @@
         <p>&copy; 2025 Сервис проверки договоров</p>
     </footer>
 
-    <div id="seo-data" style="display:none;"
-         data-is-seo-page="{{ is_seo_page | default(false) | tojson }}"
-         data-main-keyword="{% if main_keyword is not none %}{{ main_keyword | tojson }}{% else %}null{% endif %}"
-         data-contract-text-raw="{% if contract_text_raw is not none %}{{ contract_text_raw | e }}{% else %}null{% endif %}"
-         data-analysis-results-raw="{% if analysis_results_raw is not none %}{{ analysis_results_raw | e }}{% else %}null{% endif %}">
-    </div>
+    <div id="app-config-data" style="display:none;">{{ app_config_json | safe }}</div>
     <script>
         window.appConfig = {}; // Initialize an empty object
     </script>

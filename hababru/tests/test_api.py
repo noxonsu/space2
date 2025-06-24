@@ -129,12 +129,32 @@ def test_seo_page_content_display(client, mock_services):
     # Assert that the main page text content is present
     assert expected_page_text_html.encode('utf-8') in rv.data
 
-    # Assert that the contract text is present (it's embedded as JSON in the script tag)
-    # The contract text is passed as a JSON string to window.appConfig.seoPageContractTextRaw
-    # So we need to check for the JSON string representation of the contract text
+    # Assert that the contract text is present by checking the content of the script tag
+    # that defines window.appConfig
     import json
-    expected_contract_json_string = json.dumps(expected_contract_text)
-    assert expected_contract_json_string.encode('utf-8') in rv.data
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(rv.data, 'html.parser')
+    script_tag = soup.find('script', string=lambda t: t and 'window.appConfig' in t)
+    assert script_tag is not None
+
+    # Extract the JavaScript code, parse it, and check the data
+    import re
+    import json
+    import html # Import html module for unescape
+
+    js_code = script_tag.string
+    # Use regex to find the appConfig object
+    # The regex needs to match the content inside JSON.parse('')
+    match = re.search(r"window\.appConfig\s*=\s*JSON\.parse\('(.*)'\);", js_code, re.DOTALL)
+    assert match, "Could not find window.appConfig object in script tag"
+    
+    app_config_escaped_json = match.group(1)
+    # Unescape HTML entities before parsing as JSON
+    app_config_json = html.unescape(app_config_escaped_json)
+    app_config = json.loads(app_config_json)
+
+    assert app_config['seoPageContractTextRaw'] == expected_contract_text
 
 def test_seo_page_ipotechnyh_dogovorov_content_display(client, mock_services):
     mock_parsing_instance, mock_cache_instance, mock_llm_instance = mock_services
@@ -165,7 +185,27 @@ def test_seo_page_ipotechnyh_dogovorov_content_display(client, mock_services):
     # Assert that the main page text content is present
     assert expected_page_text_html.encode('utf-8') in rv.data
 
-    # Assert that the contract text is present (it's embedded as JSON in the script tag)
+    # Assert that the contract text is present by checking the content of the script tag
     import json
-    expected_contract_json_string = json.dumps(expected_contract_text)
-    assert expected_contract_json_string.encode('utf-8') in rv.data
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(rv.data, 'html.parser')
+    script_tag = soup.find('script', string=lambda t: t and 'window.appConfig' in t)
+    assert script_tag is not None
+
+    # Extract the JavaScript code, parse it, and check the data
+    import re
+    import json
+    import html # Import html module for unescape
+
+    js_code = script_tag.string
+    # Use regex to find the appConfig object
+    match = re.search(r"window\.appConfig\s*=\s*JSON\.parse\('(.*)'\);", js_code, re.DOTALL)
+    assert match, "Could not find window.appConfig object in script tag"
+    
+    app_config_escaped_json = match.group(1)
+    # Unescape HTML entities before parsing as JSON
+    app_config_json = html.unescape(app_config_escaped_json)
+    app_config = json.loads(app_config_json)
+
+    assert app_config['seoPageContractTextRaw'] == expected_contract_text

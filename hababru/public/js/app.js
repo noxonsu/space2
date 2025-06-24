@@ -17,20 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAnalysisTaskId = null; 
     let currentSelectedParagraphIndex = null;
 
-    // Data from SEO page (if applicable), read from #seo-data div
+    // Data from SEO page (if applicable), read from hidden div
     let isSeoPage = false;
     let mainKeyword = null;
     let seoPageContractTextRaw = null;
     let seoPageAnalysisDataRaw = null;
 
-    const seoDataElement = document.getElementById('seo-data');
-    if (seoDataElement) {
-        // Data attributes are always strings. Parse them as JSON.
-        // Use a fallback to 'false' or 'null' string if the attribute is missing.
-        isSeoPage = JSON.parse(seoDataElement.dataset.isSeoPage || 'false');
-        mainKeyword = JSON.parse(seoDataElement.dataset.mainKeyword || 'null');
-        seoPageContractTextRaw = seoDataElement.dataset.contractTextRaw;
-        seoPageAnalysisDataRaw = seoDataElement.dataset.analysisResultsRaw;
+    const appConfigDataElement = document.getElementById('app-config-data');
+    if (appConfigDataElement && appConfigDataElement.textContent) {
+        try {
+            const appConfig = JSON.parse(appConfigDataElement.textContent);
+            window.appConfig = appConfig; // Populate global appConfig
+            isSeoPage = appConfig.isSeoPage || false;
+            mainKeyword = appConfig.mainKeyword || null;
+            seoPageContractTextRaw = appConfig.seoPageContractTextRaw || null;
+            seoPageAnalysisDataRaw = appConfig.seoPageAnalysisResultsRaw || null;
+        } catch (e) {
+            console.error("Error parsing appConfig data from hidden div:", e);
+        }
     }
 
     // Функция для сброса состояния прогресс-бара
@@ -344,10 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Обнаружен параметр test в URL:', testFileName);
         loadTestContractAndAnalyze(testFileName);
     } else if (isSeoPage) { // Check if it's an SEO page
-        console.log('Обнаружены данные для SEO-страницы. Декодируем и отображаем встроенный анализ.');
+        console.log('Обнаружены данные для SEO-страницы. Используем window.appConfig.');
         try {
-            const contractTextForSeo = seoPageContractTextRaw !== 'null' ? JSON.parse(seoPageContractTextRaw) : "";
-            const analysisDataForSeo = seoPageAnalysisDataRaw !== 'null' ? JSON.parse(seoPageAnalysisDataRaw) : null;
+            const contractTextForSeo = seoPageContractTextRaw;
+            const analysisDataForSeo = seoPageAnalysisDataRaw;
             
             let resultsArray = [];
             if (analysisDataForSeo) {
@@ -364,18 +368,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('SEO Page: Analysis Data (processed):', resultsArray);
 
             if (contractTextForSeo) {
-                 // Если есть текст договора, но нет анализа (например, анализ "на лету" еще не завершен бэкендом)
-                 // или если анализ уже есть, отображаем его.
                 if (resultsArray && resultsArray.length > 0) {
                     displayContractAndAnalysis(contractTextForSeo, resultsArray);
                 } else {
-                    // Если текст есть, а анализа нет (например, для SEO-страниц, где анализ делается "на лету" и может быть еще не готов)
-                    // Запускаем startAnalysisAndPollStatus, который отобразит текст и будет ждать анализ
-                    // Это также обработает случай, если анализ уже в кэше на бэкенде.
                     startAnalysisAndPollStatus(contractTextForSeo);
                 }
             } else {
-                console.warn('SEO Page: Текст договора отсутствует, загрузка примера не предусмотрена для SEO страниц с ошибками данных.');
+                console.warn('SEO Page: Текст договора отсутствует.');
                 if(contractTextDisplayDiv) contractTextDisplayDiv.innerHTML = "<p>Ошибка: Текст договора для этой страницы не найден.</p>";
                 if(analysisPanel) analysisPanel.innerHTML = "<p>Анализ невозможен без текста договора.</p>";
             }

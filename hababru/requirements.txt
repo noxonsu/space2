@@ -8,3 +8,4 @@ markitdown[all]
 pytest
 fpdf
 python-docx
+beautifulsoup4
