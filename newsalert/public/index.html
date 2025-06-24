@@ -1,77 +1,255 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>News Alert Admin Panel</title>
     <style>
-        body { font-family: sans-serif; }
-        #keywords-list { margin-top: 20px; }
-        .keyword-item { margin-bottom: 5px; }
-        .delete-btn { margin-left: 10px; cursor: pointer; color: red; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input, select, button {
+            padding: 8px 12px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .keyword-item {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background-color: #e9ecef;
+            border-radius: 20px;
+        }
+        .news-item {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .news-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .news-source {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .news-date {
+            color: #999;
+            font-size: 0.8em;
+        }
+        .filter-section {
+            background-color: #e9ecef;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
-    <h1>News Alert Admin Panel</h1>
+    <div class="container">
+        <h1>News Alert Admin Panel</h1>
+        
+        <!-- Keywords Management Section -->
+        <div class="section">
+            <h2>Управление ключевыми словами</h2>
+            <div>
+                <input type="text" id="newKeyword" placeholder="Введите новое ключевое слово">
+                <button onclick="addKeyword()">Добавить</button>
+            </div>
+            <div id="keywordsList"></div>
+        </div>
 
-    <h2>Manage Keywords</h2>
-
-    <div>
-        <input type="text" id="new-keyword" placeholder="Add new keyword">
-        <button onclick="addKeyword()">Add Keyword</button>
-    </div>
-
-    <div id="keywords-list">
-        <h3>Current Keywords:</h3>
-        <ul id="keyword-items">
-            <!-- Keywords will be loaded here -->
-        </ul>
+        <!-- News Section -->
+        <div class="section">
+            <h2>Найденные новости</h2>
+            
+            <div class="filter-section">
+                <label for="keywordFilter">Фильтр по ключевому слову:</label>
+                <select id="keywordFilter" onchange="loadNews()">
+                    <option value="">Все новости</option>
+                </select>
+                <button onclick="loadNews()">Обновить</button>
+            </div>
+            
+            <div id="newsCount"></div>
+            <div id="newsList"></div>
+        </div>
     </div>
 
     <script>
-        async function fetchKeywords() {
-            const response = await fetch('/api/keywords');
-            const keywords = await response.json();
-            const keywordItems = document.getElementById('keyword-items');
-            keywordItems.innerHTML = ''; // Clear existing list
-            keywords.forEach(keyword => {
-                const li = document.createElement('li');
-                li.className = 'keyword-item';
-                li.textContent = keyword;
-                const deleteBtn = document.createElement('span');
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.textContent = 'x';
-                deleteBtn.onclick = () => deleteKeyword(keyword);
-                li.appendChild(deleteBtn);
-                keywordItems.appendChild(li);
-            });
+        // Load keywords and news on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadKeywords();
+            loadNews();
+        });
+
+        async function loadKeywords() {
+            try {
+                const response = await fetch('/api/keywords');
+                const keywords = await response.json();
+                
+                // Update keywords list
+                const keywordsList = document.getElementById('keywordsList');
+                keywordsList.innerHTML = '<h3>Текущие ключевые слова:</h3>';
+                
+                keywords.forEach(keyword => {
+                    const keywordItem = document.createElement('div');
+                    keywordItem.className = 'keyword-item';
+                    keywordItem.innerHTML = `
+                        ${keyword}
+                        <button class="delete-btn" onclick="deleteKeyword('${keyword}')">×</button>
+                    `;
+                    keywordsList.appendChild(keywordItem);
+                });
+
+                // Update filter dropdown
+                const keywordFilter = document.getElementById('keywordFilter');
+                keywordFilter.innerHTML = '<option value="">Все новости</option>';
+                keywords.forEach(keyword => {
+                    const option = document.createElement('option');
+                    option.value = keyword;
+                    option.textContent = keyword;
+                    keywordFilter.appendChild(option);
+                });
+                
+            } catch (error) {
+                console.error('Error loading keywords:', error);
+            }
         }
 
         async function addKeyword() {
-            const input = document.getElementById('new-keyword');
-            const keyword = input.value.trim();
-            if (keyword) {
-                await fetch('/api/keywords', {
+            const newKeyword = document.getElementById('newKeyword').value.trim();
+            if (!newKeyword) return;
+
+            try {
+                const response = await fetch('/api/keywords', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ keyword })
+                    body: JSON.stringify({ keyword: newKeyword })
                 });
-                input.value = '';
-                fetchKeywords(); // Refresh the list
+
+                if (response.ok) {
+                    document.getElementById('newKeyword').value = '';
+                    loadKeywords();
+                } else {
+                    alert('Ошибка при добавлении ключевого слова');
+                }
+            } catch (error) {
+                console.error('Error adding keyword:', error);
+                alert('Ошибка при добавлении ключевого слова');
             }
         }
 
         async function deleteKeyword(keyword) {
-            await fetch(`/api/keywords/${encodeURIComponent(keyword)}`, {
-                method: 'DELETE'
-            });
-            fetchKeywords(); // Refresh the list
+            if (!confirm(`Удалить ключевое слово "${keyword}"?`)) return;
+
+            try {
+                const response = await fetch(`/api/keywords/${encodeURIComponent(keyword)}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadKeywords();
+                } else {
+                    alert('Ошибка при удалении ключевого слова');
+                }
+            } catch (error) {
+                console.error('Error deleting keyword:', error);
+                alert('Ошибка при удалении ключевого слова');
+            }
         }
 
-        // Fetch keywords when the page loads
-        window.onload = fetchKeywords;
+        async function loadNews() {
+            try {
+                const selectedKeyword = document.getElementById('keywordFilter').value;
+                const url = selectedKeyword ? `/api/news?keyword=${encodeURIComponent(selectedKeyword)}` : '/api/news';
+                
+                const response = await fetch(url);
+                const news = await response.json();
+                
+                // Update news count
+                const newsCount = document.getElementById('newsCount');
+                newsCount.innerHTML = `<p><strong>Найдено новостей: ${news.length}</strong></p>`;
+                
+                // Update news list
+                const newsList = document.getElementById('newsList');
+                newsList.innerHTML = '';
+                
+                news.forEach(newsItem => {
+                    const newsDiv = document.createElement('div');
+                    newsDiv.className = 'news-item';
+                    newsDiv.innerHTML = `
+                        <div class="news-title">${newsItem.title}</div>
+                        <div class="news-source">
+                            Ключевое слово: <strong>${newsItem.keyword}</strong> | 
+                            Источник: ${newsItem.source || 'N/A'}
+                        </div>
+                        <div class="news-date">
+                            Дата новости: ${newsItem.date || 'N/A'} | 
+                            Добавлено: ${new Date(newsItem.fetchedAt).toLocaleString('ru-RU')}
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <a href="${newsItem.link}" target="_blank" style="color: #007bff;">Читать полностью</a>
+                        </div>
+                        ${newsItem.snippet ? `<div style="margin-top: 5px; font-style: italic; color: #666;">${newsItem.snippet}</div>` : ''}
+                    `;
+                    newsList.appendChild(newsDiv);
+                });
+                
+                if (news.length === 0) {
+                    newsList.innerHTML = '<p>Новости не найдены.</p>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading news:', error);
+                document.getElementById('newsList').innerHTML = '<p>Ошибка при загрузке новостей.</p>';
+            }
+        }
+
+        // Allow adding keywords with Enter key
+        document.getElementById('newKeyword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addKeyword();
+            }
+        });
     </script>
 </body>
 </html>

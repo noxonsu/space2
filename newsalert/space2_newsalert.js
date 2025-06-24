@@ -68,6 +68,37 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(keywords));
     });
+  } else if (pathname === '/api/news' && method === 'GET') {
+    fs.readFile(NEWS_DATA_FILE_PATH, 'utf8', (err, data) => {
+      if (err) {
+        console.error('Error reading news file:', err);
+        res.writeHead(500);
+        res.end('Error reading news');
+        return;
+      }
+      let newsData = [];
+      if (data) {
+        try {
+          newsData = JSON.parse(data);
+        } catch (parseErr) {
+          console.error('Error parsing news data:', parseErr);
+          res.writeHead(500);
+          res.end('Error parsing news data');
+          return;
+        }
+      }
+      
+      const keyword = parsedUrl.query.keyword;
+      if (keyword) {
+        newsData = newsData.filter(item => item.keyword === keyword);
+      }
+      
+      // Sort by fetchedAt descending (newest first)
+      newsData.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(newsData));
+    });
   } else if (pathname === '/api/keywords' && method === 'POST') {
     parseBody(req, (err, body) => {
       if (err || !body || !body.keyword) {
