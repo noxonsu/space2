@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Alert Admin Panel</title>
+    <style>
+        body { font-family: sans-serif; }
+        #keywords-list { margin-top: 20px; }
+        .keyword-item { margin-bottom: 5px; }
+        .delete-btn { margin-left: 10px; cursor: pointer; color: red; }
+    </style>
+</head>
+<body>
+    <h1>News Alert Admin Panel</h1>
+
+    <h2>Manage Keywords</h2>
+
+    <div>
+        <input type="text" id="new-keyword" placeholder="Add new keyword">
+        <button onclick="addKeyword()">Add Keyword</button>
+    </div>
+
+    <div id="keywords-list">
+        <h3>Current Keywords:</h3>
+        <ul id="keyword-items">
+            <!-- Keywords will be loaded here -->
+        </ul>
+    </div>
+
+    <script>
+        async function fetchKeywords() {
+            const response = await fetch('/api/keywords');
+            const keywords = await response.json();
+            const keywordItems = document.getElementById('keyword-items');
+            keywordItems.innerHTML = ''; // Clear existing list
+            keywords.forEach(keyword => {
+                const li = document.createElement('li');
+                li.className = 'keyword-item';
+                li.textContent = keyword;
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'x';
+                deleteBtn.onclick = () => deleteKeyword(keyword);
+                li.appendChild(deleteBtn);
+                keywordItems.appendChild(li);
+            });
+        }
+
+        async function addKeyword() {
+            const input = document.getElementById('new-keyword');
+            const keyword = input.value.trim();
+            if (keyword) {
+                await fetch('/api/keywords', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ keyword })
+                });
+                input.value = '';
+                fetchKeywords(); // Refresh the list
+            }
+        }
+
+        async function deleteKeyword(keyword) {
+            await fetch(`/api/keywords/${encodeURIComponent(keyword)}`, {
+                method: 'DELETE'
+            });
+            fetchKeywords(); // Refresh the list
+        }
+
+        // Fetch keywords when the page loads
+        window.onload = fetchKeywords;
+    </script>
+</body>
+</html>
