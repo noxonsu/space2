@@ -51,7 +51,13 @@ def index():
     # Передаем данные для рендеринга главной страницы через index_template.html
     # is_seo_page=False означает, что это не SEO-страница
     # Остальные SEO-специфичные переменные будут иметь значения по умолчанию (None или пустые строки)
-    return render_template('index_template.html', is_seo_page=False)
+    return render_template(
+        'index_template.html',
+        is_seo_page=False,
+        main_keyword=None,
+        contract_text_raw=None,
+        analysis_results_raw=None
+    )
 
 # Маршрут для обслуживания статических файлов (CSS, JS, assets)
 @app.route('/css/<path:filename>')

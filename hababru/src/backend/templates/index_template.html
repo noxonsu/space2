@@ -9,6 +9,23 @@
     {% if related_keywords_meta %}<meta name="related-keywords" content="{{ related_keywords_meta | join(', ') }}">{% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript" >
+       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+       m[i].l=1*new Date();
+       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+       ym(97234589, "init", {
+            clickmap:true,
+            trackLinks:true,
+            accurateTrackBounce:true,
+            webvisor:true
+       });
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/97234589" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <!-- /Yandex.Metrika counter -->
 </head>
 <body>
     <header>
@@ -99,10 +116,12 @@
     </footer>
 
     <script>
-        window.isSeoPage = {{ is_seo_page | default(false) | tojson }};
-        window.mainKeyword = {{ main_keyword | default(none) | tojson | safe }};
-        window.seoPageContractTextRaw = {{ contract_text_raw | default(none) | tojson | safe }};
-        window.seoPageAnalysisDataRaw = {{ analysis_results_raw | default(none) | tojson | safe }};
+        window.appConfig = {
+            isSeoPage: {{ is_seo_page | default(false) | tojson }},
+            mainKeyword: {% if main_keyword is not none %}{{ main_keyword | tojson }}{% else %}null{% endif %},
+            seoPageContractTextRaw: {% if contract_text_raw is not none %}{{ contract_text_raw | tojson }}{% else %}null{% endif %},
+            seoPageAnalysisDataRaw: {% if analysis_results_raw is not none %}{{ analysis_results_raw | tojson }}{% else %}null{% endif %}
+        };
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
