@@ -145,7 +145,7 @@ async function fetchNewsForKeyword(keyword) {
     const params = {
         api_key: api_key,
         query: keyword,
-        results: 10,
+        results: 5,
         page: 0,
         advance_search: "true",
     };
@@ -266,6 +266,14 @@ async function processAndSendNews(keyword, newsItems) {
 
     const existingNewsLinks = new Set(allNews.map(item => item.link));
     const newNewsItems = newEntries.filter(item => !existingNewsLinks.has(item.link));
+    const skippedItems = newEntries.filter(item => existingNewsLinks.has(item.link));
+
+    if (skippedItems.length > 0) {
+        console.log(`Пропущено ${skippedItems.length} новостей для "${keyword}" - уже есть в истории`);
+        skippedItems.forEach(item => {
+            console.log(`  - Пропущена: "${item.title}"`);
+        });
+    }
 
     if (newNewsItems.length > 0) {
         console.log(`Found ${newNewsItems.length} new news items for "${keyword}".`);
