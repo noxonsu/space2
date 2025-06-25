@@ -1,1 +1,16 @@
-package-lock.json
+# PM2 logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env_keys
+
+# Node modules
+node_modules/
+
+# Data files
+fetched_news.json
+
+# PM2
+.pm2/
