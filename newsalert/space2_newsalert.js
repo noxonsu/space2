@@ -221,6 +221,87 @@ async function fetchNewsForKeyword(keyword) {
     return [];
 }
 
+// Helper function to check if news is older than 2 days
+function isNewsOlderThan2Days(dateString) {
+    if (!dateString) return false;
+    
+    try {
+        const now = new Date();
+        const twoDaysInMs = 2 * 24 * 60 * 60 * 1000;
+        
+        // Handle relative dates like "2 days ago", "24 hours ago", "2 weeks ago", etc.
+        if (dateString.includes('ago')) {
+            // Match patterns like "3 days ago", "24 hours ago", "2 weeks ago", "1 minute ago"
+            const match = dateString.match(/(\d+)\s*(minute|hour|day|week|month)s?\s*ago/i);
+            if (match) {
+                const amount = parseInt(match[1]);
+                const unit = match[2].toLowerCase();
+                
+                let newsAgeInMs = 0;
+                
+                switch (unit) {
+                    case 'minute':
+                        newsAgeInMs = amount * 60 * 1000;
+                        break;
+                    case 'hour':
+                        newsAgeInMs = amount * 60 * 60 * 1000;
+                        break;
+                    case 'day':
+                        newsAgeInMs = amount * 24 * 60 * 60 * 1000;
+                        break;
+                    case 'week':
+                        newsAgeInMs = amount * 7 * 24 * 60 * 60 * 1000;
+                        break;
+                    case 'month':
+                        newsAgeInMs = amount * 30 * 24 * 60 * 60 * 1000;
+                        break;
+                    default:
+                        return false;
+                }
+                
+                // Return true if news is older than 2 days (48 hours)
+                return newsAgeInMs >= twoDaysInMs;
+            }
+        }
+        
+        // Try to parse as actual date (like "Apr 7, 2025")
+        const newsDate = new Date(dateString);
+        if (!isNaN(newsDate.getTime())) {
+            const twoDaysAgo = new Date(now.getTime() - twoDaysInMs);
+            return newsDate < twoDaysAgo;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Error parsing date:', dateString, error.message);
+        return false;
+    }
+}
+
+// Test function - временно для проверки
+function testDateFiltering() {
+    const testDates = [
+        "1 day ago",      // должно быть false (свежая)
+        "24 hours ago",   // должно быть false (свежая, 1 день)
+        "20 hours ago",   // должно быть false (свежая)
+        "48 hours ago",   // должно быть true (граница, 2 дня)
+        "2 days ago",     // должно быть true (граница)
+        "3 days ago",     // должно быть true (старая)
+        "6 days ago",     // должно быть true (старая)
+        "2 weeks ago",    // должно быть true (старая)
+        "1 hour ago",     // должно быть false (свежая)
+        "12 hours ago",   // должно быть false (свежая)
+        "Apr 7, 2025"     // должно быть true (дата в прошлом)
+    ];
+    
+    console.log("=== Тест фильтрации дат ===");
+    testDates.forEach(date => {
+        const isOld = isNewsOlderThan2Days(date);
+        console.log(`${date}: ${isOld ? 'ПРОПУСТИТЬ (старая)' : 'ОБРАБОТАТЬ (свежая)'}`);
+    });
+    console.log("=== Конец теста ===\n");
+}
+
 async function processAndSendNews(keyword, newsItems) {
     let allNews = [];
     try {
@@ -237,7 +318,21 @@ async function processAndSendNews(keyword, newsItems) {
     }
 
     const fetchedAt = new Date().toISOString();
-    const newEntries = newsItems.map(item => ({
+    
+    // Filter out news older than 2 days before processing
+    const recentNewsItems = newsItems.filter(item => {
+        const isOld = isNewsOlderThan2Days(item.date);
+        if (isOld) {
+            console.log(`  - Пропущена старая новость (${item.date}): "${item.title}"`);
+        }
+        return !isOld;
+    });
+    
+    if (recentNewsItems.length < newsItems.length) {
+        console.log(`Пропущено ${newsItems.length - recentNewsItems.length} старых новостей для "${keyword}"`);
+    }
+    
+    const newEntries = recentNewsItems.map(item => ({
         keyword: keyword,
         title: item.title,
         link: item.link, // This is already mapped from item.url in fetchNewsForKeyword
@@ -310,6 +405,10 @@ async function processKeywords() {
 
 async function runDailyTask() {
     console.log(`\nStarting news check cycle at ${new Date().toISOString()}`);
+    
+    // Временный тест фильтрации дат
+    testDateFiltering();
+    
     await processKeywords();
     console.log(`News check cycle finished. Next check in 24 hours.`);
     setTimeout(runDailyTask, CHECK_INTERVAL_MS);
