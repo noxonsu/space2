@@ -8,17 +8,17 @@ import { Block, Input, Transaction, EntityState } from '../../src/types';
 import { RLP } from '@ethereumjs/rlp';
 import { Level } from 'level';
 
-// Helper function to deserialize data from RLP decoding
+// Вспомогательная функция для десериализации данных после RLP-декодирования
 function deserializeFromRLP(rlpData: any): any {
-  // Обработка Uint8Array (которые возвращает RLP.decode)
+  // Обработка Uint8Array (возвращаемых RLP.decode)
   if (rlpData instanceof Uint8Array) {
-    // Если это пустой массив, то это был 0
+    // Если это пустой массив, значит, это был 0
     if (rlpData.length === 0) {
       return 0;
     }
     try {
       const str = Buffer.from(rlpData).toString('utf8');
-      // Проверяем, является ли это строковым представлением BigInt
+      // Проверяем, является ли строка представлением BigInt
       if (/^\d+$/.test(str) && str.length > 15) {
         return BigInt(str);
       }
@@ -29,7 +29,7 @@ function deserializeFromRLP(rlpData: any): any {
       }
       return str;
     } catch (e) {
-      // Если это не валидная UTF-8 строка, возможно это число в бинарном формате
+      // Если это невалидная UTF-8 строка, возможно, это число в бинарном формате
       if (rlpData.length <= 8) {
         // Преобразуем из big-endian в число
         let result = 0;
@@ -46,8 +46,8 @@ function deserializeFromRLP(rlpData: any): any {
     return rlpData;
   }
 
-  // Проверяем, является ли это сериализованным объектом (массив пар [key, value])
-  // Это происходит когда serializeForRLP обрабатывает plain objects или Maps
+  // Проверяем, является ли это сериализованным объектом (массив пар [ключ, значение])
+  // Это происходит, когда serializeForRLP обрабатывает простые объекты или Map
   if (rlpData.length > 0 && rlpData.every(item => Array.isArray(item) && item.length === 2)) {
     
     // Проверяем, являются ли все первые элементы строками (ключами объекта)
@@ -57,20 +57,20 @@ function deserializeFromRLP(rlpData: any): any {
     });
     
     if (allKeysAreStrings) {
-      // Это объект - создаем из пар key-value
+      // Это объект - создаем из пар ключ-значение
       const keyValuePairs = rlpData.map(([key, value]: [any, any]) => [
         deserializeFromRLP(key), 
         deserializeFromRLP(value)
       ]);
       
-      // Создаем объект для быстрого поиска ключей
+      // Создаем объект для быстрого поиска по ключам
       const keyValueObj: { [key: string]: any } = {};
       for (const [key, value] of keyValuePairs) {
         keyValueObj[key] = value;
       }
       
       if (keyValueObj.type && keyValueObj.data) {
-        // Это Input объект
+        // Это объект Input
         return {
           type: keyValueObj.type,
           data: keyValueObj.data
@@ -78,7 +78,7 @@ function deserializeFromRLP(rlpData: any): any {
       }
       
       if (keyValueObj.map && keyValueObj.bigint !== undefined && keyValueObj.buffer) {
-        // Это data объект из Input с map, bigint и buffer
+        // Это объект data из Input с map, bigint и buffer
         const result: any = {};
         
         for (const [key, value] of keyValuePairs) {
@@ -86,7 +86,7 @@ function deserializeFromRLP(rlpData: any): any {
             // Восстанавливаем Map
             const map = new Map();
             if (Array.isArray(value)) {
-              // Если это массив пар [key, value]
+              // Если это массив пар [ключ, значение]
               for (const [mapKey, mapValue] of value) {
                 const deserializedKey = deserializeFromRLP(mapKey);
                 const deserializedValue = deserializeFromRLP(mapValue);
@@ -99,7 +99,7 @@ function deserializeFromRLP(rlpData: any): any {
               }              } else {
                 // Если это объект, конвертируем его в Map
                 for (const [mapKey, mapValue] of Object.entries(value)) {
-                  // В нашем тесте оригинальные значения были BigInt
+                  // В нашем тесте исходные значения были BigInt
                   if (typeof mapValue === 'number') {
                     map.set(mapKey, BigInt(mapValue));
                   } else if (typeof mapValue === 'string' && /^\d+$/.test(mapValue)) {
@@ -132,15 +132,15 @@ function deserializeFromRLP(rlpData: any): any {
 }
 
 
-describe('Server Integration', () => {
+describe('Интеграционные тесты сервера', () => {
   let server: Server;
   let currentDbPath: string;
   let currentWsPort: number;
 
   beforeEach(async () => {
     currentDbPath = path.join(__dirname, `test-db-${Date.now()}`);
-    currentWsPort = 8080 + Math.floor(Math.random() * 100); // Unique port for each test
-    await cleanup(currentDbPath); // Ensure cleanup for unique path
+    currentWsPort = 8080 + Math.floor(Math.random() * 100); // Уникальный порт для каждого теста
+    await cleanup(currentDbPath); // Гарантируем очистку для уникального пути
     server = new Server(currentDbPath, currentWsPort);
   });
 
@@ -153,17 +153,17 @@ describe('Server Integration', () => {
     await cleanup(currentDbPath);
   });
 
-  // Helper to clear a specific test database
+  // Вспомогательная функция для очистки конкретной тестовой базы данных
   const cleanup = async (dbPathToClean: string) => {
     if (fs.existsSync(dbPathToClean)) {
       await fs.promises.rm(dbPathToClean, { recursive: true, force: true });
     }
   };
 
-  // Helper to save LevelDB artifacts for inspection
+  // Вспомогательная функция для сохранения артефактов LevelDB для проверки
   const saveDbArtifacts = async (dbPath: string) => {
     if (!fs.existsSync(dbPath)) {
-      console.log(`Database path ${dbPath} does not exist, skipping artifact save`);
+      console.log(`Путь к базе данных ${dbPath} не существует, пропуск сохранения артефактов`);
       return;
     }
     
@@ -176,27 +176,27 @@ describe('Server Integration', () => {
       const timestamp = Date.now();
       const artifactPath = path.join(artifactsDir, `db-${timestamp}`);
       
-      // Copy the entire database directory
+      // Копируем всю директорию базы данных
       await fs.promises.cp(dbPath, artifactPath, { recursive: true });
       
-      // Also create a summary file with database contents
+      // Также создаем файл-сводку с содержимым базы данных
       const db = new Level<string, Uint8Array>(dbPath, { valueEncoding: 'view' });
       await db.open();
       
       const summaryFile = path.join(artifactsDir, `db-summary-${timestamp}.txt`);
-      let summary = `LevelDB Contents (${new Date().toISOString()}):\n`;
-      summary += `Database Path: ${dbPath}\n`;
-      summary += `Artifact Path: ${artifactPath}\n\n`;
+      let summary = `Содержимое LevelDB (${new Date().toISOString()}):\n`;
+      summary += `Путь к БД: ${dbPath}\n`;
+      summary += `Путь к артефакту: ${artifactPath}\n\n`;
       
       for await (const [key, value] of db.iterator()) {
-        summary += `Key: ${key}\n`;
-        summary += `Value Length: ${value.length} bytes\n`;
+        summary += `Ключ: ${key}\n`;
+        summary += `Длина значения: ${value.length} байт\n`;
         
-        // Try to decode RLP data for block entries
+        // Пытаемся декодировать RLP-данные для записей блоков
         if (key.startsWith('block_')) {
           try {
             const decodedArray = RLP.decode(value) as any[];
-            summary += `RLP Decoded Structure:\n`;
+            summary += `Декодированная RLP структура:\n`;
             summary += JSON.stringify(decodedArray, (key, val) => {
               if (val instanceof Uint8Array) {
                 return `Uint8Array(${val.length})`;
@@ -205,14 +205,14 @@ describe('Server Integration', () => {
             }, 2);
             summary += '\n';
           } catch (e) {
-            summary += `RLP Decode Error: ${e}\n`;
+            summary += `Ошибка декодирования RLP: ${e}\n`;
           }
         } else {
-          // For non-block entries, try to display as string
+          // Для записей, не являющихся блоками, пытаемся отобразить как строку
           try {
-            summary += `Value (as string): ${Buffer.from(value).toString('utf8')}\n`;
+            summary += `Значение (как строка): ${Buffer.from(value).toString('utf8')}\n`;
           } catch (e) {
-            summary += `Value: <binary data>\n`;
+            summary += `Значение: <бинарные данные>\n`;
           }
         }
         summary += '\n---\n\n';
@@ -221,14 +221,14 @@ describe('Server Integration', () => {
       await fs.promises.writeFile(summaryFile, summary);
       await db.close();
       
-      console.log(`LevelDB artifacts saved to: ${artifactPath}`);
-      console.log(`Database summary saved to: ${summaryFile}`);
+      console.log(`Артефакты LevelDB сохранены в: ${artifactPath}`);
+      console.log(`Сводка по базе данных сохранена в: ${summaryFile}`);
     } catch (error) {
-      console.error('Error saving LevelDB artifacts:', error);
+      console.error('Ошибка при сохранении артефактов LevelDB:', error);
     }
   };
 
-  it('should start, create a block, and restore state', async () => {
+  it('должен запускаться, создавать блок и восстанавливать состояние', async () => {
     const entityAIdentity = EthCrypto.createIdentity();
     const entityBIdentity = EthCrypto.createIdentity();
     const entityA = new Entity(entityAIdentity);
@@ -244,7 +244,7 @@ describe('Server Integration', () => {
 
     await server.start();
     
-    await new Promise(resolve => setTimeout(resolve, 150)); // Wait for block to be processed
+    await new Promise(resolve => setTimeout(resolve, 150)); // Ждем обработки блока
     
     await server.stop();
 
@@ -253,9 +253,9 @@ describe('Server Integration', () => {
     // @ts-ignore
     expect(server2.currentBlockHeight).toBe(1);
     await server2.stop();
-  }, 15000); // Increased timeout
+  }, 15000); // Увеличенный таймаут
 
-  it('should broadcast new blocks to WebSocket clients', (done) => {
+  it('должен транслировать новые блоки клиентам WebSocket', (done) => {
     const ws = new WebSocket(`ws://localhost:${currentWsPort}`);
     let transaction: Transaction;
 
@@ -295,9 +295,9 @@ describe('Server Integration', () => {
 
       await server.start();
     });
-  }, 15000); // Increased timeout
+  }, 15000); // Увеличенный таймаут
 
-  it('should correctly RLP-encode and decode a block with Map, BigInt, and Buffer', async () => {
+  it('должен корректно RLP-кодировать и декодировать блок с Map, BigInt и Buffer', async () => {
     const entityAIdentity = EthCrypto.createIdentity();
     const entityA = new Entity(entityAIdentity);
     server.addEntity(entityA);
@@ -321,11 +321,11 @@ describe('Server Integration', () => {
     const rlpEncodedBlock = await db.get('block_0');
     const decodedArray = RLP.decode(rlpEncodedBlock) as any[];
     
-    // The decodedArray will be an array of RLP-decoded values.
-    // We need to reconstruct the original Block object from this array.
-    // The order of properties in Object.values(block) in server.ts is: height, inputs, timestamp (sorted alphabetically)
+    // decodedArray будет массивом RLP-декодированных значений.
+    // Нам нужно восстановить исходный объект Block из этого массива.
+    // Порядок свойств в Object.values(block) в server.ts: height, inputs, timestamp (отсортировано по алфавиту)
     
-    // Создаем объект из массива пар [key, value]
+    // Создаем объект из массива пар [ключ, значение]
     const blockObj: any = {};
     for (const [keyBuffer, value] of decodedArray) {
       const key = Buffer.from(keyBuffer).toString();
@@ -342,8 +342,8 @@ describe('Server Integration', () => {
     expect(decodedBlock.inputs).toBeInstanceOf(Array);
     expect(decodedBlock.inputs.length).toBe(1);
 
-    // Check the deserialized input data
-    const decodedInput = decodedBlock.inputs[0][0][0]; // Accessing the first input's data
+    // Проверяем десериализованные входные данные
+    const decodedInput = decodedBlock.inputs[0][0][0]; // Получаем доступ к данным первого входа
     expect(decodedInput.type).toBe('proposal');
     expect(decodedInput.data.map).toBeInstanceOf(Map);
     expect(decodedInput.data.map.get('a')).toBe(1n);
@@ -352,28 +352,28 @@ describe('Server Integration', () => {
     expect(decodedInput.data.buffer).toEqual(Buffer.from('hello'));
     
     await db.close();
-  }, 15000); // Increased timeout
+  }, 15000); // Увеличенный таймаут
 
-  it('should create blocks every second when there are inputs', async () => {
+  it('должен создавать блоки каждую секунду при наличии входных данных', async () => {
     const entityAIdentity = EthCrypto.createIdentity();
     const entityA = new Entity(entityAIdentity);
     server.addEntity(entityA);
 
     await server.start();
 
-    // Submit inputs with delays greater than 100ms to ensure they go into separate blocks
+    // Отправляем входы с задержками более 100 мс, чтобы они попали в разные блоки
     server.submitInput(entityA.getState().id, { type: 'transaction', data: { id: 'tx1' } });
-    await new Promise(resolve => setTimeout(resolve, 150)); // Wait for first block to be created
+    await new Promise(resolve => setTimeout(resolve, 150)); // Ждем создания первого блока
 
     server.submitInput(entityA.getState().id, { type: 'transaction', data: { id: 'tx2' } });
-    await new Promise(resolve => setTimeout(resolve, 150)); // Wait for second block to be created
+    await new Promise(resolve => setTimeout(resolve, 150)); // Ждем создания второго блока
 
     server.submitInput(entityA.getState().id, { type: 'transaction', data: { id: 'tx3' } });
-    await new Promise(resolve => setTimeout(resolve, 150)); // Wait for third block to be created
+    await new Promise(resolve => setTimeout(resolve, 150)); // Ждем создания третьего блока
 
     // @ts-ignore
-    expect(server.currentBlockHeight).toBeGreaterThanOrEqual(3); // Expect at least 3 blocks
+    expect(server.currentBlockHeight).toBeGreaterThanOrEqual(3); // Ожидаем как минимум 3 блока
 
     await server.stop();
-  }, 15000); // Increased timeout
+  }, 15000); // Увеличенный таймаут
 });

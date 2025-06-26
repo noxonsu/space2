@@ -1,8 +1,8 @@
 import { Entity } from '../../src/entity';
 import * as EthCrypto from 'eth-crypto';
 
-describe('Entity', () => {
-  it('should create an entity with a valid state', () => {
+describe('Сущность (Entity)', () => {
+  it('должна создавать сущность с валидным состоянием', () => {
     const identity = EthCrypto.createIdentity();
     const entity = new Entity(identity);
     const state = entity.getState();
@@ -14,7 +14,7 @@ describe('Entity', () => {
     expect(state.quorumMembers).toBeDefined();
   });
 
-  it('should create an account with another entity', () => {
+  it('должна создавать счет с другой сущностью', () => {
     const entityAIdentity = EthCrypto.createIdentity();
     const entityBIdentity = EthCrypto.createIdentity();
     const entityA = new Entity(entityAIdentity);

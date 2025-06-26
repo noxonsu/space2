@@ -3,9 +3,9 @@ import { Account } from '../../src/account';
 import { Transaction, Receipt, EntityID } from '../../src/types';
 import { signMessage, recoverPublicKey } from '../../src/crypto';
 import * as EthCrypto from 'eth-crypto';
-import stringify from 'fast-json-stable-stringify'; // Добавляем импорт stringify
+import stringify from 'fast-json-stable-stringify';
 
-// Helper function to deep convert BigInt to string (duplicate from crypto.ts for testing purposes)
+// Вспомогательная функция для глубокого преобразования BigInt в строку (дубликат из crypto.ts для целей тестирования)
 function deepConvertBigIntToString(obj: any): any {
   if (typeof obj === 'bigint') {
     return obj.toString();
@@ -36,14 +36,14 @@ describe('Account', () => {
     const identityB = EthCrypto.createIdentity();
     entityAPrivateKey = identityA.privateKey;
     entityBPrivateKey = identityB.privateKey;
-    // Ensure public keys are uncompressed and without '0x' prefix
+    // Убедимся, что публичные ключи не сжаты и не имеют префикса '0x'
     entityAId = identityA.publicKey.startsWith('0x') ? identityA.publicKey.substring(2) : identityA.publicKey;
     entityBId = identityB.publicKey.startsWith('0x') ? identityB.publicKey.substring(2) : identityB.publicKey;
-    console.log(`Entity A ID: ${entityAId}`);
-    console.log(`Entity B ID: ${entityBId}`);
+    console.log(`ID Сущности A: ${entityAId}`);
+    console.log(`ID Сущности B: ${entityBId}`);
   });
 
-  it('should initialize with zero balances', () => {
+  it('должен инициализироваться с нулевыми балансами', () => {
     const account = new Account(entityAId, entityBId);
     const state = account.getState();
     expect(state.balanceA).toBe(0n);
@@ -52,11 +52,11 @@ describe('Account', () => {
     expect(state.channelId).toBe([entityAId, entityBId].sort().join('-'));
   });
 
-  it('should apply a valid transaction and update balances', async () => {
+  it('должен применять валидную транзакцию и обновлять балансы', async () => {
     const account = new Account(entityAId, entityBId);
     const initialBalanceA = 100n;
     const initialBalanceB = 50n;
-    // Manually set initial balances for testing purposes
+    // Устанавливаем начальные балансы вручную для тестирования
     (account as any).state.balanceA = initialBalanceA;
     (account as any).state.balanceB = initialBalanceB;
 
@@ -71,7 +71,7 @@ describe('Account', () => {
 
     const messageToSignForSigning = stringify(deepConvertBigIntToString(tx));
     const messageHashForSigning = EthCrypto.hash.keccak256(messageToSignForSigning);
-    console.log('messageHashForSigning (tx1):', messageHashForSigning);
+    console.log('Хеш сообщения для подписи (tx1):', messageHashForSigning);
 
     const senderSignature = await signMessage(entityAPrivateKey, tx);
     const receiverSignature = await signMessage(entityBPrivateKey, tx);
@@ -80,7 +80,7 @@ describe('Account', () => {
       transactionId: tx.id,
       signatures: [senderSignature, receiverSignature],
       timestamp: Date.now(),
-      transaction: tx, // Add the transaction object
+      transaction: tx, // Добавляем объект транзакции
     };
 
     const applied = account.applyTransaction(tx, receipt);
@@ -91,7 +91,7 @@ describe('Account', () => {
     expect(state.lastReceipt).toEqual(receipt);
   });
 
-  it('should reject a transaction with invalid sender signature', async () => {
+  it('должен отклонять транзакцию с невалидной подписью отправителя', async () => {
     const account = new Account(entityAId, entityBId);
     const initialBalanceA = 100n;
     const initialBalanceB = 50n;
@@ -109,9 +109,9 @@ describe('Account', () => {
 
     const messageToSignForSigning2 = stringify(deepConvertBigIntToString(tx));
     const messageHashForSigning2 = EthCrypto.hash.keccak256(messageToSignForSigning2);
-    console.log('messageHashForSigning (tx2):', messageHashForSigning2);
+    console.log('Хеш сообщения для подписи (tx2):', messageHashForSigning2);
 
-    // Invalid signature (e.g., from a random private key)
+    // Невалидная подпись (например, от случайного приватного ключа)
     const invalidSignature = await signMessage('0x1234567890123456789012345678901234567890123456789012345678901234', tx);
     const receiverSignature = await signMessage(entityBPrivateKey, tx);
 
@@ -119,18 +119,18 @@ describe('Account', () => {
       transactionId: tx.id,
       signatures: [invalidSignature, receiverSignature],
       timestamp: Date.now(),
-      transaction: tx, // Add the transaction object
+      transaction: tx, // Добавляем объект транзакции
     };
 
     const applied = account.applyTransaction(tx, receipt);
-    expect(applied).toBe(false); // Should be false due to invalid signature
+    expect(applied).toBe(false); // Должно быть false из-за невалидной подписи
     const state = account.getState();
-    expect(state.balanceA).toBe(initialBalanceA); // Balances should not change
+    expect(state.balanceA).toBe(initialBalanceA); // Балансы не должны измениться
     expect(state.balanceB).toBe(initialBalanceB);
-    expect(state.lastReceipt).toBeNull(); // Last receipt should not be updated
+    expect(state.lastReceipt).toBeNull(); // Последняя квитанция не должна обновляться
   });
 
-  it('should reject a transaction with missing receiver signature', async () => {
+  it('должен отклонять транзакцию с отсутствующей подписью получателя', async () => {
     const account = new Account(entityAId, entityBId);
     const initialBalanceA = 100n;
     const initialBalanceB = 50n;
@@ -148,15 +148,15 @@ describe('Account', () => {
 
     const messageToSignForSigning3 = stringify(deepConvertBigIntToString(tx));
     const messageHashForSigning3 = EthCrypto.hash.keccak256(messageToSignForSigning3);
-    console.log('messageHashForSigning (tx3):', messageHashForSigning3);
+    console.log('Хеш сообщения для подписи (tx3):', messageHashForSigning3);
 
     const senderSignature = await signMessage(entityAPrivateKey, tx);
 
     const receipt: Receipt = {
       transactionId: tx.id,
-      signatures: [senderSignature], // Missing receiver signature
+      signatures: [senderSignature], // Отсутствует подпись получателя
       timestamp: Date.now(),
-      transaction: tx, // Add the transaction object
+      transaction: tx, // Добавляем объект транзакции
     };
 
     const applied = account.applyTransaction(tx, receipt);
@@ -167,7 +167,7 @@ describe('Account', () => {
     expect(state.lastReceipt).toBeNull();
   });
 
-  it('should handle conflict resolution by "right wins" rule (no change if no last receipt)', async () => {
+  it('должен обрабатывать разрешение конфликта по правилу "правый побеждает" (без изменений, если нет последней квитанции)', async () => {
     const account = new Account(entityAId, entityBId);
     const initialBalanceA = 100n;
     const initialBalanceB = 50n;
@@ -183,22 +183,22 @@ describe('Account', () => {
       nonce: 4,
     };
 
-    // Simulate a conflict without a valid last receipt
+    // Симулируем конфликт без валидной последней квитанции
     account.resolveConflict(tx);
 
     const state = account.getState();
-    expect(state.balanceA).toBe(initialBalanceA); // Should remain unchanged
+    expect(state.balanceA).toBe(initialBalanceA); // Должны остаться без изменений
     expect(state.balanceB).toBe(initialBalanceB);
   });
 
-  it('should handle conflict resolution by "right wins" rule (revert to last receipt state)', async () => {
+  it('должен обрабатывать разрешение конфликта по правилу "правый побеждает" (откат к состоянию последней квитанции)', async () => {
     const account = new Account(entityAId, entityBId);
     const initialBalanceA = 100n;
     const initialBalanceB = 50n;
     (account as any).state.balanceA = initialBalanceA;
     (account as any).state.balanceB = initialBalanceB;
 
-    // First, apply a valid transaction to set a lastReceipt
+    // Сначала применяем валидную транзакцию, чтобы установить lastReceipt
     const tx1: Transaction = {
       id: 'tx5',
       senderId: entityAId,
@@ -209,7 +209,7 @@ describe('Account', () => {
     };
     const messageToSignForSigning5 = stringify(deepConvertBigIntToString(tx1));
     const messageHashForSigning5 = EthCrypto.hash.keccak256(messageToSignForSigning5);
-    console.log('messageHashForSigning (tx5):', messageHashForSigning5);
+    console.log('Хеш сообщения для подписи (tx5):', messageHashForSigning5);
 
     const senderSignature1 = await signMessage(entityAPrivateKey, tx1);
     const receiverSignature1 = await signMessage(entityBPrivateKey, tx1);
@@ -217,39 +217,39 @@ describe('Account', () => {
       transactionId: tx1.id,
       signatures: [senderSignature1, receiverSignature1],
       timestamp: Date.now(),
-      transaction: tx1, // Add the transaction object
+      transaction: tx1, // Добавляем объект транзакции
     };
     account.applyTransaction(tx1, receipt1);
 
-    // Now, simulate a conflicting transaction that would be invalid
+    // Теперь симулируем конфликтующую транзакцию, которая будет невалидной
     const tx2: Transaction = {
       id: 'tx6',
       senderId: entityAId,
       receiverId: entityBId,
-      amount: 50n, // Large amount to make it obvious if applied
+      amount: 50n, // Большая сумма, чтобы было очевидно, если применится
       asset: 'USD',
       nonce: 6,
     };
-    // No valid receipt for tx2, or an invalid one
+    // Нет валидной квитанции для tx2, или она невалидна
     const invalidReceipt2: Receipt = {
       transactionId: tx2.id,
-      signatures: [], // Invalid signatures
+      signatures: [], // Невалидные подписи
       timestamp: Date.now(),
-      transaction: tx2, // Add the transaction object
+      transaction: tx2, // Добавляем объект транзакции
     };
 
-    // Directly call applyTransaction with invalid receipt to trigger conflict resolution
+    // Вызываем applyTransaction напрямую с невалидной квитанцией для вызова разрешения конфликта
     const applied = account.applyTransaction(tx2, invalidReceipt2);
-    expect(applied).toBe(false); // Should be false due to invalid receipt
+    expect(applied).toBe(false); // Должно быть false из-за невалидной квитанции
 
     const state = account.getState();
-    // Balances should revert to the state after tx1, not reflect tx2
+    // Балансы должны откатиться к состоянию после tx1, а не отражать tx2
     expect(state.balanceA).toBe(initialBalanceA - tx1.amount);
     expect(state.balanceB).toBe(initialBalanceB + tx1.amount);
-    expect(state.lastReceipt).toEqual(receipt1); // Last receipt should still be receipt1
+    expect(state.lastReceipt).toEqual(receipt1); // Последняя квитанция должна остаться receipt1
   });
 
-  it('should ensure JSON.stringify of transaction matches the signed message format', async () => {
+  it('должен гарантировать, что JSON.stringify транзакции соответствует формату подписываемого сообщения', async () => {
     const tx: Transaction = {
       id: 'tx_json_test',
       senderId: entityAId,
@@ -262,20 +262,20 @@ describe('Account', () => {
     const messageToSign = stringify(deepConvertBigIntToString(tx));
     const messageHashFromTx = EthCrypto.hash.keccak256(messageToSign);
 
-    // Sign the message
+    // Подписываем сообщение
     const senderSignature = await signMessage(entityAPrivateKey, tx);
     const receiverSignature = await signMessage(entityBPrivateKey, tx);
 
-    // Recover public keys using the messageToSign string
+    // Восстанавливаем публичные ключи, используя строку messageToSign
     const recoveredPublicKeySender = recoverPublicKey(messageToSign, senderSignature);
     const recoveredPublicKeyReceiver = recoverPublicKey(messageToSign, receiverSignature);
 
-    // Ensure recovered public keys match the original public keys (without '0x' prefix for comparison)
-    // entityAId and entityBId are already clean (without '0x')
+    // Убедимся, что восстановленные публичные ключи совпадают с исходными (без префикса '0x' для сравнения)
+    // entityAId и entityBId уже очищены (без '0x')
     expect(recoveredPublicKeySender.startsWith('0x') ? recoveredPublicKeySender.substring(2) : recoveredPublicKeySender).toBe(entityAId);
     expect(recoveredPublicKeyReceiver.startsWith('0x') ? recoveredPublicKeyReceiver.substring(2) : recoveredPublicKeyReceiver).toBe(entityBId);
 
-    // Additionally, verify that the hash of the stringified message is consistent
+    // Дополнительно проверяем, что хеш строкового представления сообщения консистентен
     const expectedMessageHash = EthCrypto.hash.keccak256(stringify(deepConvertBigIntToString(tx)));
     expect(messageHashFromTx).toBe(expectedMessageHash);
   });
