@@ -37,13 +37,9 @@ export class Entity {
 
   constructor(identity: EthCryptoIdentity, quorumMembers: EntityID[] = []) {
     this.identity = identity;
-    this.state = {
-      id: removeHexPrefix(identity.publicKey), // Ensure EntityID is without '0x' prefix
-      reserves: new Map(),
-      debts: new Map(),
-      accounts: new Map(),
-      quorumMembers: quorumMembers.length > 0 ? quorumMembers.map(removeHexPrefix) : [removeHexPrefix(identity.publicKey)], // Clean quorum members
-    };
+    const id = removeHexPrefix(identity.publicKey);
+    const members = quorumMembers.length > 0 ? quorumMembers.map(removeHexPrefix) : [id];
+    this.state = new EntityState(id, members);
   }
 
   public getState(): EntityState {
@@ -94,7 +90,7 @@ export class Entity {
     receiverId: EntityID,
     amount: bigint,
     asset: string
-  ): Promise<{ transaction: Transaction; partialReceipt: Receipt }> {
+  ): Promise<{ transaction: Transaction; partialReceipt: Receipt; input: any }> {
     const cleanReceiverId = removeHexPrefix(receiverId);
     if (!this.state.accounts.has(cleanReceiverId)) {
       throw new Error(`No account found with ${cleanReceiverId}. Create one first.`);
@@ -119,7 +115,12 @@ export class Entity {
       transaction: transaction, // Add the transaction object
     };
 
-    return { transaction, partialReceipt };
+    const input = {
+      type: 'transaction',
+      data: transaction
+    };
+
+    return { transaction, partialReceipt, input };
   }
 
   /**
