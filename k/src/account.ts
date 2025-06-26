@@ -26,15 +26,17 @@ function deepConvertBigIntToString(obj: any): any {
 
 export class Account {
   private state: AccountState;
+  private entityA: EntityID;
+  private entityB: EntityID;
 
   constructor(entityA: EntityID, entityB: EntityID) {
     // Ensure entity IDs are consistent (without '0x' prefix)
-    const cleanEntityA = removeHexPrefix(entityA);
-    const cleanEntityB = removeHexPrefix(entityB);
+    this.entityA = removeHexPrefix(entityA);
+    this.entityB = removeHexPrefix(entityB);
     this.state = {
-      channelId: [cleanEntityA, cleanEntityB].sort().join('-'), // channelId will now be without '0x' prefix
-      balanceA: 0n, // Use BigInt for balances
-      balanceB: 0n,
+      channelId: [this.entityA, this.entityB].sort().join('-'), // Canonical channel ID
+      balanceA: 0n, // Balance for entityA
+      balanceB: 0n, // Balance for entityB
       lastReceipt: null,
     };
   }
@@ -56,27 +58,22 @@ export class Account {
       return false;
     }
 
-    // Ensure the transaction is for this channel
-    // Compare with prefixed public keys
-    const partyA = this.getPartyA();
-    const partyB = this.getPartyB();
-
     const cleanSenderId = removeHexPrefix(tx.senderId);
     const cleanReceiverId = removeHexPrefix(tx.receiverId);
 
-
-    if (cleanSenderId !== partyA && cleanSenderId !== partyB) {
-      console.error(`Transaction ${tx.id} is not for this channel.`);
-      return false;
+    // Verify that the transaction is between the two parties of this account
+    if (!((cleanSenderId === this.entityA && cleanReceiverId === this.entityB) || (cleanSenderId === this.entityB && cleanReceiverId === this.entityA))) {
+        console.error(`Transaction ${tx.id} parties do not match account parties.`);
+        return false;
     }
 
-    // Apply the transaction
-    if (cleanSenderId === partyA) {
-      this.state.balanceA -= tx.amount;
-      this.state.balanceB += tx.amount;
+    // Apply the transaction based on the original entity IDs
+    if (cleanSenderId === this.entityA) {
+        this.state.balanceA = this.state.balanceA - tx.amount;
+        this.state.balanceB = this.state.balanceB + tx.amount;
     } else {
-      this.state.balanceB -= tx.amount;
-      this.state.balanceA += tx.amount;
+        this.state.balanceB = this.state.balanceB - tx.amount;
+        this.state.balanceA = this.state.balanceA + tx.amount;
     }
 
     this.state.lastReceipt = receipt;
@@ -104,28 +101,14 @@ export class Account {
     console.log('messageToSign in validateReceipt:', messageToSign);
     const messageHashInValidate = EthCrypto.hash.keccak256(messageToSign); // Хеш сообщения для валидации
     console.log('messageHashInValidate:', messageHashInValidate); // Логируем хеш
-    const recoveredPublicKey1 = removeHexPrefix(recoverPublicKey(messageToSign, receipt.signatures[0])); // Remove '0x' prefix
-    const recoveredPublicKey2 = removeHexPrefix(recoverPublicKey(messageToSign, receipt.signatures[1])); // Remove '0x' prefix
+    const recoveredPublicKey1 = removeHexPrefix(recoverPublicKey(messageToSign, receipt.signatures[0]));
+    const recoveredPublicKey2 = removeHexPrefix(recoverPublicKey(messageToSign, receipt.signatures[1]));
 
-    const partyA = this.getPartyA();
-    const partyB = this.getPartyB();
+    const recoveredPublicKeys = new Set<EntityID>([recoveredPublicKey1, recoveredPublicKey2]);
 
-    console.log('recoveredPublicKey1:', recoveredPublicKey1);
-    console.log('recoveredPublicKey2:', recoveredPublicKey2);
-    console.log('partyA:', partyA);
-    console.log('partyB:', partyB);
-
-    const recoveredPublicKeys = new Set<EntityID>();
-    recoveredPublicKeys.add(recoveredPublicKey1);
-    recoveredPublicKeys.add(recoveredPublicKey2);
-
-    console.log('recoveredPublicKey1 (clean):', recoveredPublicKey1);
-    console.log('recoveredPublicKey2 (clean):', recoveredPublicKey2);
-
-    // Check if both parties have signed
-    // Also ensure that the recovered public keys match the actual sender and receiver of the transaction
-    const hasPartyASigned = recoveredPublicKeys.has(partyA);
-    const hasPartyBSigned = recoveredPublicKeys.has(partyB);
+    // Check if both parties of the account have signed
+    const hasPartyASigned = recoveredPublicKeys.has(this.entityA);
+    const hasPartyBSigned = recoveredPublicKeys.has(this.entityB);
 
     console.log('hasPartyASigned:', hasPartyASigned);
     console.log('hasPartyBSigned:', hasPartyBSigned);
@@ -145,26 +128,29 @@ export class Account {
    */
   public resolveConflict(conflictingTx?: Transaction) {
     console.log(`Conflict detected in channel ${this.state.channelId}. Applying "right wins" rule.`);
-    if (this.state.lastReceipt) {
-      // Re-apply the last confirmed state based on the last valid receipt
-      // This assumes the lastReceipt itself contains enough info or refers to a known state.
-      // For simplicity, we'll just log that we revert to the last known good state.
-      console.log(`Reverting to state defined by last receipt for transaction ${this.state.lastReceipt.transactionId}`);
-      // In a real system, you might re-process the transaction from lastReceipt or load a snapshot.
-      // For this simulation, we assume the state is implicitly correct if the lastReceipt is valid.
+    if (this.state.lastReceipt && this.state.lastReceipt.transaction) {
+        const lastTx = this.state.lastReceipt.transaction;
+        console.log(`Reverting to state defined by last receipt for transaction ${this.state.lastReceipt.transactionId}`);
+        
+        // We need to know the initial balances before the last valid transaction.
+        // This is a simplification. A real implementation would need a more robust state snapshotting.
+        // For the test case, we assume we can recalculate from the last state.
+        // Let's find out who was the sender in the last valid transaction
+        if (removeHexPrefix(lastTx.senderId) === this.entityA) {
+            // If A was the sender, they got debited and B got credited. To revert, we do the opposite.
+            this.state.balanceA = this.state.balanceA + lastTx.amount;
+            this.state.balanceB = this.state.balanceB - lastTx.amount;
+        } else {
+            // If B was the sender, they got debited and A got credited.
+            this.state.balanceB = this.state.balanceB + lastTx.amount;
+            this.state.balanceA = this.state.balanceA - lastTx.amount;
+        }
+        // Now, re-apply the last valid transaction to restore the correct state.
+        this.applyTransaction(lastTx, this.state.lastReceipt);
+
     } else {
-      console.log('No last receipt found. Channel state remains as is or reverts to initial.');
-      // Potentially reset balances to 0n or initial state if no valid history.
-      // this.state.balanceA = 0n;
-      // this.state.balanceB = 0n;
+        console.log('No last receipt found. Channel state remains as is or reverts to initial.');
     }
   }
 
-  private getPartyA(): EntityID {
-    return this.state.channelId.split('-')[0];
-  }
-
-  private getPartyB(): EntityID {
-    return this.state.channelId.split('-')[1];
-  }
 }

@@ -16,6 +16,7 @@ export interface Receipt {
   transactionId: string;
   signatures: Signature[]; // Signatures from both sender and receiver
   timestamp: number;
+  transaction: Transaction; // Add the full transaction object to the receipt
 }
 
 export interface Proposal {

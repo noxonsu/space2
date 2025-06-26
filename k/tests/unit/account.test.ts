@@ -80,6 +80,7 @@ describe('Account', () => {
       transactionId: tx.id,
       signatures: [senderSignature, receiverSignature],
       timestamp: Date.now(),
+      transaction: tx, // Add the transaction object
     };
 
     const applied = account.applyTransaction(tx, receipt);
@@ -118,6 +119,7 @@ describe('Account', () => {
       transactionId: tx.id,
       signatures: [invalidSignature, receiverSignature],
       timestamp: Date.now(),
+      transaction: tx, // Add the transaction object
     };
 
     const applied = account.applyTransaction(tx, receipt);
@@ -154,6 +156,7 @@ describe('Account', () => {
       transactionId: tx.id,
       signatures: [senderSignature], // Missing receiver signature
       timestamp: Date.now(),
+      transaction: tx, // Add the transaction object
     };
 
     const applied = account.applyTransaction(tx, receipt);
@@ -214,6 +217,7 @@ describe('Account', () => {
       transactionId: tx1.id,
       signatures: [senderSignature1, receiverSignature1],
       timestamp: Date.now(),
+      transaction: tx1, // Add the transaction object
     };
     account.applyTransaction(tx1, receipt1);
 
@@ -231,6 +235,7 @@ describe('Account', () => {
       transactionId: tx2.id,
       signatures: [], // Invalid signatures
       timestamp: Date.now(),
+      transaction: tx2, // Add the transaction object
     };
 
     // Directly call applyTransaction with invalid receipt to trigger conflict resolution

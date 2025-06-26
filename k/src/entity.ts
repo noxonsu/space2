@@ -116,6 +116,7 @@ export class Entity {
       transactionId: transaction.id,
       signatures: [senderSignature],
       timestamp: Date.now(),
+      transaction: transaction, // Add the transaction object
     };
 
     return { transaction, partialReceipt };
@@ -161,6 +162,7 @@ export class Entity {
       transactionId: transaction.id,
       signatures: [senderSignature, receiverSignature],
       timestamp: Date.now(),
+      transaction: transaction, // Add the transaction object
     };
 
     // Update account state with the new receipt
