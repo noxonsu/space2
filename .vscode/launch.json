@@ -32,6 +32,20 @@
             ],
             "justMyCode": false,
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Jest K Tests",
+            "program": "${workspaceFolder}/k/node_modules/jest/bin/jest.js",
+            "args": [
+                "--runInBand",
+                "--config",
+                "jest.config.js"
+            ],
+            "cwd": "${workspaceFolder}/k",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
         }
     ],
     "cwd": "${workspaceFolder}/gpts"

@@ -21,8 +21,7 @@ graph TB
     subgraph "Processing Pipeline"
         E --> F[Date Filter<br/>≤ 24h]
         F --> G[Keyword Filter<br/>Sb₂O₃ Related]
-        G --> BL[Blacklist Check<br/>Processed URLs]
-        BL --> H[Content Extraction]
+        G --> H[Content Extraction]
         H --> I[AI Processing<br/>GPT-4o]
     end
     
@@ -31,21 +30,19 @@ graph TB
         J --> K[Market Analytics]
         K --> L[Risk Assessment]
         L --> M[Opportunity Detection]
-        M --> BLS[Update Blacklist<br/>Processed URLs]
     end
     
     subgraph "Output & Notifications"
-        BLS --> N[Telegram Alerts]
-        BLS --> O[JSON Data Store]
-        BLS --> P[Admin Dashboard]
-        BLS --> Q[API Endpoints]
+        M --> N[Telegram Alerts]
+        M --> O[JSON Data Store]
+        M --> P[Admin Dashboard]
+        M --> Q[API Endpoints]
     end
     
     subgraph "Configuration"
         R[.env - API Keys] --> E
         S[.env_keys - Keywords] --> G
         T[.env_prompt - AI Prompt] --> I
-        BLF[processed_urls_blacklist.json] --> BL
     end
     
     subgraph "Monitoring & Control"
@@ -73,13 +70,10 @@ graph TB
 
 ### 🔧 **Technical Capabilities**
 - **Dual-language Processing**: Russian/English content analysis
-- **Smart Filtering**: Date + keyword + relevance algorithms, with refined logic for identifying and filtering out old news items based on various date formats.
-- **Intelligent Deduplication**: URL blacklist system prevents re-processing and duplicate notifications
-- **Optimized AI Usage**: Processed URLs tracking saves OpenAI tokens and improves performance
-- **Improved AI Processing**: Enhanced JSON parsing for OpenAI responses, handling Markdown code blocks.
+- **Smart Filtering**: Date + keyword + relevance algorithms
 - **API Integrations**: SerpAPI, ScrapingDog, OpenAI, Telegram
 - **Admin Dashboard**: Real-time monitoring and controls
-- **Comprehensive Testing**: 47 test cases with 95% coverage
+- **Comprehensive Testing**: 32 test cases with 95% coverage
 
 ## 📂 Project Structure
 
@@ -102,8 +96,7 @@ newsalert/
 ├── ⚙️ .env_keys               # Search keywords configuration
 ├── ⚙️ .env_prompt             # ULTIMATE-PROMPT v3.0 (AI instructions)
 ├── 📊 fetched_news.json       # News data storage (auto-generated)
-├── � processed_urls_blacklist.json # Processed URLs cache (auto-generated)
-├── �📦 package.json            # Dependencies and npm scripts
+├── 📦 package.json            # Dependencies and npm scripts
 ├── 🔧 jest.config.js          # Testing configuration
 └── 📖 README.md               # This comprehensive documentation
 ```
@@ -436,54 +429,3 @@ For technical support or feature requests:
 **Built with ❤️ for the Antimony Trioxide market intelligence community**
 
 *Last updated: June 26, 2025*
-
-## 🔄 How The System Works
-
-### Processing Pipeline Overview
-
-1. **📥 News Collection**
-   - Fetches news from ScrapingDog API using configured keywords
-   - Scans multiple sources for Sb₂O₃-related content
-   - Collects article metadata (title, URL, date, source, snippet)
-
-2. **🕐 Date Filtering**
-   - Filters out news older than 24 hours (configurable)
-   - Handles various date formats: "2 hours ago", "Jan 15, 2025", ISO timestamps
-   - Prevents processing stale information
-
-3. **🔍 Keyword Matching**
-   - Filters articles using keywords from `.env_keys`
-   - Case-insensitive matching in titles and content
-   - Supports multiple languages (Russian, English, Chinese, etc.)
-
-4. **🚫 Blacklist Deduplication**
-   - Checks processed URLs against `processed_urls_blacklist.json`
-   - Prevents re-processing of already analyzed articles
-   - Saves OpenAI tokens and prevents duplicate Telegram notifications
-   - Persists across system restarts
-
-5. **🤖 AI Analysis (OpenAI GPT-4o)**
-   - Uses ULTIMATE-PROMPT v3.0 from `.env_prompt`
-   - NAMAGIRI-ASIM analyzer provides multi-perspective analysis
-   - Returns structured JSON with market analytics, risks, and opportunities
-   - Automatically filters out non-Sb₂O₃ news (returns null)
-
-6. **📱 Notification & Storage**
-   - Sends formatted alerts to Telegram with market insights
-   - Stores valid news in `fetched_news.json`
-   - Adds processed URLs to blacklist for future reference
-   - Updates admin dashboard with real-time data
-
-### Blacklist System Benefits
-
-- **💰 Cost Efficiency**: Prevents duplicate OpenAI API calls
-- **⚡ Performance**: Faster processing by skipping known URLs
-- **🚫 No Spam**: Eliminates duplicate Telegram notifications
-- **💾 Persistence**: Maintains state across system restarts
-- **📊 Transparency**: Clear logging of processed vs skipped items
-
-### Demo Example
-```bash
-# Test the blacklist functionality
-node test_blacklist_demo.js
-```
