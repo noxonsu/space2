@@ -19,6 +19,41 @@ const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // --- Admin Panel Code ---
 const adminPort = 3656;
 
+// --- Cache for news data ---
+let newsCache = {
+    data: null,
+    lastModified: null
+};
+
+async function getNewsData() {
+    try {
+        const stats = await fs.promises.stat(NEWS_DATA_FILE_PATH);
+        const lastModified = stats.mtime.getTime();
+
+        if (newsCache.lastModified && newsCache.lastModified === lastModified) {
+            console.log('Serving news from cache.');
+            return newsCache.data;
+        }
+
+        console.log('Reading and caching news file.');
+        const fileData = await fs.promises.readFile(NEWS_DATA_FILE_PATH, 'utf8');
+        const newsData = JSON.parse(fileData);
+        
+        newsCache.data = newsData;
+        newsCache.lastModified = lastModified;
+
+        return newsData;
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            console.log('News data file not found, returning empty array.');
+            return []; // Файл еще не создан, возвращаем пустой массив
+        } else {
+            console.error('Error reading or parsing news data file:', err.message);
+            throw err; // Пробрасываем ошибку выше
+        }
+    }
+}
+
 function parseBody(req, callback) {
   let body = '';
   req.on('data', chunk => {
@@ -73,36 +108,31 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify(keywords));
     });
   } else if (pathname === '/api/news' && method === 'GET') {
-    fs.readFile(NEWS_DATA_FILE_PATH, 'utf8', (err, data) => {
-      if (err) {
-        console.error('Error reading news file:', err);
+    getNewsData()
+      .then(newsData => {
+        let filteredData = [...newsData];
+        const keyword = parsedUrl.query.keyword;
+        if (keyword) {
+          console.log(`Запрошены новости по ключевому слову: "${keyword}"`);
+          filteredData = filteredData.filter(item => item.keyword === keyword);
+        } else {
+          console.log('Запрошены все новости.');
+        }
+        
+        // Sort by fetchedAt descending (newest first)
+        filteredData.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
+        
+        // Ensure every item has a link property to avoid client-side errors
+        const sanitizedNewsData = filteredData.map(item => ({...item, link: item.link || ''}));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(sanitizedNewsData));
+      })
+      .catch(err => {
+        console.error('Error getting news data:', err);
         res.writeHead(500);
         res.end('Error reading news');
-        return;
-      }
-      let newsData = [];
-      if (data) {
-        try {
-          newsData = JSON.parse(data);
-        } catch (parseErr) {
-          console.error('Error parsing news data:', parseErr);
-          res.writeHead(500);
-          res.end('Error parsing news data');
-          return;
-        }
-      }
-      
-      const keyword = parsedUrl.query.keyword;
-      if (keyword) {
-        newsData = newsData.filter(item => item.keyword === keyword);
-      }
-      
-      // Sort by fetchedAt descending (newest first)
-      newsData.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
-      
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(newsData));
-    });
+      });
   } else if (pathname === '/api/keywords' && method === 'POST') {
     parseBody(req, (err, body) => {
       if (err || !body || !body.keyword) {
