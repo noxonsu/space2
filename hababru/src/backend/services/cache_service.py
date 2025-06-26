@@ -3,6 +3,7 @@ import json
 import hashlib
 import uuid
 import threading
+import glob # Добавляем импорт glob
 
 class CacheService:
     def __init__(self, cache_dir=None):
@@ -16,7 +17,12 @@ class CacheService:
         self._analysis_tasks_status = {}
         self._status_lock = threading.Lock()
 
-        self.SEO_CACHE_DIR = os.path.join(self.CACHE_DIR, 'seo_content')
+        # Директория для кэша результатов промптов LLM для SEO-страниц
+        # Исправленный путь: подняться на 3 уровня вверх (services -> backend -> src -> hababru), затем content/seo_pages
+        self.SEO_PROMPT_RESULTS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'content', 'seo_pages')
+        os.makedirs(self.SEO_PROMPT_RESULTS_DIR, exist_ok=True) # Убедимся, что базовая директория существует
+
+        self.SEO_CACHE_DIR = os.path.join(self.CACHE_DIR, 'seo_content') # Это для общего SEO-кэша, не для промптов
         os.makedirs(self.SEO_CACHE_DIR, exist_ok=True)
 
         self.SEGMENTATION_CACHE_DIR = os.path.join(self.CACHE_DIR, 'segmentations')
@@ -180,3 +186,66 @@ class CacheService:
             print(f"Результаты сегментации сохранены в кэш: {cache_file_path}")
         except Exception as e:
             print(f"Ошибка при сохранении кэша сегментации в {cache_file_path}: {e}")
+
+    def delete_prompt_result(self, slug, output_filename_prefix):
+        """
+        Удаляет файл результата промпта LLM для конкретной SEO-страницы.
+        """
+        page_dir = os.path.join(self.SEO_PROMPT_RESULTS_DIR, slug)
+        if not os.path.exists(page_dir):
+            print(f"Директория страницы {slug} не найдена: {page_dir}")
+            return False
+
+        # Ищем файл, который начинается с output_filename_prefix и заканчивается .txt
+        # Используем glob для более надежного поиска
+        search_pattern = os.path.join(page_dir, f"{output_filename_prefix}*.txt")
+        found_files = glob.glob(search_pattern)
+
+        if found_files:
+            for file_path in found_files:
+                try:
+                    os.remove(file_path)
+                    print(f"Удален файл кэша промпта: {file_path}")
+                    return True # Удаляем только первый найденный файл, если их несколько
+                except Exception as e:
+                    print(f"Ошибка при удалении файла кэша промпта {file_path}: {e}")
+                    return False
+        else:
+            print(f"Файл кэша промпта с префиксом '{output_filename_prefix}' для страницы '{slug}' не найден.")
+            return False
+
+    def get_all_prompt_results_for_page(self, slug):
+        """
+        Возвращает список всех сохраненных результатов промптов LLM для данной SEO-страницы.
+        """
+        page_dir = os.path.join(self.SEO_PROMPT_RESULTS_DIR, slug)
+        results = []
+
+        if not os.path.exists(page_dir):
+            print(f"Директория страницы {slug} не найдена: {page_dir}")
+            return results
+
+        for filename in os.listdir(page_dir):
+            if filename.endswith('.txt') and filename != 'generated_contract.txt' and filename != 'source.md':
+                file_path = os.path.join(page_dir, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Извлекаем префикс из имени файла
+                    # Предполагаем формат: prefix_timestamp.txt
+                    parts = filename.split('_')
+                    if len(parts) > 2 and parts[-1].endswith('.txt') and parts[-2].isdigit():
+                        prefix = '_'.join(parts[:-2])
+                    else:
+                        prefix = filename.replace('.txt', '')
+
+                    results.append({
+                        "prefix": prefix,
+                        "file_path": file_path,
+                        "content": content
+                    })
+                except Exception as e:
+                    print(f"Ошибка при чтении файла результата промпта {file_path}: {e}")
+                    continue
+        return results

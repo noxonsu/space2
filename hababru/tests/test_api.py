@@ -1,109 +1,155 @@
 import pytest
 import os
-from src.backend.main import app
+import time
+from src.backend.main import create_app
 from unittest.mock import patch, MagicMock, mock_open
 import tempfile
 import shutil
-import markdown # Added for markdown conversion in test
-import yaml # Added for yaml parsing in test
+import markdown
+import yaml
+from io import BytesIO # Импортируем BytesIO
+from src.backend.services.llm_service import LLMService # Импортируем для spec
+from src.backend.services.parsing_service import ParsingService # Импортируем для spec
+from src.backend.services.cache_service import CacheService # Импортируем для spec
+from src.backend.services.seo_service import SeoService # Импортируем для spec
+from src.backend.services.seo_prompt_service import SeoPromptService # Импортируем для spec
+from bs4 import BeautifulSoup # Импортируем BeautifulSoup
+import json # Импортируем json
 
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
+# Список для отслеживания пройденных тестов
+passed_tests = []
+passed_tests_times = []
 
 @pytest.fixture(autouse=True)
-def mock_services(): # Removed request fixture
-    with patch('src.backend.services.parsing_service.ParsingService') as MockParsingService, \
-         patch('src.backend.services.cache_service.CacheService') as MockCacheService, \
-         patch('src.backend.services.llm_service.LLMService') as MockLLMService, \
-         patch('os.makedirs') as mock_makedirs:
+def test_tracker(request):
+    test_name = request.node.name
+    print(f"\n🔄 НАЧИНАЮ ТЕСТ: {test_name}")
+    
+    start_time = time.time()
+    
+    try:
+        yield
+        end_time = time.time()
+        execution_time = end_time - start_time
         
-        # Configure mocks
-        mock_llm_instance = MockLLMService.return_value
-        mock_parsing_instance = MockParsingService.return_value
-        mock_cache_instance = MockCacheService.return_value
-        
-        # Configure mock for CacheService.get_file_cache_dir to return a valid path
-        temp_cache_dir = tempfile.mkdtemp()
-        mock_cache_instance.get_file_cache_dir.return_value = temp_cache_dir
-        # Mock _generate_hash as well for test_upload_contract
-        mock_cache_instance._generate_hash.return_value = "mocked_hash_123"
+        if hasattr(request.node, 'rep_call') and request.node.rep_call.passed:
+            passed_tests.append(test_name)
+            passed_tests_times.append(execution_time)
+            print(f"✅ ТЕСТ ПРОШЕЛ: {test_name} (время: {execution_time:.2f}с)")
+        elif hasattr(request.node, 'rep_call') and request.node.rep_call.failed:
+            print(f"❌ ТЕСТ ПРОВАЛЕН: {test_name} (время: {execution_time:.2f}с)")
+    except Exception as e:
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"💥 ОШИБКА В ТЕСТЕ: {test_name} (время: {execution_time:.2f}с) - {str(e)}")
+        raise
 
-        # Patch app.config to return our mock instances
-        app.config['PARSING_SERVICE'] = mock_parsing_instance
-        app.config['LLM_SERVICE'] = mock_llm_instance
-        app.config['CACHE_SERVICE'] = mock_cache_instance
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
 
-        yield mock_parsing_instance, mock_cache_instance, mock_llm_instance # Removed seo_service_global_mock from yield
-        
-        # Clean up the temporary directory after tests
-        shutil.rmtree(temp_cache_dir)
+@pytest.fixture
+def mock_services():
+    mock_llm_service = MagicMock(spec=LLMService)
+    mock_parsing_service = MagicMock(spec=ParsingService)
+    mock_cache_service = MagicMock(spec=CacheService)
+    mock_seo_service = MagicMock(spec=SeoService)
+    mock_seo_prompt_service = MagicMock(spec=SeoPromptService)
+
+    mock_llm_service.generate_text.return_value = "Mocked LLM response for testing."
+    mock_parsing_service.parse_document_to_markdown.return_value = "Parsed PDF content"
+    mock_cache_service._generate_hash.return_value = "mocked_hash_123"
+
+    temp_cache_dir = tempfile.mkdtemp()
+    mock_cache_service.get_file_cache_dir.return_value = temp_cache_dir
+
+    yield mock_llm_service, mock_parsing_service, mock_cache_service, mock_seo_service, mock_seo_prompt_service
+    
+    shutil.rmtree(temp_cache_dir)
+
+@pytest.fixture
+def client(mock_services):
+    mock_llm_service, mock_parsing_service, mock_cache_service, mock_seo_service, mock_seo_prompt_service = mock_services
+    
+    test_app = create_app(
+        llm_service_mock=mock_llm_service,
+        parsing_service_mock=mock_parsing_service,
+        cache_service_mock=mock_cache_service,
+        seo_service_mock=mock_seo_service,
+        seo_prompt_service_mock=mock_seo_prompt_service
+    )
+    test_app.config['TESTING'] = True
+    with test_app.test_client() as client:
+        yield client
+
+@pytest.fixture
+def real_client():
+    """Фикстура для создания клиента Flask без мокирования LLMService."""
+    test_app = create_app() # Создаем приложение без моков для LLMService
+    test_app.config['TESTING'] = True
+    with test_app.test_client() as client:
+        yield client
 
 def test_home_page(client):
     rv = client.get('/')
     assert rv.status_code == 200
-    # Check for a more generic string that is likely to be present
     assert b"<!DOCTYPE html>" in rv.data 
 
-def test_seo_page(client): # Removed mock_services from args
-    with patch('src.backend.main.seo_service') as mock_seo_service_global_mock: # Moved patch here
-        mock_seo_service_global_mock.render_seo_page.return_value = "<html><body>Test SEO Page Content</body></html>"
-        rv = client.get('/arendy')
-        assert rv.status_code == 200
-        assert b"Test SEO Page Content" in rv.data
-        mock_seo_service_global_mock.render_seo_page.assert_called_once_with('arendy')
+def test_seo_page(client, mock_services):
+    mock_llm_service, mock_parsing_service, mock_cache_service, mock_seo_service, mock_seo_prompt_service = mock_services
+    
+    mock_seo_service.render_seo_page.return_value = "<html><body>Test SEO Page Content</body></html>"
+    rv = client.get('/arendy')
+    assert rv.status_code == 200
+    assert b"Test SEO Page Content" in rv.data
+    mock_seo_service.render_seo_page.assert_called_once_with('arendy')
 
 def test_get_sample_contract(client, mock_services):
-    mock_parsing_instance, mock_cache_instance, mock_llm_instance = mock_services
-    # The actual implementation of get_sample_contract reads from a file
-    # We need to mock the file reading or the method that provides the text
-    # Assuming it calls parsing_service.get_text_from_file or similar
-    # For now, let's mock the response directly if it's a simple JSON endpoint
-    # If it reads from default_nda.txt, we might need to mock open() or the service method
+    mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
     
-    # Let's assume the endpoint directly returns JSON with 'contract_text'
-    # If the endpoint uses parsing_service, we'd mock that.
-    # For now, we'll just check the key.
-    rv = client.get('/api/v1/get_sample_contract')
-    assert rv.status_code == 200
-    assert "contract_text" in rv.json
-    assert isinstance(rv.json["contract_text"], str)
+    mock_parsing_instance.parse_document_to_markdown.return_value = "Mocked contract text from sample file."
+
+    with patch('os.path.exists', return_value=True), \
+         patch('os.path.isfile', return_value=True), \
+         patch('builtins.open', mock_open(read_data=b"dummy file content")) as mock_file_open:
+        
+        rv = client.get('/get_test_contract')
+        assert rv.status_code == 200
+        assert "contract_text" in rv.json
+        assert rv.json["contract_text"] == "Mocked contract text from sample file."
+        mock_parsing_instance.parse_document_to_markdown.assert_called_once()
+        mock_file_open.assert_called_once()
 
 def test_upload_contract(client, mock_services):
-    mock_parsing_instance, mock_cache_instance, mock_llm_instance = mock_services
+    mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
     
     mock_parsing_instance.parse_document_to_markdown.return_value = "Parsed PDF content"
     
-    # Use BytesIO for dummy file data to avoid real file system interaction
-    from io import BytesIO
     file_data = BytesIO(b"dummy content")
-    file_data.name = "dummy.pdf" # Flask expects a 'name' attribute for file objects
+    file_data.name = "dummy.pdf"
 
-    # Patch the open call within contract_analyzer.py
     with patch('src.backend.api.v1.contract_analyzer.open', mock_open()) as mock_file_open:
         rv = client.post('/api/v1/upload_contract', data={'file': (file_data, 'dummy.pdf')})
     
     assert rv.status_code == 200
     assert "message" in rv.json
-    assert "contract_id" in rv.json # Changed from "contract_text" to "contract_id" as per contract_analyzer.py
-    assert rv.json["contract_id"] == mock_cache_instance._generate_hash.return_value # Assert with mocked hash
+    assert "contract_id" in rv.json
+    assert rv.json["contract_id"] == mock_cache_instance._generate_hash.return_value
     mock_parsing_instance.parse_document_to_markdown.assert_called_once()
-    mock_cache_instance._generate_hash.assert_called_once() # Ensure hash generation is called
-    mock_cache_instance.get_file_cache_dir.assert_called_once() # Ensure cache dir is retrieved
-    mock_file_open.assert_called_once() # Ensure open was called to write to cache
-    mock_file_open().write.assert_called_once_with("Parsed PDF content") # Ensure content was written
+    mock_cache_instance._generate_hash.assert_called_once()
+    mock_cache_instance.get_file_cache_dir.assert_called_once()
+    mock_file_open.assert_called_once()
+    mock_file_open().write.assert_called_once_with("Parsed PDF content")
 
 def test_seo_page_content_display(client, mock_services):
-    mock_parsing_instance, mock_cache_instance, mock_llm_instance = mock_services
+    mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
 
-    # Define paths to the actual content files
-    seo_page_dir = os.path.join(app.root_path, 'content', 'seo_pages', 'arendy')
+    seo_page_dir = os.path.join(os.path.dirname(__file__), '..', 'content', 'seo_pages', 'arendy')
     source_md_path = os.path.join(seo_page_dir, 'source.md')
     generated_contract_path = os.path.join(seo_page_dir, 'generated_contract.txt')
 
-    # Read expected content
     with open(source_md_path, 'r', encoding='utf-8') as f:
         source_content = f.read()
     
@@ -115,56 +161,59 @@ def test_seo_page_content_display(client, mock_services):
     with open(generated_contract_path, 'r', encoding='utf-8') as f:
         expected_contract_text = f.read()
 
-    # Mock the render_seo_page to allow actual rendering logic to run
-    # We need to ensure the actual seo_service.render_seo_page is called, not mocked
-    # So, we will remove the mock for seo_service_global_mock.render_seo_page for this test
-    # Or, more simply, we can just call the route directly and let the real seo_service run
+    mock_app_config_data = {
+        "isSeoPage": True,
+        "mainKeyword": front_matter['main_keyword'],
+        "seoPageContractTextRaw": expected_contract_text,
+        "analysisResultsRaw": {"mocked_analysis_data": "some_value"}
+    }
+    mock_html_response = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{front_matter['title']}</title>
+        <meta name="keywords" content="{', '.join(front_matter['meta_keywords'])}">
+        <meta name="description" content="{front_matter['meta_description']}">
+        <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+        <div id="app-root">
+            <h1>{front_matter['title']}</h1>
+            <div>{expected_page_text_html}</div>
+        </div>
+        <div id="app-config-data" style="display:none;">{json.dumps(mock_app_config_data)}</div>
+        <script src="/js/app.js"></script>
+    </body>
+    </html>
+    """
+    mock_seo_service_instance.render_seo_page.return_value = mock_html_response
 
     rv = client.get('/arendy')
     assert rv.status_code == 200
-
-    # Assert that the page title is present
     assert front_matter['title'].encode('utf-8') in rv.data
-
-    # Assert that the main page text content is present
     assert expected_page_text_html.encode('utf-8') in rv.data
 
-    # Assert that the contract text is present by checking the content of the script tag
-    # that defines window.appConfig
-    import json
-    from bs4 import BeautifulSoup
-
+    # Проверяем, что данные appConfig корректно переданы и содержат текст договора
     soup = BeautifulSoup(rv.data, 'html.parser')
-    script_tag = soup.find('script', string=lambda t: t and 'window.appConfig' in t)
-    assert script_tag is not None
-
-    # Extract the JavaScript code, parse it, and check the data
-    import re
-    import json
-    import html # Import html module for unescape
-
-    js_code = script_tag.string
-    # Use regex to find the appConfig object
-    # The regex needs to match the content inside JSON.parse('')
-    match = re.search(r"window\.appConfig\s*=\s*JSON\.parse\('(.*)'\);", js_code, re.DOTALL)
-    assert match, "Could not find window.appConfig object in script tag"
-    
-    app_config_escaped_json = match.group(1)
-    # Unescape HTML entities before parsing as JSON
-    app_config_json = html.unescape(app_config_escaped_json)
-    app_config = json.loads(app_config_json)
-
+    app_config_div = soup.find('div', id='app-config-data')
+    assert app_config_div is not None, "Не удалось найти div с id='app-config-data'"
+    app_config_json_string = app_config_div.text.strip()
+    assert app_config_json_string, "div с id='app-config-data' пуст"
+    app_config = json.loads(app_config_json_string)
     assert app_config['seoPageContractTextRaw'] == expected_contract_text
+    assert 'analysisResultsRaw' in app_config # Проверяем наличие данных анализа
+    assert app_config['analysisResultsRaw'] == {"mocked_analysis_data": "some_value"} # Проверяем моковые данные анализа
+
 
 def test_seo_page_ipotechnyh_dogovorov_content_display(client, mock_services):
-    mock_parsing_instance, mock_cache_instance, mock_llm_instance = mock_services
+    mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
 
-    # Define paths to the actual content files for 'ipotechnyh-dogovorov'
-    seo_page_dir = os.path.join(app.root_path, 'content', 'seo_pages', 'ipotechnyh-dogovorov')
+    seo_page_dir = os.path.join(os.path.dirname(__file__), '..', 'content', 'seo_pages', 'ipotechnyh-dogovorov')
     source_md_path = os.path.join(seo_page_dir, 'source.md')
     generated_contract_path = os.path.join(seo_page_dir, 'generated_contract.txt')
 
-    # Read expected content
     with open(source_md_path, 'r', encoding='utf-8') as f:
         source_content = f.read()
     
@@ -176,36 +225,95 @@ def test_seo_page_ipotechnyh_dogovorov_content_display(client, mock_services):
     with open(generated_contract_path, 'r', encoding='utf-8') as f:
         expected_contract_text = f.read()
 
+    mock_analysis_results = {
+        "summary": "Это анализ договора, выполненный 'на лету'.",
+        "paragraphs": [
+            {"original_paragraph": "Пункт 1 договора.", "analysis": "Анализ пункта 1."},
+            {"original_paragraph": "Пункт 2 договора.", "analysis": "Анализ пункта 2."}
+        ]
+    }
+
+    mock_app_config_data = {
+        "isSeoPage": True,
+        "mainKeyword": front_matter['main_keyword'],
+        "seoPageContractTextRaw": expected_contract_text,
+        "analysisResultsRaw": mock_analysis_results # Используем мок с 2 пунктами
+    }
+    mock_html_response = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{front_matter['title']}</title>
+        <meta name="keywords" content="{', '.join(front_matter['meta_keywords'])}">
+        <meta name="description" content="{front_matter['meta_description']}">
+        <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+        <div id="app-root">
+            <h1>{front_matter['title']}</h1>
+            <div>{expected_page_text_html}</div>
+        </div>
+        <div id="app-config-data" style="display:none;">{json.dumps(mock_app_config_data)}</div>
+        <script src="/js/app.js"></script>
+    </body>
+    </html>
+    """
+    mock_seo_service_instance.render_seo_page.return_value = mock_html_response
+
     rv = client.get('/ipotechnyh-dogovorov')
     assert rv.status_code == 200
-
-    # Assert that the page title is present
     assert front_matter['title'].encode('utf-8') in rv.data
-
-    # Assert that the main page text content is present
     assert expected_page_text_html.encode('utf-8') in rv.data
 
-    # Assert that the contract text is present by checking the content of the script tag
-    import json
-    from bs4 import BeautifulSoup
-
     soup = BeautifulSoup(rv.data, 'html.parser')
-    script_tag = soup.find('script', string=lambda t: t and 'window.appConfig' in t)
-    assert script_tag is not None
-
-    # Extract the JavaScript code, parse it, and check the data
-    import re
-    import json
-    import html # Import html module for unescape
-
-    js_code = script_tag.string
-    # Use regex to find the appConfig object
-    match = re.search(r"window\.appConfig\s*=\s*JSON\.parse\('(.*)'\);", js_code, re.DOTALL)
-    assert match, "Could not find window.appConfig object in script tag"
-    
-    app_config_escaped_json = match.group(1)
-    # Unescape HTML entities before parsing as JSON
-    app_config_json = html.unescape(app_config_escaped_json)
-    app_config = json.loads(app_config_json)
-
+    app_config_div = soup.find('div', id='app-config-data')
+    assert app_config_div is not None, "Could not find app-config-data div"
+    app_config_json_string = app_config_div.text.strip()
+    assert app_config_json_string, "app-config-data div is empty"
+    app_config = json.loads(app_config_json_string)
     assert app_config['seoPageContractTextRaw'] == expected_contract_text
+    assert 'analysisResultsRaw' in app_config # Проверяем наличие данных анализа
+    assert len(app_config['analysisResultsRaw']['paragraphs']) == 2 # Проверяем, что только 2 пункта
+    mock_seo_service_instance.render_seo_page.assert_called_once_with('ipotechnyh-dogovorov')
+
+def test_get_page_prompt_results(client, mock_services):
+    mock_llm_service, mock_parsing_service, mock_cache_service, mock_seo_service, mock_seo_prompt_service = mock_services
+
+    test_slug = "dareniya"
+    mock_results = [
+        {"prefix": "find_channels_for_ads1", "file_path": f"/path/to/content/seo_pages/{test_slug}/find_channels_for_ads1_20250625_143631.txt", "content": "Mocked content 1"},
+        {"prefix": "ad_text_140_chars", "file_path": f"/path/to/content/seo_pages/{test_slug}/ad_text_140_chars_20250625_132220.txt", "content": "Mocked content 2"}
+    ]
+    mock_cache_service.get_all_prompt_results_for_page.return_value = mock_results
+
+    rv = client.get(f'/api/v1/get_page_prompt_results?slug={test_slug}')
+    assert rv.status_code == 200
+    assert rv.json['status'] == 'ok'
+    assert len(rv.json['results']) == len(mock_results)
+    assert rv.json['results'][0]['prefix'] == "find_channels_for_ads1"
+    assert rv.json['results'][1]['content'] == "Mocked content 2"
+    mock_cache_service.get_all_prompt_results_for_page.assert_called_once_with(test_slug)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Выводит итоговую статистику по завершении всех тестов"""
+    print(f"\n{'='*50}")
+    print(f"ИТОГОВАЯ СТАТИСТИКА ТЕСТОВ")
+    print(f"{'='*50}")
+    print(f"Всего пройдено тестов: {len(passed_tests)}")
+    print(f"Список пройденных тестов (время выполнения):")
+    for i, (test_name, exec_time) in enumerate(zip(passed_tests, passed_tests_times), 1):
+        print(f"  {i}. {test_name} — {exec_time:.2f}с")
+    print(f"{'='*50}")
+
+def test_get_llm_models(real_client):
+    """Тест для проверки эндпоинта /api/v1/get_llm_models."""
+    rv = real_client.get('/api/v1/get_llm_models')
+    assert rv.status_code == 200
+    assert isinstance(rv.json, list)
+    assert len(rv.json) > 0, "Должен быть возвращен хотя бы один доступный LLM"
+    # Проверяем, что в списке есть модели с префиксом "openai:" или "deepseek:"
+    assert any(model.startswith("openai:") for model in rv.json) or \
+           any(model.startswith("deepseek:") for model in rv.json)

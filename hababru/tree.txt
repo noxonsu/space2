@@ -1,0 +1,169 @@
+.
+├── README.md
+├── TGStat API.postman_collection.json
+├── content
+│   ├── __init__.py
+│   ├── llm_results
+│   │   ├── llm_result_dareniya_20250625_121211.txt
+│   │   └── llm_result_name_here_dareniya_20250625_121809.txt
+│   ├── seo_pages
+│   │   ├── __init__.py
+│   │   ├── arendy
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── arendy-kvartiry
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── arendy-mezhdu-fizicheskimi-litsami
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── arendy-nezhilogo-pomescheniya
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── brachnogo-dogovora
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── dareniya
+│   │   │   ├── ad_text_140_chars_20250625_132220.txt
+│   │   │   ├── find_channels_for_ads1_20250625_143631.txt
+│   │   │   ├── find_channels_for_ads2_20250625_144250.txt
+│   │   │   ├── find_channels_for_ads_20250625_132155.txt
+│   │   │   ├── generated_contract.txt
+│   │   │   ├── source.md
+│   │   │   ├── target_audience_telegram_channels_20250625_132252.txt
+│   │   │   └── target_audience_telegram_channels_20250625_132337.txt
+│   │   ├── ddu
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── dolevogo-uchastiya-ddu
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── ipotechnyh-dogovorov
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── ipoteki
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── kupli-prodazhi
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── meny
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── nayma
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── okazaniya-uslug
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── perevozki
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── podryada
+│   │   │   └── generated_contract.txt
+│   │   ├── podryada-mezhdu-fizicheskimi-litsami
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── postavki
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── strahovaniya
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── trudovogo-dogovora
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   ├── uslug
+│   │   │   ├── generated_contract.txt
+│   │   │   └── source.md
+│   │   └── zayma
+│   │       ├── generated_contract.txt
+│   │       └── source.md
+│   └── seo_prompts
+│       ├── ad_text_140_chars.txt
+│       ├── find_channels_for_ads.txt
+│       ├── seo_article_image_idea.txt
+│       └── target_audience_telegram_channels.txt
+├── data
+│   ├── __init__.py
+│   └── sample_contracts
+│       ├── __init__.py
+│       └── default_nda.txt
+├── deepseek_api_docs.md
+├── dubna.docx
+├── public
+│   ├── css
+│   │   └── style.css
+│   ├── favicon.ico
+│   ├── js
+│   │   ├── app.js
+│   │   └── seo_admin.js
+│   └── robots.txt
+├── pytest.ini
+├── pytest_output.txt
+├── requirements.txt
+├── semantix.txt
+├── src
+│   ├── backend
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   └── main.cpython-312.pyc
+│   │   ├── api
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   └── __init__.cpython-312.pyc
+│   │   │   └── v1
+│   │   │       ├── __init__.py
+│   │   │       ├── __pycache__
+│   │   │       │   ├── __init__.cpython-312.pyc
+│   │   │       │   ├── contract_analyzer.cpython-312.pyc
+│   │   │       │   └── seo_tools.cpython-312.pyc
+│   │   │       ├── contract_analyzer.py
+│   │   │       └── seo_tools.py
+│   │   ├── cli
+│   │   │   ├── __init__.py
+│   │   │   └── generate_seo_page.py
+│   │   ├── main.py
+│   │   ├── services
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── cache_service.cpython-312.pyc
+│   │   │   │   ├── content_generation_service.cpython-312.pyc
+│   │   │   │   ├── llm_service.cpython-312.pyc
+│   │   │   │   ├── parsing_service.cpython-312.pyc
+│   │   │   │   ├── seo_prompt_service.cpython-312.pyc
+│   │   │   │   └── seo_service.cpython-312.pyc
+│   │   │   ├── cache_service.py
+│   │   │   ├── content_generation_service.py
+│   │   │   ├── llm_service.py
+│   │   │   ├── parsing_service.py
+│   │   │   ├── seo_prompt_service.py
+│   │   │   └── seo_service.py
+│   │   ├── templates
+│   │   │   ├── index_template.html
+│   │   │   └── seo_admin_template.html
+│   │   └── utils
+│   │       └── __init__.py
+│   ├── data
+│   │   └── uploads
+│   ├── frontend
+│   │   ├── __init__.py
+│   │   ├── components
+│   │   │   └── __init__.py
+│   │   └── services
+│   │       └── __init__.py
+│   └── shared
+│       └── __init__.py
+├── tests
+│   ├── test_api.py
+│   ├── test_cache_service.py
+│   ├── test_llm_service.py
+│   ├── test_parsing_service.py
+│   ├── test_seo_admin.py
+│   ├── test_seo_prompt_api.py
+│   └── test_seo_service.py
+└── tree.txt
+
+52 directories, 123 files

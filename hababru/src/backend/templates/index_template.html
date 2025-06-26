@@ -118,6 +118,14 @@
     <div id="app-config-data" style="display:none;">{{ app_config_json | safe }}</div>
     <script>
         window.appConfig = {}; // Initialize an empty object
+        const appConfigDataElement = document.getElementById('app-config-data');
+        if (appConfigDataElement && appConfigDataElement.textContent) {
+            try {
+                window.appConfig = JSON.parse(appConfigDataElement.textContent);
+            } catch (e) {
+                console.error("Ошибка парсинга appConfigData:", e);
+            }
+        }
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

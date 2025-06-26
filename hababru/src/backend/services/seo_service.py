@@ -89,7 +89,7 @@ class SeoService:
             "isSeoPage": template_data["is_seo_page"],
             "mainKeyword": template_data["main_keyword"],
             "seoPageContractTextRaw": template_data["contract_text_raw"],
-            "seoPageAnalysisResultsRaw": template_data["analysis_results_raw"]
+            "analysis_results_raw": template_data["analysis_results_raw"]
         }
 
         if logger:

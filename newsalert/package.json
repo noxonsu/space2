@@ -1,16 +1,38 @@
 {
   "name": "newsalert",
   "version": "1.0.0",
-  "description": "News alert script using SerpApi",
+  "description": "AI-powered News Alert System for Antimony Trioxide (Sb₂O₃) Market Intelligence",
   "main": "space2_newsalert.js",
   "scripts": {
-    "start": "node space2_newsalert.js"
+    "start": "node space2_newsalert.js",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:coverage": "NODE_ENV=test jest --coverage"
   },
   "dependencies": {
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "express": "^5.1.0"
   },
-  "author": "",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.1"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "*.js",
+      "!tests/*.js"
+    ]
+  },
+  "keywords": [
+    "news",
+    "antimony",
+    "sb2o3",
+    "market-intelligence",
+    "ai",
+    "openai"
+  ],
+  "author": "ChemPartners",
   "license": "ISC"
 }

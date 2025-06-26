@@ -24,66 +24,97 @@
 
 ```
 hababru/
+├── .env                      # Переменные окружения (API ключи, токены)
+├── .gitignore                # Игнорируемые файлы и директории для Git
+├── .pytest_cache/            # Кэш pytest
+├── .wakatime-project         # Файл конфигурации Wakatime
+├── .wata                     # Вспомогательный файл (возможно, для внутренних нужд)
+├── README.md                 # Описание проекта, структура, план работы, инструкции
+├── TGStat API.postman_collection.json # Коллекция Postman для работы с TGStat API
+├── content/                  # Исходные файлы контента
+│   ├── __init__.py           # Инициализация Python-пакета
+│   ├── llm_results/          # Результаты работы LLM-промптов
+│   │   └── *.txt             # Файлы с результатами LLM-промптов
+│   ├── seo_pages/            # Директория для SEO-страниц в формате .md
+│   │   ├── __init__.py       # Инициализация Python-пакета
+│   │   ├── [slug]/           # Директория для каждой SEO-страницы (например, arendy, dareniya)
+│   │   │   ├── generated_contract.txt # Сгенерированный текст договора для страницы
+│   │   │   └── source.md     # Метаданные и основной текст страницы
+│   │   └── ...               # Другие SEO-страницы (по одной на каждый ключ)
+│   └── seo_prompts/          # Шаблоны промптов для генерации SEO-контента
+│       └── *.txt             # Файлы с шаблонами промптов
+├── data/                     # Хранилище данных
+│   ├── __init__.py           # Инициализация Python-пакета
+│   ├── cache/                # Кэш договоров и анализов (например, JSON файлы)
+│   │   └── __init__.py       # Инициализация Python-пакета
+│   ├── uploads/              # Временно загруженные файлы
+│   │   └── __init__.py       # Инициализация Python-пакета
+│   └── sample_contracts/     # Примеры договоров
+│       ├── __init__.py       # Инициализация Python-пакета
+│       └── default_nda.txt   # Пример договора по умолчанию
+├── deepseek_api_docs.md      # Документация по DeepSeek API
+├── dubna.docx                # Пример DOCX файла (возможно, для тестирования парсинга)
 ├── public/                   # Статические ресурсы и скомпилированный фронтенд
 │   ├── css/                  # Стили CSS
-│   │   └── style.css
+│   │   └── style.css         # Основной файл стилей
+│   ├── favicon.ico           # Иконка сайта
 │   ├── js/                   # Клиентские скрипты JavaScript
-│   │   └── app.js
-│   ├── assets/               # Изображения, шрифты и т.д.
-│   └── favicon.ico
+│   │   ├── app.js            # Основная логика фронтенда
+│   │   └── seo_admin.js      # Скрипты для страницы администрирования SEO
+│   └── robots.txt            # Файл для поисковых роботов
+├── pytest.ini                # Конфигурационный файл pytest
+├── pytest_output.txt         # Вывод результатов выполнения pytest
+├── requirements.txt          # Зависимости Python
+├── semantix.txt              # Файл с семантическими запросами (возможно, для SEO)
 ├── src/                      # Исходный код
 │   ├── backend/              # Логика бэкенда (Python)
+│   │   ├── __init__.py       # Инициализация Python-пакета
+│   │   ├── __pycache__/      # Кэш скомпилированных Python-файлов
 │   │   ├── api/              # API эндпоинты
+│   │   │   ├── __init__.py   # Инициализация Python-пакета
+│   │   │   ├── __pycache__/  # Кэш скомпилированных Python-файлов
 │   │   │   └── v1/
-│   │   │       ├── __init__.py
-│   │   │       └── contract_analyzer.py # Эндпоинт для анализа договоров
+│   │   │       ├── __init__.py # Инициализация Python-пакета
+│   │   │       ├── __pycache__/ # Кэш скомпилированных Python-файлов
+│   │   │       ├── contract_analyzer.py # Эндпоинт для анализа договоров
+│   │   │       └── seo_tools.py      # Эндпоинты для администрирования SEO
+│   │   ├── cli/              # Скрипты командной строки
+│   │   │   ├── __init__.py   # Инициализация Python-пакета
+│   │   │   └── generate_seo_page.py # Скрипт для генерации SEO-страниц
+│   │   ├── main.py           # Точка входа бэкенд-приложения
 │   │   ├── services/         # Бизнес-логика
-│   │   │   ├── __init__.py
-│   │   │   ├── llm_service.py      # Универсальный LLM-коннектор (DeepSeek/OpenAI)
-│   │   │   ├── parsing_service.py  # Парсинг PDF/DOC
+│   │   │   ├── __init__.py   # Инициализация Python-пакета
+│   │   │   ├── __pycache__/  # Кэш скомпилированных Python-файлов
 │   │   │   ├── cache_service.py    # Логика кэширования
-│   │   │   ├── seo_service.py      # Сервис для работы с SEO-страницами (парсинг, рендеринг)
-│   │   │   └── yandex_wordstat_service.py # Взаимодействие с Яндекс.Вордстат API
+│   │   │   ├── content_generation_service.py # Сервис для генерации контента
+│   │   │   ├── llm_service.py      # Универсальный LLM-коннектор
+│   │   │   ├── parsing_service.py  # Парсинг PDF/DOC
+│   │   │   ├── seo_prompt_service.py # Сервис для работы с промптами SEO
+│   │   │   └── seo_service.py      # Сервис для работы с SEO-страницами
 │   │   ├── templates/        # HTML-шаблоны Jinja2
-│   │   │   └── index_template.html # Единый шаблон для всех страниц
-│   │   ├── utils/            # Вспомогательные функции
-│   │   │   └── __init__.py
-│   │   └── main.py           # Точка входа бэкенд-приложения
-│   ├── frontend/             # Исходный код фронтенда (для основного интерфейса)
+│   │   │   ├── index_template.html # Единый шаблон для всех страниц
+│   │   │   └── seo_admin_template.html # Шаблон для страницы администрирования SEO
+│   │   └── utils/            # Вспомогательные функции
+│   │       └── __init__.py   # Инициализация Python-пакета
+│   ├── data/                 # Директория для данных (например, загруженных файлов)
+│   │   └── uploads/          # Временно загруженные файлы
+│   ├── frontend/             # Исходный код фронтенда
+│   │   ├── __init__.py       # Инициализация Python-пакета
 │   │   ├── components/       # UI компоненты
-│   │   │   ├── __init__.py
-│   │   │   ├── ContractUploader.js
-│   │   │   ├── ContractView.js
-│   │   │   └── AnalysisPanel.js
-│   │   ├── services/         # Сервисы фронтенда (вызовы API)
-│   │   │   └── __init__.py
-│   │   └── App.js            # Главный компонент фронтенд-приложения
-│   ├── shared/               # Общий код для фронтенда и бэкенда (например, типы)
-│   │   └── __init__.py
-├── content/                  # Исходные файлы контента
-│   ├── seo_pages/            # Директория для SEO-страниц в формате .md
-│   │   ├── __init__.py
-│   │   ├── proverka-dogovorov.md
-│   │   ├── analiz-dogovora-online.md
-│   │   ├── proverka-dogovora-arendy/ # Примеры для SEO-страницы "проверка договора аренды"
-│   │   │   └── dogovor_arendy_kommercheskoy_nedvizhimosti_primer.pdf
-│   │   ├── analiz-dogovora-postavki/ # Примеры для SEO-страницы "анализ договора поставки"
-│   │   │   └── dogovor_postavki_tovarov_obrazec.docx
-│   │   ├── yuridicheskaya-ekspertiza-dogovora-uslug/ # Примеры для SEO-страницы "юридическая экспертиза договора услуг"
-│   │   │   └── dogovor_okazaniya_yuridicheskih_uslug_shablon.pdf
-│   │   └── ...               # Другие SEO-страницы (по одной на каждый ключ)
-│   └── __init__.py
-├── data/                     # Хранилище данных
-│   ├── cache/                # Кэш договоров и анализов (например, JSON файлы)
-│   │   └── __init__.py
-│   ├── uploads/              # Временно загруженные файлы
-│   │   └── __init__.py
-│   ├── sample_contracts/     # Примеры договоров (только default_nda.txt остался здесь)
-│   │   └── default_nda.txt   # Пример договора по умолчанию (используется при обычном запуске)
-│   └── __init__.py
-├── .env                      # Переменные окружения (API ключи, токены)
-├── README.md                 # Описание проекта, структура, план работы, инструкции
-└── requirements.txt          # Зависимости Python
+│   │   │   └── __init__.py   # Инициализация Python-пакета
+│   │   └── services/         # Сервисы фронтенда (вызовы API)
+│   │       └── __init__.py   # Инициализация Python-пакета
+│   └── shared/               # Общий код для фронтенда и бэкенда
+│       └── __init__.py       # Инициализация Python-пакета
+├── tests/                    # Автоматизированные тесты
+│   ├── test_api.py           # Тесты для API эндпоинтов
+│   ├── test_cache_service.py # Тесты для сервиса кэширования
+│   ├── test_llm_service.py   # Тесты для LLM-сервиса
+│   ├── test_parsing_service.py # Тесты для сервиса парсинга
+│   ├── test_seo_admin.py     # Тесты для администрирования SEO
+│   ├── test_seo_prompt_api.py # Тесты для API запуска промптов SEO
+│   └── test_seo_service.py   # Тесты для SEO-сервиса
+└── tree.txt                  # Файл с древовидной структурой проекта
 ```
 
 ## План Работы (Выполнено)
@@ -99,10 +130,12 @@ hababru/
 
 2.  **Разработка Бэкенда (Python с Flask):**
     *   Настроен Flask-фреймворк и реализован `src/backend/main.py` как точка входа.
+    *   **Обновлено**: Рефакторинг `src/backend/main.py` для использования функции `create_app()` для инициализации Flask приложения. Это позволяет создавать чистые экземпляры приложения для каждого тестового запуска.
     *   Реализован `src/backend/services/parsing_service.py` для парсинга PDF/DOCX и сегментации текста на пункты/абзацы.
     *   Реализован `src/backend/services/llm_service.py` как универсальный LLM-коннектор, поддерживающий DeepSeek и OpenAI API.
     *   **Обновлено**: Реализован `src/backend/services/cache_service.py` для кэширования результатов анализа и управления статусом асинхронных задач.
     *   **Обновлено**: Реализован `src/backend/api/v1/contract_analyzer.py` с API-эндпоинтами `/upload_contract`, `/start_analysis` (для запуска асинхронного анализа), `/get_analysis_status/<task_id>` (для получения прогресса) и `/get_sample_contract`.
+    *   **Обновлено**: Рефакторинг `src/backend/api/v1/seo_tools.py` для использования функции `create_seo_tools_blueprint()`, что позволяет избежать конфликтов при регистрации эндпоинтов в тестах.
     *   Blueprint `contract_analyzer_bp` зарегистрирован в `main.py`.
     *   **Обновлено**: Главная страница и SEO-страницы теперь рендерятся с использованием единого шаблона `src/backend/templates/index_template.html`.
 
@@ -132,6 +165,9 @@ hababru/
     *   Проверена работа Flask-приложения и обслуживание статических файлов.
     *   Проверена загрузка примера договора через API.
     *   **Обновлено**: Проверена асинхронная работа анализа и отображение прогресса на фронтенде.
+    *   **Обновлено**: Автотесты были рефакторингованы для использования `create_app()` и передачи моков сервисов, что решило проблемы с перезаписью эндпоинтов и некорректным мокированием.
+    *   **Обновлено**: Исправлена ошибка `TypeError: a bytes-like object is required, not 'str'` в `test_get_sample_contract` путем изменения `read_data` в `mock_open` на байтовую строку.
+    *   **Обновлено**: Оптимизировано выполнение `test_seo_page_ipotechnyh_dogovorov_content_display` путем мокирования `analysis_results_raw` с ограниченным количеством пунктов, чтобы избежать долгого анализа.
 
 ## Текущий Статус и Известные Проблемы
 
@@ -142,9 +178,22 @@ hababru/
 *   **Улучшена передача данных на SEO-страницы**: Передача данных `appConfig` из бэкенда на фронтенд для SEO-страниц была переработана для повышения надежности. Теперь данные сериализуются в JSON на стороне Python (`src/backend/services/seo_service.py`) и передаются в скрытый `div` в `src/backend/templates/index_template.html`. Фронтенд (`public/js/app.js`) считывает эти данные из `textContent` этого `div` и парсит их как JSON. Это устраняет проблемы с экранированием символов и обеспечивает корректную инициализацию `window.appConfig`.
 *   **Обновлены автотесты**: Соответствующие автотесты (`tests/test_api.py`) были обновлены для проверки нового механизма передачи данных, включая извлечение и парсинг JSON из HTML-ответа.
 
+### Исправленные проблемы
+
+*   **Исправлен `test_get_llm_models`**: Проблема, из-за которой тест `test_get_llm_models` завершался неудачей (возвращал `None` вместо списка моделей), была устранена путем добавления оператора `return unique_models` в конце функции `get_available_models` в `src/backend/services/llm_service.py`.
+*   **Удален дублирующийся код в `llm_service.py`**: Из `src/backend/services/llm_service.py` был удален дублирующийся блок кода, что повысило читаемость и поддерживаемость файла.
+*   **Исправлен `test_seo_page_content_display`**: Проблема с отображением контента на SEO-страницах, которая приводила к ошибке в `test_seo_page_content_display`, была решена путем изменения логики инициализации `window.appConfig` в `src/backend/templates/index_template.html`. Теперь данные из скрытого `div` парсятся в `window.appConfig` до загрузки `app.js`, что гарантирует их доступность. Также была удалена дублирующая логика парсинга `app-config-data` и дублирующая функция `loadTestContractAndAnalyze` из `public/js/app.js`.
+
 ## Авто тесты
 
-используй pytest
+Для запуска всех тестов используйте `pytest` в корневой директории `hababru`.
+```bash
+cd hababru && pytest
+```
+Для запуска конкретных тестов, например, только тех, которые ранее падали:
+```bash
+cd hababru && pytest tests/test_api.py::test_seo_page tests/test_api.py::test_get_sample_contract tests/test_api.py::test_upload_contract tests/test_api.py::test_seo_page_content_display tests/test_api.py::test_seo_page_ipotechnyh_dogovorov_content_display tests/test_seo_prompt_api.py::test_run_openai_prompt_success
+```
 
 ## Примеры договоров для SEO-страниц
 
@@ -286,9 +335,7 @@ main_keyword: "анализ договора аренды" # Исходное к
     *   В противном случае (флаг `false` или Вордстат недоступен/ошибка): ключевые слова генерируются LLM.
 3.  **Генерация `meta_description`**: С помощью LLM (на основе `main_keyword` и, возможно, полученных/сгенерированных `meta_keywords`).
 4.  **Генерация основного текста страницы**: С помощью LLM (на основе `main_keyword`).
-5.  **Сборка `source.md`**: Формируется файл `source.md` с полями: `title` (из `main_keyword`), `meta_keywords`, `meta_description`, `related_keywords`, `contract_file` (путь), `main_keyword` и сгенерированный основной текст страницы.
-
-### Взаимодействие при отображении SEO-страницы:
+5.  **Сборка `source.md`**: Формируется файл `source.md` с полями: `title` (из `main_keyword`), `meta_keywords`, `meta_description`, `related_keywords`, `contract_file` (путь), `main_keyword` и сгенерированный основной текст страницы.### Взаимодействие при отображении SEO-страницы:
 
 **Серверная часть (`src/backend/main.py`, `src/backend/services/seo_service.py`):**
 
@@ -337,4 +384,3 @@ graph TD
     X_ANALYSIS_SYSTEM --> Y_LIVE_ANALYSIS[Результат анализа (на лету)];
     Y_LIVE_ANALYSIS & Z_METADATA --> AA_TEMPLATE{Передача всех данных в HTML-шаблон};
     AA_TEMPLATE --> AB_HTML[HTML Ответ];
-```

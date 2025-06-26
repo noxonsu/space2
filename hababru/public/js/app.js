@@ -18,24 +18,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSelectedParagraphIndex = null;
 
     // Data from SEO page (if applicable), read from hidden div
-    let isSeoPage = false;
-    let mainKeyword = null;
-    let seoPageContractTextRaw = null;
-    let seoPageAnalysisDataRaw = null;
-
-    const appConfigDataElement = document.getElementById('app-config-data');
-    if (appConfigDataElement && appConfigDataElement.textContent) {
+    let appConfig = {};
+    const appConfigDiv = document.getElementById('app-config-data');
+    if (appConfigDiv && appConfigDiv.textContent) {
         try {
-            const appConfig = JSON.parse(appConfigDataElement.textContent);
-            window.appConfig = appConfig; // Populate global appConfig
-            isSeoPage = appConfig.isSeoPage || false;
-            mainKeyword = appConfig.mainKeyword || null;
-            seoPageContractTextRaw = appConfig.seoPageContractTextRaw || null;
-            seoPageAnalysisDataRaw = appConfig.seoPageAnalysisResultsRaw || null;
+            appConfig = JSON.parse(appConfigDiv.textContent);
+            console.log('appConfig загружен из DOM:', appConfig);
         } catch (e) {
-            console.error("Error parsing appConfig data from hidden div:", e);
+            console.error('Ошибка парсинга app-config-data:', e);
         }
     }
+
+    const isSeoPage = appConfig.isSeoPage || false;
+    const seoPageContractTextRaw = appConfig.seoPageContractTextRaw;
+    const seoPageAnalysisDataRaw = appConfig.analysis_results_raw; // Исправлено: теперь берем analysis_results_raw напрямую
 
     // Функция для сброса состояния прогресс-бара
     function resetProgressBar() {
@@ -495,37 +491,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadTestContractAndAnalyze(fileName) {
-        try {
-            console.log(`loadTestContractAndAnalyze: Запрос данных для тестового файла: ${fileName}`);
-            // Запрос на специальный эндпоинт, который вернет только текст договора
-            const response = await fetch(`/api/v1/get_test_contract?file=${encodeURIComponent(fileName)}`);
-            const data = await response.json();
-
-            if (data.error) {
-                console.error(`loadTestContractAndAnalyze: Ошибка загрузки тестового файла ${fileName}:`, data.error);
-                if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Не удалось загрузить тестовый файл: ${fileName}. Ошибка: ${data.error}`;
-                if (analysisPanel) analysisPanel.textContent = '';
-                if (mainContentSection) mainContentSection.style.display = 'flex';
-                if (uploadSection) uploadSection.style.display = 'block';
-                return;
-            }
-            
-            const contractTextMd = data.contract_text; // Изменено с contract_text_md на contract_text
-
-            if (contractTextMd) {
-                // displayContractAndAnalysis(contractTextMd, []); // Убрано, т.k. анализ запускается ниже и сам вызовет display
-                startAnalysisAndPollStatus(contractTextMd); // Запускаем анализ, который в случае успеха вызовет displayContractAndAnalysis
-            } else {
-                 console.error(`loadTestContractAndAnalyze: Отсутствует текст договора для тестового файла ${fileName}`);
-                if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Текст договора для тестового файла ${fileName} не найден.`;
-                if (analysisPanel) analysisPanel.textContent = '';
-            }
-
-        } catch (error) {
-            console.error(`loadTestContractAndAnalyze: Критическая ошибка при загрузке тестового файла ${fileName}:`, error);
-            if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Критическая ошибка при обработке тестового файла: ${fileName}.`;
-            if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
-        }
-    }
 });

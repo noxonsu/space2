@@ -13,22 +13,59 @@ class LLMService:
     def __init__(self, deepseek_api_key: str, openai_api_key: str):
         self.deepseek_api_key = deepseek_api_key
         self.openai_api_key = openai_api_key
-        self.use_openai = bool(openai_api_key) # Если ключ OpenAI есть, используем OpenAI
         self.cache_service = CacheService()
+        self.logger = self._get_logger()
+        
+        # Доступные модели
+        # Устанавливаем модель по умолчанию на основе наличия ключей
+        # Теперь available_models_list будет заполняться при первом вызове get_available_models
+        # или при явном вызове set_current_model.
+        # Для инициализации, попробуем установить модель по умолчанию, если ключи есть.
+        self.current_model_full_id = None # Например, "openai:gpt-4o"
+        self.current_model_type = None    # Например, "openai"
+        self.api_url = None
+        self.service_name = None
+        self.api_key = None
+        self.default_model_name = None # Конкретное имя модели, например "gpt-4o"
 
-        if self.use_openai:
+        if self.openai_api_key:
+            self.set_current_model("openai:gpt-4.1-nano") # Устанавливаем дефолтную OpenAI модель
+        elif self.deepseek_api_key:
+            self.set_current_model("deepseek:deepseek-chat") # Устанавливаем дефолтную DeepSeek модель
+        else:
+            self.logger.warning("LLMService: Нет доступных API ключей для OpenAI или DeepSeek. LLMService не будет функционировать.")
+
+    def set_current_model(self, model_full_id: str):
+        """
+        Устанавливает текущую используемую модель LLM.
+        model_full_id должен быть в формате 'provider:model_name' (например, 'openai:gpt-4o').
+        """
+        parts = model_full_id.split(':', 1)
+        if len(parts) != 2:
+            raise ValueError(f"Некорректный формат model_full_id: '{model_full_id}'. Ожидается 'provider:model_name'.")
+        
+        model_type, model_name = parts[0], parts[1]
+
+        if model_type == "openai":
+            if not self.openai_api_key:
+                raise ValueError(f"API ключ OpenAI не установлен для модели '{model_name}'.")
+            self.current_model_type = "openai"
             self.api_url = "https://api.openai.com/v1/chat/completions"
-            self.default_model = "gpt-4.1-nano" # Указанная модель для OpenAI
             self.service_name = "OpenAI"
             self.api_key = self.openai_api_key
-        else:
+        elif model_type == "deepseek":
+            if not self.deepseek_api_key:
+                raise ValueError(f"API ключ DeepSeek не установлен для модели '{model_name}'.")
+            self.current_model_type = "deepseek"
             self.api_url = "https://api.deepseek.com/chat/completions"
-            self.default_model = "deepseek-chat"
             self.service_name = "DeepSeek"
             self.api_key = self.deepseek_api_key
+        else:
+            raise ValueError(f"Неизвестный тип провайдера LLM: '{model_type}'.")
         
-        # Инициализация логгера
-        self.logger = self._get_logger()
+        self.current_model_full_id = model_full_id
+        self.default_model_name = model_name # Теперь это конкретное имя модели
+        self.logger.info(f"LLMService: Установлена текущая модель: {self.current_model_full_id}")
 
     def _get_logger(self):
         if current_app:
@@ -38,19 +75,41 @@ class LLMService:
             logging.basicConfig(level=logging.INFO)
             return logging.getLogger(__name__)
 
-    def generate_text(self, prompt: str, model: str = None, temperature: float = 0.7, max_tokens: int = 500, timeout: int = 90) -> str:
+    def generate_text(self, prompt: str, model_full_id: str = None, temperature: float = 0.7, max_tokens: int = 4000, timeout: int = 120) -> str:
         logger = self.logger
         
-        # Если модель не указана, используем дефолтную для выбранного сервиса
-        if model is None:
-            model_to_use = self.default_model
+        # Если model_full_id не указан, используем текущую установленную модель
+        if model_full_id is None:
+            if self.current_model_full_id is None:
+                error_msg = "LLMService: Модель не выбрана и не установлена по умолчанию."
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            model_to_use_full_id = self.current_model_full_id
         else:
-            model_to_use = model
+            model_to_use_full_id = model_full_id
+
+        # Разбираем model_full_id на тип провайдера и имя модели
+        try:
+            model_type, model_name = model_to_use_full_id.split(':', 1)
+        except ValueError:
+            error_msg = f"Некорректный формат model_full_id: '{model_to_use_full_id}'. Ожидается 'provider:model_name'."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # Временно переключаем контекст LLMService, если запрошенная модель отличается от текущей
+        original_model_full_id = self.current_model_full_id
+        if model_to_use_full_id != original_model_full_id:
+            try:
+                self.set_current_model(model_to_use_full_id)
+            except ValueError as e:
+                # Если не удалось установить модель, возвращаем ошибку
+                logger.error(f"LLMService: Не удалось временно установить модель '{model_to_use_full_id}': {e}")
+                raise
 
         logger.info(f"{self.service_name}Service: Вызов generate_text для промпта (первые 250 символов): '{prompt[:250]}...'")
 
         if not self.api_key:
-            error_msg = f"{self.service_name}Service: API ключ не установлен."
+            error_msg = f"{self.service_name}Service: API ключ не установлен для {self.service_name}."
             logger.error(error_msg)
             raise ValueError(error_msg)
 
@@ -60,7 +119,7 @@ class LLMService:
         }
 
         data = {
-            "model": model_to_use,
+            "model": model_name, # Используем model_name здесь
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -69,7 +128,7 @@ class LLMService:
         }
 
         try:
-            logger.info(f"{self.service_name}Service: Отправка запроса к {self.service_name} API. URL: {self.api_url}, Модель: {model_to_use}, Таймаут: {timeout}s")
+            logger.info(f"{self.service_name}Service: Отправка запроса к {self.service_name} API. URL: {self.api_url}, Модель: {model_name}, Таймаут: {timeout}s")
             response = requests.post(self.api_url, headers=headers, json=data, timeout=timeout)
             response.raise_for_status()
             
@@ -79,7 +138,6 @@ class LLMService:
                 content = response_json['choices'][0]['message']['content']
                 if logger:
                     logger.info(f"{self.service_name}Service: Текст успешно сгенерирован (первые 250 символов): '{content[:250]}...'")
-                return content.strip()
             else:
                 error_message = response_json.get("error", {}).get("message", "Неизвестная ошибка формата ответа")
                 if logger:
@@ -110,13 +168,31 @@ class LLMService:
             error_msg = f"{self.service_name}Service: Неизвестная ошибка при работе с {self.service_name} API: {e}"
             logger.error(error_msg, exc_info=True)
             raise RuntimeError(error_msg) from e
+        finally:
+            # Восстанавливаем исходную модель, если она была временно изменена
+            if model_to_use_full_id != original_model_full_id:
+                self.set_current_model(original_model_full_id)
 
-    def analyze_sentence_in_context(self, sentence: str, full_contract_context: str) -> str:
+        return content.strip()
+
+    def analyze_sentence_in_context(self, sentence: str, full_contract_context: str, model_full_id: str = None) -> str:
         logger = self.logger
-        logger.info(f"{self.service_name}Service: Вызов analyze_sentence_in_context для предложения: '{sentence[:250]}...'")
+        logger.info(f"LLMService: Вызов analyze_sentence_in_context для предложения: '{sentence[:250]}...'")
 
-        # Для DeepSeek использовалась deepseek-reasoner, для OpenAI используем gpt-4.1-nano
-        model_for_analysis = "deepseek-reasoner" if not self.use_openai else "gpt-4.1-nano"
+        # Используем model_full_id, если передан, иначе текущую модель
+        model_to_use_full_id = model_full_id if model_full_id else self.current_model_full_id
+        
+        # Определяем конкретное имя модели для анализа на основе провайдера
+        if model_to_use_full_id:
+            model_type, model_name = model_to_use_full_id.split(':', 1)
+            if model_type == "deepseek":
+                model_for_analysis_name = "deepseek-reasoner"
+            elif model_type == "openai":
+                model_for_analysis_name = "gpt-4.1-nano" # Или другая подходящая модель OpenAI
+            else:
+                model_for_analysis_name = self.default_model_name # Fallback
+        else:
+            model_for_analysis_name = self.default_model_name # Fallback
 
         prompt = f"""
         Проанализируй следующее предложение с юридической точки зрения, учитывая полный контекст договора.
@@ -133,14 +209,26 @@ class LLMService:
         ---
         Твой анализ:
         """
-        return self.generate_text(prompt, model=model_for_analysis, max_tokens=500, temperature=0, timeout=90)
+        return self.generate_text(prompt, model_full_id=model_to_use_full_id, temperature=0, max_tokens=2000, timeout=120)
 
-    def analyze_paragraph_in_context(self, paragraph: str, full_contract_context: str) -> str:
+    def analyze_paragraph_in_context(self, paragraph: str, full_contract_context: str, model_full_id: str = None) -> str:
         logger = self.logger
-        logger.info(f"{self.service_name}Service: Вызов analyze_paragraph_in_context для пункта: '{paragraph[:250]}...'")
+        logger.info(f"LLMService: Вызов analyze_paragraph_in_context для пункта: '{paragraph[:250]}...'")
 
-        # Для DeepSeek использовалась deepseek-reasoner, для OpenAI используем gpt-4.1-nano
-        model_for_analysis = "deepseek-reasoner" if not self.use_openai else "gpt-4.1-nano"
+        # Используем model_full_id, если передан, иначе текущую модель
+        model_to_use_full_id = model_full_id if model_full_id else self.current_model_full_id
+
+        # Определяем конкретное имя модели для анализа на основе провайдера
+        if model_to_use_full_id:
+            model_type, model_name = model_to_use_full_id.split(':', 1)
+            if model_type == "deepseek":
+                model_for_analysis_name = "deepseek-reasoner"
+            elif model_type == "openai":
+                model_for_analysis_name = "gpt-4.1-nano" # Или другая подходящая модель OpenAI
+            else:
+                model_for_analysis_name = self.default_model_name # Fallback
+        else:
+            model_for_analysis_name = self.default_model_name # Fallback
 
         prompt = f"""
         Проанализируй следующий пункт/абзац с юридической точки зрения, учитывая полный контекст договора.
@@ -157,17 +245,20 @@ class LLMService:
         ---
         Твой анализ:
         """
-        return self.generate_text(prompt, model=model_for_analysis, max_tokens=1500, temperature=0, timeout=120)
+        return self.generate_text(prompt, model_full_id=model_to_use_full_id, temperature=0, max_tokens=4000, timeout=180)
 
-    def segment_text_into_paragraphs(self, text_content: str) -> List[str]:
+    def segment_text_into_paragraphs(self, text_content: str, model_full_id: str = None) -> List[str]:
         logger = self.logger
-        logger.info(f"{self.service_name}Service: Вызов segment_text_into_paragraphs для текста (первые 250 символов): '{text_content[:250]}'")
+        logger.info(f"LLMService: Вызов segment_text_into_paragraphs для текста (первые 250 символов): '{text_content[:250]}'")
 
         text_hash = self.cache_service._generate_hash(text_content)
         cached_paragraphs = self.cache_service.get_cached_segmentation(text_hash)
         if cached_paragraphs:
-            logger.info(f"{self.service_name}Service: Результат сегментации для хэша {text_hash} найден в кэше.")
+            logger.info(f"LLMService: Результат сегментации для хэша {text_hash} найден в кэше.")
             return cached_paragraphs
+
+        # Используем model_full_id, если передан, иначе текущую модель
+        model_to_use_full_id = model_full_id if model_full_id else self.current_model_full_id
 
         prompt = f"""
         Разбей следующий текст на отдельные пункты или смысловые абзацы. Каждый пункт должен быть на новой строке.
@@ -194,9 +285,9 @@ class LLMService:
         Результат:
         """
         
-        raw_segmented_text = self.generate_text(prompt, model=self.default_model, max_tokens=2000, temperature=0, timeout=120)
+        raw_segmented_text = self.generate_text(prompt, model_full_id=model_to_use_full_id, max_tokens=2000, temperature=0, timeout=120)
         
-        logger.info(f"{self.service_name}Service: Полный ответ от {self.service_name} для сегментации (до разделения): '{raw_segmented_text[:500]}'")
+        logger.info(f"LLMService: Полный ответ от LLM для сегментации (до разделения): '{raw_segmented_text[:500]}'")
 
         paragraphs = [p.strip() for p in raw_segmented_text.split('\n') if p.strip()]
         
@@ -206,9 +297,46 @@ class LLMService:
             if stripped_s and not stripped_s.startswith('#'):
                 filtered_paragraphs.append(stripped_s)
 
-        logger.info(f"{self.service_name}Service: Получено {len(filtered_paragraphs)} отфильтрованных пунктов после сегментации.")
+        logger.info(f"LLMService: Получено {len(filtered_paragraphs)} отфильтрованных пунктов после сегментации.")
         
         self.cache_service.save_segmentation_to_cache(text_hash, filtered_paragraphs)
-        logger.info(f"{self.service_name}Service: Результат сегментации для хэша {text_hash} сохранен в кэш.")
+        logger.info(f"LLMService: Результат сегментации для хэша {text_hash} сохранен в кэш.")
 
         return filtered_paragraphs
+
+
+    def get_available_models(self) -> List[str]:
+        """
+        Возвращает список доступных LLM моделей, включая конкретные модели для каждого провайдера.
+        Формат: ['openai:gpt-4o', 'deepseek:deepseek-chat']
+        """
+        models = []
+        logger = self._get_logger()
+
+        if self.openai_api_key:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.openai_api_key}"
+                }
+                response = requests.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
+                response.raise_for_status()
+                openai_models = response.json().get('data', [])
+                for model_info in openai_models:
+                    model_id = model_info.get('id')
+                    # Фильтруем только chat-совместимые модели
+                    if model_id and ("gpt" in model_id or "davinci" in model_id or "babbage" in model_id or "curie" in model_id or "ada" in model_id): # Простая фильтрация
+                        models.append(f"openai:{model_id}")
+                logger.info(f"LLMService: Загружены модели OpenAI: {len(openai_models)} штук.")
+            except Exception as e:
+                logger.error(f"LLMService: Ошибка при получении списка моделей OpenAI: {e}", exc_info=True)
+
+        if self.deepseek_api_key:
+            # Для DeepSeek используем предопределенный список, так как нет публичного API для перечисления
+            deepseek_specific_models = ["deepseek-chat", "deepseek-coder"]
+            for model_id in deepseek_specific_models:
+                models.append(f"deepseek:{model_id}")
+            logger.info(f"LLMService: Добавлены предопределенные модели DeepSeek: {deepseek_specific_models}")
+        
+        # Удаляем дубликаты и сортируем
+        unique_models = sorted(list(set(models)))
+        return unique_models

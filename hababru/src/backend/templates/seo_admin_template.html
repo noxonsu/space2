@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Администрирование SEO-страниц</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1em 0;
+            text-align: center;
+        }
+        main {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .page-list {
+            margin-top: 20px;
+        }
+        .page-item {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .page-item h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .page-item p {
+            margin: 5px 0;
+        }
+        .page-item a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .page-item a:hover {
+            text-decoration: underline;
+        }
+        .prompt-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f0f8ff;
+        }
+        .template-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #e6ffe6; /* Light green background for templates */
+        }
+        .template-section h2 {
+            color: #28a745;
+        }
+        .template-buttons button {
+            margin-right: 10px;
+            margin-bottom: 10px;
+            background-color: #28a745; /* Green for template buttons */
+        }
+        .template-buttons button:hover {
+            background-color: #218838;
+        }
+        .prompt-section h2 {
+            color: #28a745;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            min-height: 100px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result-output {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #28a745;
+            background-color: #e6ffe6;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error-output {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #dc3545;
+            background-color: #ffe6e6;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .loading-spinner {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .action-buttons button {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            background-color: #333;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Администрирование SEO-страниц</h1>
+    </header>
+
+    <main>
+        <section class="template-section">
+            <h2>Предустановленные шаблоны промптов</h2>
+            <p>Выберите один из предустановленных шаблонов для быстрого создания промпта:</p>
+            <div class="template-buttons">
+                <button id="template-audience-channels">Собрать аудиторию и Telegram-каналы</button>
+                <button id="template-ad-text">Сделать объявление (до 140 символов)</button>
+                <button id="template-image-idea">Придумать картинку для статьи</button>
+                <button id="template-find-channels-for-ads" class="template-button">Найти каналы для рекламы</button>
+            </div>
+        </section>
+
+        <section class="model-selection-section prompt-section">
+            <h2>Выбор модели LLM</h2>
+            <p>Выберите модель, которую использовать для генерации промптов:</p>
+            <label for="llm-model-select">Модель LLM:</label>
+            <select id="llm-model-select">
+                <!-- Опции будут загружены динамически через JavaScript -->
+            </select>
+        </section>
+
+        <section class="prompt-section">
+            <h2>Инструменты LLM для SEO-страниц</h2>
+            <p>Введите промпт для выбранной LLM. Вы можете использовать следующие заполнители:</p>
+            {% raw %}
+            <ul>
+                <li><code>{{PAGE_TITLE}}</code>: Заголовок страницы</li>
+                <li><code>{{PAGE_KEYWORDS}}</code>: Ключевые слова страницы (через запятую)</li>
+                <li><code>{{PAGE_DESCRIPTION}}</code>: Описание страницы</li>
+                <li><code>{{CONTRACT_TEXT}}</code>: Текст договора, связанный со страницей</li>
+                <li><code>{FILE_LLM_RESULT:префикс_имени_файла}</code>: Вывод из предыдущего анализа LLM (например, <code>{FILE_LLM_RESULT:target_audience_result}</code>)</li>
+            </ul>
+            {% endraw %}
+            <label for="openai-prompt">Промпт для OpenAI:</label>
+            <textarea id="openai-prompt" placeholder="Например: 'Собери, пожалуйста, целевую аудиторию для этой страницы: {{PAGE_TITLE}}. Текст договора: {{CONTRACT_TEXT}}. Используй предыдущий анализ: {FILE_LLM_RESULT:target_audience_result}'"></textarea>
+            
+            <label for="output-filename-prefix">Префикс имени файла для результата (например, 'target_audience_result'):</label>
+            <input type="text" id="output-filename-prefix" value="llm_result">
+
+            <div class="action-buttons">
+                <button id="run-single-prompt-button">Запустить промпт для выбранной страницы</button>
+                <button id="run-all-prompts-button">Запустить промпт для ВСЕХ страниц</button>
+                <span id="loading-spinner" class="loading-spinner"></span>
+            </div>
+            <div id="prompt-output" class="result-output" style="display: none;"></div>
+            <div id="prompt-error" class="error-output" style="display: none;"></div>
+        </section>
+
+        <section class="page-list">
+            <h2>Список SEO-страниц</h2>
+            <div id="seo-pages-container">
+                <p>Загрузка страниц...</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Сервис проверки договоров</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/seo_admin.js') }}"></script>
+</body>
+</html>

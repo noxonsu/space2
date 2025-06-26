@@ -7,9 +7,13 @@ const url = require('url');
 
 const KEYWORDS_FILE_PATH = path.join(__dirname, '.env_keys');
 const NEWS_DATA_FILE_PATH = path.join(__dirname, 'fetched_news.json');
+const PROMPT_FILE_PATH = path.join(__dirname, '.env_prompt');
+const BLACKLIST_FILE_PATH = path.join(__dirname, 'processed_urls_blacklist.json');
 const SERPAPI_API_KEY = process.env.SERPAPI_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // --- Admin Panel Code ---
@@ -146,10 +150,13 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.listen(adminPort, () => {
-  console.log(`Админ панель запущена на порту ${adminPort}`);
-  console.log(`Admin panel listening at http://localhost:${adminPort}`);
-});
+// Запускаем сервер только если не в тестовой среде
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(adminPort, () => {
+    console.log(`Админ панель запущена на порту ${adminPort}`);
+    console.log(`Admin panel listening at http://localhost:${adminPort}`);
+  });
+}
 // --- End Admin Panel Code ---
 
 
@@ -170,11 +177,103 @@ async function sendTelegramMessage(chatId, text) {
     }
 }
 
+async function processNewsWithOpenAI(newsItem) {
+    if (!OPENAI_API_KEY) {
+        console.error('OpenAI API key not set. Skipping AI processing.');
+        return null;
+    }
+
+    // Читаем промпт из файла
+    let promptTemplate;
+    try {
+        promptTemplate = fs.readFileSync(PROMPT_FILE_PATH, 'utf8');
+    } catch (error) {
+        console.error('Error reading prompt file:', error.message);
+        console.error('Using fallback prompt.');
+        promptTemplate = `## УЛЬТИМАТИВНЫЕ ПРАВИЛА (9.98+/10)
+1. Если новость не Sb₂O₃/сурьма → вернуть null.
+2. Paywall/404 → summary_ru: "Статья недоступна", остальные поля null.
+3. Обязательно сверяй CAS 1309‑64‑4 и HS 281820.
+4. Числа — арабские, проценты со знаком %, объёмы в т, валюты — USD.
+5. Глаголы ультрачёткие: «вырастет», «упадёт», «изменится», «снизится», «повысится».
+6. Точные даты: «до 26 июн 2025».
+7. Никаких эмоций — только ультрафакты, стратегии, деньги, риски.
+
+Проанализируй эту новость:
+{{NEWS_DATA}}
+
+Верни только JSON-ответ в указанном формате или null если новость не про сурьму/Sb₂O₃.`;
+    }
+
+    // Заменяем плейсхолдер на данные новости
+    const prompt = promptTemplate.replace('{{NEWS_DATA}}', JSON.stringify(newsItem, null, 2));
+
+    try {
+        console.log(`Processing news with OpenAI: "${newsItem.title}"`);
+        
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-4o',
+            messages: [
+                {
+                    role: 'system',
+                    content: 'Ты — NAMAGIRI‑ASIM‑аналитик ChemPartners. Анализируешь только новости про Sb₂O₃ (триоксид сурьмы). Возвращаешь JSON в точном формате или null.'
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            temperature: 0.1,
+            max_tokens: 2000
+        }, {
+            headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        let aiResponse = response.data.choices[0].message.content.trim();
+        
+        // Извлекаем JSON из Markdown блока, если он есть
+        const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch && jsonMatch[1]) {
+            aiResponse = jsonMatch[1].trim();
+        }
+
+        // Попытка распарсить JSON ответ
+        if (aiResponse === 'null' || aiResponse.toLowerCase() === 'null' || aiResponse === '') {
+            console.log(`  - OpenAI: новость не про сурьму или пустой ответ, пропускаем`);
+            return null;
+        }
+
+        try {
+            const processedNews = JSON.parse(aiResponse);
+            console.log(`  - OpenAI: новость обработана успешно`);
+            return processedNews;
+        } catch (parseError) {
+            console.error(`  - OpenAI: ошибка парсинга JSON ответа:`, parseError.message);
+            console.error(`  - Ответ OpenAI (сырой):`, response.data.choices[0].message.content.trim());
+            console.error(`  - Ответ OpenAI (попытка парсинга):`, aiResponse);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error processing news with OpenAI:', error.message);
+        if (error.response && error.response.data) {
+            console.error('OpenAI API Error details:', error.response.data);
+        }
+        return null;
+    }
+}
+
 async function fetchNewsForKeyword(keyword) {
-    const api_key = '6856816ef6fca153ee766fe3';
+    if (!SCRAPINGDOG_API_KEY) {
+        console.error('ScrapingDog API key not set. Skipping news fetch.');
+        return [];
+    }
+    
     const url = 'https://api.scrapingdog.com/google_news/';
     const params = {
-        api_key: api_key,
+        api_key: SCRAPINGDOG_API_KEY,
         query: keyword,
         results: 5,
         page: 0,
@@ -224,56 +323,59 @@ async function fetchNewsForKeyword(keyword) {
 // Helper function to check if news is older than 2 days
 function isNewsOlderThan2Days(dateString) {
     if (!dateString) return false;
-    
-    try {
-        const now = new Date();
-        const twoDaysInMs = 2 * 24 * 60 * 60 * 1000;
-        
-        // Handle relative dates like "2 days ago", "24 hours ago", "2 weeks ago", etc.
-        if (dateString.includes('ago')) {
-            // Match patterns like "3 days ago", "24 hours ago", "2 weeks ago", "1 minute ago"
-            const match = dateString.match(/(\d+)\s*(minute|hour|day|week|month)s?\s*ago/i);
-            if (match) {
-                const amount = parseInt(match[1]);
-                const unit = match[2].toLowerCase();
-                
-                let newsAgeInMs = 0;
-                
-                switch (unit) {
-                    case 'minute':
-                        newsAgeInMs = amount * 60 * 1000;
-                        break;
-                    case 'hour':
-                        newsAgeInMs = amount * 60 * 60 * 1000;
-                        break;
-                    case 'day':
-                        newsAgeInMs = amount * 24 * 60 * 60 * 1000;
-                        break;
-                    case 'week':
-                        newsAgeInMs = amount * 7 * 24 * 60 * 60 * 1000;
-                        break;
-                    case 'month':
-                        newsAgeInMs = amount * 30 * 24 * 60 * 60 * 1000;
-                        break;
-                    default:
-                        return false;
-                }
-                
-                // Return true if news is older than 2 days (48 hours)
-                return newsAgeInMs >= twoDaysInMs;
-            }
+
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000)); // 2 days in milliseconds
+
+    // Helper to parse relative dates
+    const parseRelativeDate = (str) => {
+        const match = str.match(/(\d+)\s*(minute|hour|day|week|month)s?\s*ago/i);
+        if (!match) return null;
+
+        const amount = parseInt(match[1]);
+        const unit = match[2].toLowerCase();
+        let date = new Date(now.getTime());
+
+        switch (unit) {
+            case 'minute':
+                date.setMinutes(date.getMinutes() - amount);
+                break;
+            case 'hour':
+                date.setHours(date.getHours() - amount);
+                break;
+            case 'day':
+                date.setDate(date.getDate() - amount);
+                break;
+            case 'week':
+                date.setDate(date.getDate() - (amount * 7));
+                break;
+            case 'month':
+                date.setMonth(date.getMonth() - amount);
+                break;
+            default:
+                return null;
         }
-        
-        // Try to parse as actual date (like "Apr 7, 2025")
-        const newsDate = new Date(dateString);
-        if (!isNaN(newsDate.getTime())) {
-            const twoDaysAgo = new Date(now.getTime() - twoDaysInMs);
+        return date;
+    };
+
+    try {
+        let newsDate;
+        if (dateString.includes('ago')) {
+            newsDate = parseRelativeDate(dateString);
+        } else {
+            // Try to parse as a standard date string (e.g., "Jan 8, 2025", "Apr 7, 2025")
+            newsDate = new Date(dateString);
+        }
+
+        if (newsDate && !isNaN(newsDate.getTime())) {
             return newsDate < twoDaysAgo;
         }
-        
+
+        // If parsing failed, log and return false (assume not old to avoid false positives)
+        console.warn(`  - isNewsOlderThan2Days: Не удалось точно распарсить дату "${dateString}". Считаем свежей.`);
         return false;
     } catch (error) {
-        console.error('Error parsing date:', dateString, error.message);
+        console.error(`  - isNewsOlderThan2Days: Ошибка при обработке даты "${dateString}":`, error.message);
         return false;
     }
 }
@@ -287,11 +389,13 @@ function testDateFiltering() {
         "48 hours ago",   // должно быть true (граница, 2 дня)
         "2 days ago",     // должно быть true (граница)
         "3 days ago",     // должно быть true (старая)
-        "6 days ago",     // должно быть true (старая)
+        "6 days ago",    // должно быть true (старая)
         "2 weeks ago",    // должно быть true (старая)
+        "1 month ago",    // должно быть true (старая)
         "1 hour ago",     // должно быть false (свежая)
         "12 hours ago",   // должно быть false (свежая)
-        "Apr 7, 2025"     // должно быть true (дата в прошлом)
+        "Jan 8, 2025",    // должно быть true (дата в прошлом)
+        "June 25, 2025"   // должно быть false (свежая, если сегодня 26 июня 2025)
     ];
     
     console.log("=== Тест фильтрации дат ===");
@@ -301,7 +405,6 @@ function testDateFiltering() {
     });
     console.log("=== Конец теста ===\n");
 }
-
 async function processAndSendNews(keyword, newsItems) {
     let allNews = [];
     try {
@@ -316,6 +419,10 @@ async function processAndSendNews(keyword, newsItems) {
         // Continue with an empty array if parsing fails
         allNews = [];
     }
+
+    // Загружаем блэклист обработанных URL
+    const blacklist = loadBlacklist();
+    console.log(`Loaded blacklist with ${blacklist.size} processed URLs`);
 
     const fetchedAt = new Date().toISOString();
     
@@ -354,29 +461,123 @@ async function processAndSendNews(keyword, newsItems) {
         });
     }
 
-    if (newNewsItems.length > 0) {
-        console.log(`Found ${newNewsItems.length} new news items for "${keyword}".`);
+    // Дополнительно фильтруем по блэклисту обработанных URL
+    const unprocessedNewsItems = newNewsItems.filter(item => {
+        const isBlacklisted = isInBlacklist(item.link, blacklist);
+        if (isBlacklisted) {
+            console.log(`  - Пропущена (уже обработана OpenAI): "${item.title}"`);
+        }
+        return !isBlacklisted;
+    });
 
-        if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-            console.error('Telegram BOT_TOKEN or CHAT_ID is not set. Skipping Telegram notification.');
-        } else {
-            for (const newsItem of newNewsItems) {
-                const message = `Новость по запросу "${newsItem.keyword}":\n\n${newsItem.title}\n${newsItem.link}\n\n Дата: ${newsItem.date || 'N/A'}`;
+    const blacklistedCount = newNewsItems.length - unprocessedNewsItems.length;
+    if (blacklistedCount > 0) {
+        console.log(`Пропущено ${blacklistedCount} новостей для "${keyword}" - уже обработаны OpenAI`);
+    }
+
+    if (unprocessedNewsItems.length > 0) {
+        console.log(`Found ${unprocessedNewsItems.length} new unprocessed news items for "${keyword}".`);
+
+        // Список для хранения только валидных новостей (прошедших OpenAI фильтрацию)
+        const validNewsItems = [];
+        let blacklistUpdated = false;
+        
+        for (const newsItem of unprocessedNewsItems) {
+            // Добавляем URL в блэклист независимо от результата обработки OpenAI
+            const wasAdded = addToBlacklist(newsItem.link, blacklist);
+            if (wasAdded) {
+                blacklistUpdated = true;
+            }
+
+            // Обрабатываем новость через OpenAI
+            const processedNews = await processNewsWithOpenAI({
+                url: newsItem.link,
+                title: newsItem.title,
+                published: newsItem.date,
+                source: newsItem.source,
+                snippet: newsItem.snippet
+            });
+
+            // Если OpenAI вернул null (новость не про сурьму), пропускаем её
+            if (!processedNews) {
+                console.log(`  - Пропущена новость (не про сурьму): "${newsItem.title}"`);
+                continue;
+            }
+
+            // Добавляем в список валидных новостей
+            validNewsItems.push(newsItem);
+
+            // Отправляем в Telegram только если настроен
+            if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+                // Формируем сообщение на основе обработанных данных
+                let message = `🔥 ${processedNews.title_ru}\n\n`;
+                message += `📊 ${processedNews.summary_ru}\n\n`;
+                
+                if (processedNews.market_analytics) {
+                    message += `📈 Аналитика:\n`;
+                    if (processedNews.market_analytics.price_trend_14d) {
+                        message += `• Тренд 14д: ${processedNews.market_analytics.price_trend_14d}\n`;
+                    }
+                    if (processedNews.market_analytics.forecast_30d) {
+                        message += `• Прогноз 30д: ${processedNews.market_analytics.forecast_30d}\n`;
+                    }
+                    if (processedNews.market_analytics.supply_impact_t) {
+                        message += `• Влияние на предложение: ${processedNews.market_analytics.supply_impact_t}\n`;
+                    }
+                    message += `\n`;
+                }
+
+                if (processedNews['ТРИ_ГЛАЗА']) {
+                    const triGlaza = processedNews['ТРИ_ГЛАЗА'];
+                    message += `🎯 Ключевые моменты:\n`;
+                    if (triGlaza.risk && triGlaza.risk.length > 0) {
+                        message += `⚠️ Риски: ${triGlaza.risk.join('; ')}\n`;
+                    }
+                    if (triGlaza.opportunity && triGlaza.opportunity.length > 0) {
+                        message += `💰 Возможности: ${triGlaza.opportunity.join('; ')}\n`;
+                    }
+                    message += `\n`;
+                }
+
+                if (processedNews.ASIM_short_insight) {
+                    message += `🧠 Инсайт: ${processedNews.ASIM_short_insight}\n\n`;
+                }
+
+                message += `🔗 ${newsItem.link}\n`;
+                message += `📅 ${processedNews.pub_time || newsItem.date || 'N/A'}\n`;
+                message += `📰 ${processedNews.source || newsItem.source || 'N/A'}`;
+
+                if (processedNews.notification_level === 'CRITICAL') {
+                    message = `🚨 КРИТИЧНО! 🚨\n\n${message}`;
+                }
+
                 await sendTelegramMessage(TELEGRAM_CHAT_ID, message);
                 // Add a small delay between Telegram messages to avoid hitting rate limits
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+                console.log(`  - Валидная новость (про сурьму): "${newsItem.title}"`);
             }
         }
         
-        allNews.push(...newNewsItems);
-        try {
-            fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
-            console.log(`Successfully saved ${newNewsItems.length} new news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
-        } catch (err) {
-            console.error('Error writing news data to file:', err.message);
+        // Сохраняем обновленный блэклист
+        if (blacklistUpdated) {
+            saveBlacklist(blacklist);
+        }
+        
+        // Сохраняем только валидные новости (прошедшие OpenAI фильтрацию)
+        if (validNewsItems.length > 0) {
+            allNews.push(...validNewsItems);
+            try {
+                fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
+                console.log(`Successfully saved ${validNewsItems.length} valid news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
+            } catch (err) {
+                console.error('Error writing news data to file:', err.message);
+            }
+        } else {
+            console.log(`No valid news items found for "${keyword}" after OpenAI filtering.`);
         }
     } else {
-        console.log(`No new news items found for "${keyword}".`);
+        console.log(`No new unprocessed news items found for "${keyword}".`);
     }
 }
 
@@ -415,6 +616,20 @@ async function runDailyTask() {
 }
 
 // Start the first cycle
+if (!OPENAI_API_KEY) {
+    console.error('OpenAI API key is not set. News filtering will be disabled.');
+}
+
+if (!SCRAPINGDOG_API_KEY) {
+    console.error('ScrapingDog API key is not set. News fetching will be disabled.');
+}
+
+if (!fs.existsSync(PROMPT_FILE_PATH)) {
+    console.error('Prompt file (.env_prompt) not found. AI processing may use fallback prompt.');
+} else {
+    console.log('Prompt file loaded successfully.');
+}
+
 if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('Telegram BOT_TOKEN or CHAT_ID is not set. News will be fetched and saved, but not sent to Telegram.');
     console.log('News Alert script started. Initial check will run now.');
@@ -424,5 +639,149 @@ else {
     console.log('News Alert script started. Initial check will run now.');
     console.log(`Telegram Bot Token loaded successfully: ${TELEGRAM_BOT_TOKEN.substring(0, 5)}...`);
     console.log(`Telegram Chat ID loaded successfully: ${TELEGRAM_CHAT_ID}`);
-    runDailyTask();
+    if (OPENAI_API_KEY) {
+        console.log(`OpenAI API key loaded successfully: ${OPENAI_API_KEY.substring(0, 5)}...`);
+    }
+    if (SCRAPINGDOG_API_KEY) {
+        console.log(`ScrapingDog API key loaded successfully: ${SCRAPINGDOG_API_KEY.substring(0, 5)}...`);
+    }
+    
+    // Запускаем только если не в тестовой среде
+    if (process.env.NODE_ENV !== 'test') {
+        runDailyTask();
+    }
+}
+
+// Экспорт функций для тестирования
+module.exports = {
+    isNewsOlderThan2Days,
+    processNewsWithOpenAI,
+    sendTelegramMessage,
+    fetchNewsForKeyword,
+    filterNewsByDate,
+    filterNewsByKeywords,
+    loadPromptFromFile,
+    loadKeywordsFromFile,
+    fetchNewsFromSerpApi: fetchNewsForKeyword, // alias
+    fetchNewsFromScrapingDog: fetchNewsForKeyword, // alias  
+    sendTelegramNotification: sendTelegramMessage,
+    loadBlacklist,
+    saveBlacklist,
+    addToBlacklist,
+    isInBlacklist
+};
+
+// Utility functions for filtering and processing
+function filterNewsByDate(newsItems, daysBack = 1) {
+  if (!newsItems || !Array.isArray(newsItems)) {
+    return [];
+  }
+  
+  const cutoffTime = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
+  
+  return newsItems.filter(item => {
+    if (!item || !item.published) {
+      return false;
+    }
+    
+    try {
+      const publishedTime = new Date(item.published).getTime();
+      return publishedTime >= cutoffTime && !isNaN(publishedTime);
+    } catch (error) {
+      return false;
+    }
+  });
+}
+
+function filterNewsByKeywords(newsItems, keywords) {
+  if (!newsItems || !Array.isArray(newsItems)) {
+    return [];
+  }
+  
+  if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+    return [];
+  }
+  
+  return newsItems.filter(item => {
+    if (!item) {
+      return false;
+    }
+    
+    const title = (item.title || '').toLowerCase();
+    const html = (item.html || '').toLowerCase();
+    const content = title + ' ' + html;
+    
+    return keywords.some(keyword => 
+      content.includes(keyword.toLowerCase())
+    );
+  });
+}
+
+function loadKeywordsFromFile() {
+  try {
+    if (fs.existsSync(KEYWORDS_FILE_PATH)) {
+      const keywordsContent = fs.readFileSync(KEYWORDS_FILE_PATH, 'utf8');
+      return keywordsContent.split('\n').filter(line => line.trim());
+    }
+  } catch (error) {
+    console.log('Error loading keywords file:', error.message);
+  }
+  
+  // Default keywords
+  return ['antimony', 'trioxide', 'sb2o3', 'antimony oxide'];
+}
+
+function loadPromptFromFile() {
+  try {
+    if (fs.existsSync(PROMPT_FILE_PATH)) {
+      return fs.readFileSync(PROMPT_FILE_PATH, 'utf8');
+    }
+  } catch (error) {
+    console.log('Error loading prompt file:', error.message);
+  }
+  
+  // Fallback prompt
+  return `Analyze this news item about Sb₂O₃ (Antimony Trioxide): {{NEWS_DATA}}
+Please provide a brief summary focusing on market impact.`;
+}
+
+// Функции для работы с блэклистом обработанных URL
+function loadBlacklist() {
+    try {
+        if (fs.existsSync(BLACKLIST_FILE_PATH)) {
+            const blacklistData = fs.readFileSync(BLACKLIST_FILE_PATH, 'utf8');
+            const blacklist = JSON.parse(blacklistData);
+            return new Set(blacklist.urls || []);
+        }
+    } catch (error) {
+        console.error('Error loading blacklist:', error.message);
+    }
+    return new Set();
+}
+
+function saveBlacklist(blacklistSet) {
+    try {
+        const blacklistData = {
+            lastUpdated: new Date().toISOString(),
+            count: blacklistSet.size,
+            urls: Array.from(blacklistSet)
+        };
+        fs.writeFileSync(BLACKLIST_FILE_PATH, JSON.stringify(blacklistData, null, 2), 'utf8');
+        console.log(`Blacklist updated: ${blacklistSet.size} processed URLs`);
+    } catch (error) {
+        console.error('Error saving blacklist:', error.message);
+    }
+}
+
+function addToBlacklist(url, blacklistSet) {
+    if (url && !blacklistSet.has(url)) {
+        blacklistSet.add(url);
+        console.log(`  - Added to blacklist: ${url}`);
+        return true;
+    }
+    return false;
+}
+
+function isInBlacklist(url, blacklistSet) {
+    return blacklistSet.has(url);
 }
