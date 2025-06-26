@@ -149,7 +149,10 @@ graph TD
 
 ```
 k/
+├── .gitignore
 ├── jest.config.js
+├── jest.sequencer.js
+├── jest.setup.ts
 ├── package.json
 ├── readme.md
 ├── tsconfig.json
@@ -157,16 +160,23 @@ k/
 │   ├── account.ts
 │   ├── crypto.ts
 │   ├── entity.ts
+│   ├── server.ts
 │   └── types.ts
 └── tests/
     ├── integration/
+    │   ├── leveldb-artifacts/  (игнорируется git)
+    │   └── server.test.ts
     └── unit/
-        └── account.test.ts
+        ├── account.test.ts
+        └── entity.test.ts
 ```
 
 ### Описание файлов:
 -   **`k/`**: Корневая директория проекта.
+    -   **`.gitignore`**: Правила исключения файлов из Git (тестовые БД, артефакты, node_modules).
     -   **`jest.config.js`**: Конфигурация для тестового фреймворка Jest.
+    -   **`jest.sequencer.js`**: Кастомный секвенсер для правильного порядка тестов (unit → integration).
+    -   **`jest.setup.ts`**: Глобальная настройка Jest для очистки ресурсов.
     -   **`package.json`**: Определяет зависимости проекта и скрипты.
     -   **`readme.md`**: Документация проекта.
     -   **`tsconfig.json`**: Конфигурация компилятора TypeScript.
@@ -178,6 +188,7 @@ k/
         -   `types.ts`: Определения типов данных.
     -   **`tests/`**: Директория с тестами.
         -   `integration/`: Для интеграционных тестов.
+            -   `leveldb-artifacts/`: Сохраненные артефакты базы данных после тестов (игнорируется Git).
             -   `server.test.ts`: Интеграционные тесты для `Server` и `LevelDB`.
         -   `unit/`: Для юнит-тестов.
             -   `entity.test.ts`: Юнит-тесты для `Entity`.
@@ -216,31 +227,34 @@ removeHexPrefix надо использовать.
 
 ## 9. Запуск тестов
 
-### Интеграционные тесты сервера
+### Все тесты (рекомендуемый способ)
 ```bash
-# Запуск всех интеграционных тестов сервера
-npm test -- tests/integration/server.test.ts
-
-# Запуск конкретного теста
-npm test -- tests/integration/server.test.ts -t "should create blocks every second"
-```
-
-### Unit-тесты аккаунтов
-```bash
-# Запуск unit-тестов для Account
-npm test -- tests/unit/account.test.ts
-```
-
-### Все тесты
-```bash
-# Запуск всех тестов
+# Запуск всех тестов в правильном порядке (unit-тесты → интеграционные)
 npm test
+```
+Порядок выполнения:
+1. Unit-тесты Account (`tests/unit/account.test.ts`)
+2. Unit-тесты Entity (`tests/unit/entity.test.ts`)  
+3. Интеграционные тесты Server (`tests/integration/server.test.ts`)
+
+### Отдельные наборы тестов
+```bash
+# Только unit-тесты
+npm test tests/unit/
+
+# Только интеграционные тесты
+npm test tests/integration/
+
+# Конкретный тест
+npm test -- tests/integration/server.test.ts -t "should create blocks every second"
 ```
 
 ### Артефакты тестирования
 После запуска интеграционных тестов сервера артефакты LevelDB сохраняются в:
 - `tests/integration/leveldb-artifacts/db-{timestamp}/` - копии баз данных
 - `tests/integration/leveldb-artifacts/db-summary-{timestamp}.txt` - текстовые сводки содержимого
+
+**Примечание:** Все тестовые базы данных и артефакты автоматически исключаются из Git через `.gitignore`.
 
 ## 10. Текущее состояние системы
 
