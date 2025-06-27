@@ -204,3 +204,185 @@ footer {
     line-height: 20px;
     color: white;
 }
+
+/* Мобильные стили */
+@media (max-width: 768px) {
+    body {
+        padding: 5px; /* Минимальный отступ */
+        margin: 0;
+    }
+
+    header {
+        padding: 5px 0; /* Минимальный отступ в шапке */
+        margin-bottom: 5px; /* Минимальный отступ снизу */
+    }
+
+    main {
+        padding: 5px; /* Минимальный отступ */
+        margin: 0;
+        box-shadow: none; /* Убираем тень для экономии места */
+    }
+
+    /* Двухколоночный макет на мобиле */
+    .two-column-layout {
+        display: flex;
+        gap: 3px; /* Минимальный зазор между колонками */
+        margin-bottom: 5px;
+        flex-direction: row; /* Убедимся что колонки горизонтально */
+    }
+
+    #contract-view-container, 
+    .contract-form,
+    #analysis-panel-container,
+    .analysis-results {
+        flex: 1;
+        padding: 3px; /* Минимальный внутренний отступ */
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        background-color: #fff;
+        min-height: 300px; /* Уменьшенная высота для мобиле */
+        overflow-y: auto;
+        font-size: 12px; /* Уменьшенный шрифт для помещения большего количества текста */
+    }
+
+    #contract-text-display {
+        min-height: 250px;
+        padding: 3px;
+        font-size: 11px; /* Еще меньший шрифт для текста договора */
+        line-height: 1.2; /* Уменьшенная высота строки */
+    }
+
+    .contract-paragraph {
+        padding: 1px 0; /* Минимальный отступ между параграфами */
+        line-height: 1.2;
+        margin: 0;
+        font-size: 11px;
+    }
+
+    #analysis-results,
+    .analysis-panel {
+        min-height: 250px;
+        padding: 3px;
+        font-size: 11px; /* Уменьшенный шрифт для анализа */
+    }
+
+    #analysis-results h3,
+    .analysis-panel h3 {
+        margin-top: 0;
+        margin-bottom: 3px; /* Минимальный отступ снизу у заголовков */
+        font-size: 14px; /* Уменьшенный размер заголовка */
+    }
+
+    #analysis-results p,
+    .analysis-panel p {
+        margin-bottom: 3px; /* Минимальный отступ между параграфами */
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    section {
+        margin-bottom: 5px; /* Минимальный отступ между секциями */
+        padding-bottom: 5px;
+    }
+
+    .container {
+        margin: 5px auto;
+        padding: 5px; /* Минимальный отступ в контейнере */
+    }
+
+    .related-keywords-section {
+        margin-bottom: 5px;
+        padding: 5px; /* Минимальный отступ */
+    }
+
+    .related-keywords-list {
+        gap: 3px; /* Минимальный зазор между ключевыми словами */
+    }
+
+    .related-keywords-list li {
+        padding: 2px 5px; /* Минимальный отступ в элементах списка */
+        font-size: 10px; /* Уменьшенный шрифт */
+    }
+
+    .page-content {
+        margin-bottom: 5px;
+        padding: 5px; /* Минимальный отступ */
+        font-size: 12px;
+    }
+
+    /* Кнопки на мобиле */
+    #analyze-button {
+        padding: 5px 10px; /* Уменьшенный отступ для кнопки */
+        font-size: 14px; /* Уменьшенный шрифт кнопки */
+    }
+
+    #upload-section input[type="file"] {
+        margin-right: 3px; /* Минимальный отступ */
+        font-size: 12px;
+    }
+
+    /* Прогресс-бар на мобиле */
+    #progress-bar-container {
+        margin-top: 3px; /* Минимальный отступ */
+    }
+
+    #progress-bar {
+        height: 15px; /* Уменьшенная высота прогресс-бара */
+        line-height: 15px;
+        font-size: 10px;
+    }
+
+    #analysis-progress {
+        margin-top: 3px;
+        font-size: 11px;
+    }
+
+    footer {
+        margin-top: 10px; /* Уменьшенный отступ сверху */
+        font-size: 10px; /* Уменьшенный шрифт футера */
+    }
+}
+
+/* Дополнительные стили для очень маленьких экранов */
+@media (max-width: 480px) {
+    .two-column-layout {
+        gap: 2px; /* Еще меньший зазор */
+    }
+
+    #contract-view-container, 
+    .contract-form,
+    #analysis-panel-container,
+    .analysis-results {
+        padding: 2px; /* Еще меньший внутренний отступ */
+        font-size: 10px; /* Еще меньший шрифт */
+    }
+
+    #contract-text-display {
+        font-size: 9px; /* Очень маленький шрифт для текста */
+        padding: 2px;
+    }
+
+    .contract-paragraph {
+        font-size: 9px;
+        line-height: 1.1;
+    }
+
+    #analysis-results,
+    .analysis-panel {
+        font-size: 9px;
+        padding: 2px;
+    }
+
+    #analysis-results h3,
+    .analysis-panel h3 {
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+
+    #analysis-results p,
+    .analysis-panel p {
+        font-size: 9px;
+        margin-bottom: 2px;
+        line-height: 1.1;
+    }
+}
