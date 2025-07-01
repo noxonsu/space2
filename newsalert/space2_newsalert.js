@@ -371,6 +371,7 @@ async function sendTelegramMessage(chatId, text, telegramBotToken) {
 async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
     if (!openaiApiKey) {
         console.error('OpenAI API key not set. Skipping AI processing.');
+        console.log('Skipping AI processing');
         return null;
     }
 
@@ -730,6 +731,12 @@ async function processProjects() {
         
         // Handle different field names for ScrapingDog API key and fallback to environment variable
         const scrapingDogApiKey = project.scrapingDogApiKey || project.scrapingDogKey || process.env.SCRAPINGDOG_API_KEY;
+        
+        // Handle OpenAI API key with fallback to environment variable
+        const projectOpenaiApiKey = openaiApiKey || process.env.OPENAI_API_KEY;
+        
+        console.log(`Project OpenAI API key: ${projectOpenaiApiKey ? 'SET' : 'NOT SET'}`);
+        console.log(`Project ScrapingDog API key: ${scrapingDogApiKey ? 'SET' : 'NOT SET'}`);
 
         if (!keywords || keywords.length === 0) {
             console.warn(`Project "${name}" has no keywords. Skipping news fetch.`);
@@ -744,7 +751,7 @@ async function processProjects() {
             const newsItems = await fetchNewsForKeyword(keyword, scrapingDogApiKey);
             if (newsItems.length > 0) {
                 // Передаем project-specific telegramBotToken
-                await processAndSendNews(id, keyword, newsItems, telegramChatId, telegramBotToken, prompt, openaiApiKey);
+                await processAndSendNews(id, keyword, newsItems, telegramChatId, telegramBotToken, prompt, projectOpenaiApiKey);
             }
             await new Promise(resolve => setTimeout(resolve, 1000)); // Задержка между запросами по ключевым словам
         }

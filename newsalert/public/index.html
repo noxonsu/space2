@@ -65,6 +65,12 @@
         .btn-danger:hover {
             background-color: #c82333;
         }
+        .btn-share {
+            background-color: #28a745;
+        }
+        .btn-share:hover {
+            background-color: #218838;
+        }
         .project-item, .news-item {
             border: 1px solid #eee;
             margin-bottom: 10px;
@@ -293,6 +299,7 @@
                 <textarea id="editProjectPrompt" rows="10" required></textarea>
 
                 <button onclick="updateProject()">Сохранить изменения</button>
+                <button class="btn-share" onclick="shareProject(currentProjectId, document.getElementById('editProjectName').value)">Поделиться</button>
                 <button class="btn-danger" onclick="deleteProject()">Удалить проект</button>
                 <button class="btn-secondary" onclick="showMainView()">Назад к проектам</button>
             </div>
@@ -324,11 +331,6 @@
 
     <script>
         let currentProjectId = null;
-
-        document.addEventListener('DOMContentLoaded', function() {
-            loadScrapingDogCredits();
-            loadProjects();
-        });
 
         function showMainView() {
             document.getElementById('main-view').classList.remove('hidden');
@@ -394,6 +396,7 @@
                         </div>
                         <div class="project-actions">
                             <button onclick="viewProjectDetails('${project.id}')">Просмотр</button>
+                            <button class="btn-share" onclick="shareProject('${project.id}', '${project.name.replace(/'/g, "\\'")}')">Поделиться</button>
                             <button class="btn-danger" onclick="deleteProjectPrompt('${project.id}', event)">Удалить</button>
                         </div>
                     `;
@@ -646,6 +649,44 @@
             const content = element.nextElementSibling;
             content.classList.toggle('hidden');
         }
+
+        function shareProject(projectId, projectName) {
+            const currentUrl = window.location.origin + window.location.pathname;
+            const projectUrl = `${currentUrl}?project=${projectId}`;
+            
+            // Попытка скопировать в буфер обмена
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(projectUrl).then(() => {
+                    alert(`Ссылка на проект "${projectName}" скопирована в буфер обмена!\n\n${projectUrl}`);
+                }).catch(err => {
+                    console.error('Не удалось скопировать в буфер обмена:', err);
+                    showShareDialog(projectUrl, projectName);
+                });
+            } else {
+                showShareDialog(projectUrl, projectName);
+            }
+        }
+
+        function showShareDialog(url, projectName) {
+            const message = `Ссылка на проект "${projectName}":\n\n${url}\n\nСкопируйте эту ссылку вручную.`;
+            alert(message);
+        }
+
+        // Автоматически открыть проект, если передан параметр project в URL
+        document.addEventListener('DOMContentLoaded', function() {
+            loadScrapingDogCredits();
+            loadProjects();
+            
+            // Проверяем URL параметры
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectId = urlParams.get('project');
+            if (projectId) {
+                // Задержка, чтобы проекты успели загрузиться
+                setTimeout(() => {
+                    viewProjectDetails(projectId);
+                }, 1000);
+            }
+        });
     </script>
 </body>
 </html>
