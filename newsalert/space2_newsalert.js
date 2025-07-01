@@ -725,8 +725,11 @@ async function processProjects() {
 
     for (const project of projects) {
         console.log(`\n--- Processing project: "${project.name}" (ID: ${project.id}) ---`);
-        // Destructure telegramBotToken from project
-        const { id, name, telegramChatId, keywords, prompt, openaiApiKey, scrapingDogApiKey, telegramBotToken } = project; // Добавлено telegramBotToken
+        // Destructure telegramBotToken from project and handle different ScrapingDog key field names
+        const { id, name, telegramChatId, keywords, prompt, openaiApiKey, telegramBotToken } = project;
+        
+        // Handle different field names for ScrapingDog API key and fallback to environment variable
+        const scrapingDogApiKey = project.scrapingDogApiKey || project.scrapingDogKey || process.env.SCRAPINGDOG_API_KEY;
 
         if (!keywords || keywords.length === 0) {
             console.warn(`Project "${name}" has no keywords. Skipping news fetch.`);
