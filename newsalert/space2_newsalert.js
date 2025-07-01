@@ -353,18 +353,27 @@ if (process.env.NODE_ENV !== 'test') {
 
 async function sendTelegramMessage(chatId, text, telegramBotToken) {
     const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+    
+    console.log(`📤 Отправка сообщения в Telegram:`);
+    console.log(`   Chat ID: ${chatId}`);
+    console.log(`   Длина сообщения: ${text.length} символов`);
+    console.log(`   Первые 100 символов: ${text.substring(0, 100)}...`);
+    
     try {
-        await axios.post(url, {
+        const response = await axios.post(url, {
             chat_id: chatId,
             text: text,
             disable_web_page_preview: true
         });
-        console.log('Telegram message sent successfully.');
+        
+        console.log(`✅ Сообщение успешно отправлено в Telegram (message_id: ${response.data.result.message_id})`);
+        return response.data;
     } catch (error) {
-        console.error('Error sending Telegram message:', error.message);
+        console.error(`❌ Ошибка отправки сообщения в Telegram:`, error.message);
         if (error.response && error.response.data) {
-            console.error('Telegram API Error details:', error.response.data);
+            console.error('   Детали ошибки Telegram API:', error.response.data);
         }
+        throw error; // Пробрасываем ошибку дальше
     }
 }
 
@@ -375,21 +384,43 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
         return null;
     }
 
-    const prompt = promptTemplate.replace('{{NEWS_DATA}}', JSON.stringify(newsItem, null, 2));
+    // Добавляем текст статьи в newsItem если его нет
+    let enrichedNewsItem = { ...newsItem };
+    
+    // Если есть snippet, добавляем его как текст статьи
+    if (newsItem.snippet && !enrichedNewsItem.content) {
+        enrichedNewsItem.content = newsItem.snippet;
+    }
+
+    let prompt = promptTemplate;
+
+    // Если в шаблоне есть {{NEWS_DATA}}, заменяем его.
+    // Иначе, добавляем данные новости в конец.
+    if (prompt.includes('{{NEWS_DATA}}')) {
+        prompt = prompt.replace('{{NEWS_DATA}}', JSON.stringify(enrichedNewsItem, null, 2));
+    } else {
+        prompt += '\n\n' + JSON.stringify(enrichedNewsItem, null, 2);
+    }
+
+    // Извлекаем системный промпт из общего промпта
+    const systemPromptMatch = prompt.match(/^(.*?)(?=\n\n## INPUT|\n\nПроанализируй)/s);
+    const systemPrompt = systemPromptMatch ? systemPromptMatch[1].trim() : 'Ты — аналитик. Анализируешь новости согласно инструкциям. Возвращаешь JSON в точном формате или null.';
+    const userPrompt = prompt.replace(systemPrompt, '').trim();
 
     try {
         console.log(`Processing news with OpenAI: "${newsItem.title}"`);
+        console.log(`  - Системный промпт: ${systemPrompt.substring(0, 100)}...`);
         
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-4o',
             messages: [
                 {
                     role: 'system',
-                    content: 'Ты — NAMAGIRI‑ASIM‑аналитик ChemPartners. Анализируешь только новости про Sb₂O₃ (триоксид сурьмы). Возвращаешь JSON в точном формате или null.'
+                    content: systemPrompt
                 },
                 {
                     role: 'user',
-                    content: prompt
+                    content: userPrompt
                 }
             ],
             temperature: 0.1,
@@ -402,26 +433,43 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
         });
 
         let aiResponse = response.data.choices[0].message.content.trim();
-        
+
+        // Сначала извлекаем JSON из блока ```json ... ```, если он есть
         const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch && jsonMatch[1]) {
             aiResponse = jsonMatch[1].trim();
         }
 
-        if (aiResponse === 'null' || aiResponse.toLowerCase() === 'null' || aiResponse === '') {
-            console.log(`  - OpenAI: новость не про сурьму или пустой ответ, пропускаем`);
-            return null;
-        }
-
+        // Теперь пытаемся спарсить ответ как JSON
         try {
-            const processedNews = JSON.parse(aiResponse);
+            const processedData = JSON.parse(aiResponse);
+            // Если в JSON есть ключ "skip", считаем это сигналом для пропуска
+            if (processedData && processedData.skip) {
+                console.log(`  - OpenAI: новость пропущена через JSON: { skip: "${processedData.skip}" }`);
+                return { skip: processedData.skip };
+            }
+            // Если ключа skip нет, считаем, что новость обработана успешно
             console.log(`  - OpenAI: новость обработана успешно`);
-            return processedNews;
+            return processedData;
         } catch (parseError) {
-            console.error(`  - OpenAI: ошибка парсинга JSON ответа:`, parseError.message);
-            console.error(`  - Ответ OpenAI (сырой):`, response.data.choices[0].message.content.trim());
-            console.error(`  - Ответ OpenAI (попытка парсинга):`, aiResponse);
-            return null;
+            // Если парсинг JSON не удался, проверяем на старые форматы или ошибки
+            console.warn(`  - OpenAI: не удалось спарсить JSON. Проверяем на альтернативные форматы.`);
+            console.warn(`  - Ответ OpenAI (сырой):`, aiResponse);
+
+            // Явная проверка на сообщение о пропуске в виде строки (старый формат)
+            if (aiResponse.startsWith('{skip:')) {
+                console.log(`  - OpenAI: новость пропущена с сообщением: ${aiResponse}`);
+                return { skip: aiResponse };
+            }
+
+            if (aiResponse.toLowerCase() === 'null' || aiResponse === '') {
+                console.log(`  - OpenAI: новость не по теме или пустой ответ, пропускаем`);
+                return null;
+            }
+
+            // Если ничего не подошло - это ошибка
+            console.error(`  - OpenAI: финальная ошибка парсинга ответа.`);
+            return { error: 'JSON Parse Error', raw_response: aiResponse };
         }
     } catch (error) {
         console.error('Error processing news with OpenAI:', error.message);
@@ -630,19 +678,41 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
         }
 
         // Если новость прошла все фильтры, отправляем в OpenAI
+        console.log(`🤖 Отправляем новость в OpenAI для анализа: "${item.title}"`);
+        console.log(`   URL: ${item.link}`);
+        console.log(`   Источник: ${item.source?.name || 'N/A'}`);
+        
         const processedNews = await processNewsWithOpenAI({
             url: item.link,
             title: item.title,
             published: item.date,
             source: item.source,
-            snippet: item.snippet
+            snippet: item.snippet,
+            content: item.snippet // Добавляем snippet как content для анализа
         }, promptTemplate, openaiApiKey);
 
+        // Новая логика обработки ответа OpenAI
         if (!processedNews) {
-            console.log(`  - Пропущена новость (не про сурьму): "${item.title}"`);
-            newsToSave.push({ ...baseNewsItem, status: 'skipped_irrelevant' });
+            console.log(`- OpenAI вернул null (возможно, из-за внутренней ошибки): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_error', ai_response: { error: 'OpenAI returned null' } });
             continue;
         }
+
+        if (processedNews.skip) {
+            console.log(`- OpenAI пропустил новость: ${processedNews.skip}`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_irrelevant', ai_response: processedNews });
+            continue;
+        }
+
+        if (processedNews.error) {
+            console.error(`- Ошибка обработки ответа OpenAI для новости: "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'error_parsing', ai_response: processedNews });
+            continue;
+        }
+
+        console.log(`✅ OpenAI успешно обработал новость: "${item.title}"`);
+        console.log(`   Уровень уведомления: ${processedNews.notification_level || 'INFO'}`);
+        console.log(`   Краткое содержание: ${processedNews.summary_ru?.substring(0, 100) || 'N/A'}...`);
 
         // Если OpenAI обработал, добавляем в блэклист и сохраняем
         addToBlacklist(item.link, blacklist); // Добавляем в блэклист только после успешной обработки OpenAI
@@ -662,7 +732,13 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
                     message += `• Прогноз 30д: ${processedNews.market_analytics.forecast_30d}\n`;
                 }
                 if (processedNews.market_analytics.supply_impact_t) {
-                    message += `• Влияние на предложение: ${processedNews.market_analytics.supply_impact_t}\n`;
+                    message += `• Влияние на поставки: ${processedNews.market_analytics.supply_impact_t}\n`;
+                }
+                if (processedNews.market_analytics.demand_shift) {
+                    message += `• Сдвиг спроса: ${processedNews.market_analytics.demand_shift}\n`;
+                }
+                if (processedNews.market_analytics.strategic_alert) {
+                    message += `• Стратегическое предупреждение: ${processedNews.market_analytics.strategic_alert}\n`;
                 }
                 message += `\n`;
             }
@@ -671,10 +747,13 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
                 const triGlaza = processedNews['ТРИ_ГЛАЗА'];
                 message += `🎯 Ключевые моменты:\n`;
                 if (triGlaza.risk && triGlaza.risk.length > 0) {
-                    message += `⚠️ Риски: ${triGlaza.risk.join('; ')}\n`;
+                    message += `  Риски: ${triGlaza.risk.join(', ')}\n`;
                 }
                 if (triGlaza.opportunity && triGlaza.opportunity.length > 0) {
-                    message += `💰 Возможности: ${triGlaza.opportunity.join('; ')}\n`;
+                    message += `  Возможности: ${triGlaza.opportunity.join(', ')}\n`;
+                }
+                if (triGlaza.connections && triGlaza.connections.length > 0) {
+                    message += `  Связи: ${triGlaza.connections.join(', ')}\n`;
                 }
                 message += `\n`;
             }
@@ -688,8 +767,13 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
             message += `📰 ${processedNews.source || item.source || 'N/A'}`;
 
             if (processedNews.notification_level === 'CRITICAL') {
-                message = `🚨 КРИТИЧНО! 🚨\n\n${message}`;
+                message = `🚨🚨🚨 CRITICAL ALERT 🚨🚨🚨\n\n` + message;
             }
+
+            console.log(`📱 Готовим к отправке в Telegram для проекта "${projectId}"`);
+            console.log(`   Новость: "${item.title}"`);
+            console.log(`   Уровень уведомления: ${processedNews.notification_level || 'INFO'}`);
+            console.log(`   Chat ID: ${telegramChatId}`);
 
             await sendTelegramMessage(telegramChatId, message, telegramBotToken);
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -700,16 +784,29 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
     
     saveBlacklist(blacklist); // Сохраняем блэклист после всех операций
 
+    // Статистика обработки
+    const processed = newsToSave.filter(n => n.status === 'processed').length;
+    const skippedOld = newsToSave.filter(n => n.status === 'skipped_old').length;
+    const skippedBlacklisted = newsToSave.filter(n => n.status === 'skipped_blacklisted').length;
+    const skippedIrrelevant = newsToSave.filter(n => n.status === 'skipped_irrelevant').length;
+    
+    console.log(`📊 Статистика обработки новостей для проекта "${projectId}":`);
+    console.log(`   Обработано и отправлено в Telegram: ${processed}`);
+    console.log(`   Пропущено (старые): ${skippedOld}`);
+    console.log(`   Пропущено (в чёрном списке): ${skippedBlacklisted}`);
+    console.log(`   Пропущено (не по теме): ${skippedIrrelevant}`);
+    console.log(`   Всего новостей сохранено: ${newsToSave.length}`);
+
     if (newsToSave.length > 0) {
         allNews.push(...newsToSave);
         try {
             await fs.promises.writeFile(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
             console.log(`Successfully saved ${newsToSave.length} news items to ${NEWS_DATA_FILE_PATH}`);
         } catch (err) {
-            console.error('Error writing news data to file:', err.message);
+            console.error('Error saving news data to file:', err.message);
         }
     } else {
-        console.log(`No new news items to save.`);
+        console.log(`ℹ️ Нет новых новостей для сохранения.`);
     }
 }
 

@@ -336,3 +336,8 @@ package-lock.json
 # NewsAlert data files
 newsalert/fetched_news.json
 newsalert/processed_urls_blacklist.json
+newsalert/processed_urls_blacklist.json
+newsalert/fetched_news.json
+newsalert/fetched_news.json
+processed_urls_blacklist.json
+fetched_news.json
