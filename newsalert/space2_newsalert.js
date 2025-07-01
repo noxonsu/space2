@@ -21,7 +21,7 @@ async function fetchScrapingDogCredits() {
         }
         
         console.log('Making request to ScrapingDog API...');
-        const response = await axios.get('https://api.scrapingdog.com/v1/account', {
+        const response = await axios.get('https://api.scrapingdog.com/account', {
             params: {
                 api_key: apiKey
             }
