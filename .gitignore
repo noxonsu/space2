@@ -332,3 +332,7 @@ package-lock.json
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# NewsAlert data files
+newsalert/fetched_news.json
+newsalert/processed_urls_blacklist.json
