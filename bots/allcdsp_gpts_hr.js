@@ -828,12 +828,17 @@ async function onNewGramJsMessage(event) {
 
         if (isUser && !isBot && !isSelf) {
             const chatId = sender.id.toString(); // User's ID
-            const userText = message.text;
+            let userText = message.text;
             
-            if (!userText) {
+            // Check if message contains a file/document
+            if (message.media && (message.document || message.photo || message.video || message.voice || message.audio || message.videoNote || message.sticker)) {
+                console.log(`[GramJS ${chatId}] File detected in message. Treating as resume question.`);
+                userText = "здравствуйте вы посмотрели резюме?";
+            } else if (!userText) {
                 console.log(`[GramJS ${chatId}] Ignoring non-text message (empty text).`);
                 return;
             }
+            
             console.log(`[GramJS ${chatId}] Processing message: "${userText}" from user ${sender.username || chatId}`);
 
             // Mark the message as read with human-like delay
