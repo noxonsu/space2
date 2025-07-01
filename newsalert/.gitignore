@@ -11,6 +11,7 @@ node_modules/
 
 # Data files
 fetched_news.json
+projects.json
 
 # PM2
 .pm2/

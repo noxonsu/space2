@@ -5,9 +5,7 @@
   "main": "space2_newsalert.js",
   "scripts": {
     "start": "node space2_newsalert.js",
-    "test": "NODE_ENV=test jest",
-    "test:watch": "NODE_ENV=test jest --watch",
-    "test:coverage": "NODE_ENV=test jest --coverage"
+    "test": "jest"
   },
   "dependencies": {
     "axios": "^1.7.2",

@@ -9,6 +9,7 @@
             font-family: Arial, sans-serif;
             margin: 20px;
             background-color: #f5f5f5;
+            color: #333;
         }
         .container {
             max-width: 1200px;
@@ -19,59 +20,109 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         h1, h2 {
-            color: #333;
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
         }
         .section {
             margin-bottom: 30px;
             padding: 20px;
             border: 1px solid #ddd;
             border-radius: 5px;
+            background-color: #fff;
         }
-        input, select, button {
-            padding: 8px 12px;
-            margin: 5px;
-            border: 1px solid #ddd;
+        input[type="text"], input[type="number"], textarea, select {
+            width: calc(100% - 24px);
+            padding: 10px;
+            margin: 5px 0 10px 0;
+            border: 1px solid #ccc;
             border-radius: 4px;
+            box-sizing: border-box;
         }
         button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
             background-color: #007bff;
             color: white;
             cursor: pointer;
+            font-size: 1em;
         }
         button:hover {
             background-color: #0056b3;
         }
-        .delete-btn {
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .btn-danger {
             background-color: #dc3545;
         }
-        .delete-btn:hover {
+        .btn-danger:hover {
             background-color: #c82333;
         }
-        .keyword-item {
-            display: inline-block;
-            margin: 5px;
-            padding: 5px 10px;
-            background-color: #e9ecef;
-            border-radius: 20px;
-        }
-        .news-item {
-            border: 1px solid #ddd;
-            margin: 10px 0;
+        .project-item, .news-item {
+            border: 1px solid #eee;
+            margin-bottom: 10px;
             padding: 15px;
             border-radius: 5px;
             background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .news-title {
+        .project-item:hover {
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+        .project-info, .news-info {
+            flex-grow: 1;
+        }
+        .project-actions, .news-actions {
+            margin-left: 10px;
+        }
+        .news-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .news-item .news-title {
             font-weight: bold;
             margin-bottom: 5px;
+            color: #333;
         }
-        .news-source {
-            color: #666;
+        .news-item .news-meta {
             font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
         }
-        .news-date {
-            color: #999;
-            font-size: 0.8em;
+        .news-item .news-snippet {
+            font-style: italic;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .news-item .ai-response-toggle {
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 5px;
+        }
+        .ai-response-content {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            font-family: monospace;
+            font-size: 0.85em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .hidden {
+            display: none;
         }
         .filter-section {
             background-color: #e9ecef;
@@ -79,177 +130,522 @@
             margin-bottom: 20px;
             border-radius: 5px;
         }
+        .credits-info {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 10px;
+        }
+        .credits-info strong {
+            color: #000;
+        }
+        .error-message {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .status-skipped-old {
+            color: #6c757d;
+        }
+        .status-skipped-blacklisted {
+            color: #dc3545;
+        }
+        .status-processed {
+            color: #28a745;
+        }
+        .status-new {
+            color: #007bff;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>News Alert Admin Panel</h1>
-        
-        <!-- Keywords Management Section -->
-        <div class="section">
-            <h2>Управление ключевыми словами</h2>
-            <div>
-                <input type="text" id="newKeyword" placeholder="Введите новое ключевое слово">
-                <button onclick="addKeyword()">Добавить</button>
+
+        <div id="main-view">
+            <!-- ScrapingDog Credits Section -->
+            <div class="section">
+                <h2>Статус ScrapingDog API</h2>
+                <div id="scrapingDogCredits">Загрузка...</div>
             </div>
-            <div id="keywordsList"></div>
+
+            <!-- Projects List Section -->
+            <div class="section">
+                <h2>Проекты</h2>
+                <button onclick="showCreateProjectForm()">Создать новый проект</button>
+                <div id="projectsList"></div>
+            </div>
         </div>
 
-        <!-- News Section -->
-        <div class="section">
-            <h2>Найденные новости</h2>
-            
-            <div class="filter-section">
-                <label for="keywordFilter">Фильтр по ключевому слову:</label>
-                <select id="keywordFilter" onchange="loadNews()">
-                    <option value="">Все новости</option>
-                </select>
-                <button onclick="loadNews()">Обновить</button>
+        <div id="create-project-view" class="hidden">
+            <h2>Создать новый проект</h2>
+            <div class="section">
+                <label for="projectName">Название проекта:</label>
+                <input type="text" id="projectName" placeholder="Например: Мониторинг триоксида сурьмы" required>
+
+                <label for="projectTelegramChatId">ID чата Telegram (опционально):</label>
+                <input type="text" id="projectTelegramChatId" placeholder="Например: -1001234567890">
+
+                <!-- NEW FIELD FOR TELEGRAM BOT TOKEN -->
+                <label for="projectTelegramBotToken">Telegram Bot Token (опционально, если отличается от .env):</label>
+                <input type="text" id="projectTelegramBotToken" placeholder="7215285050:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+
+                <label for="projectOpenAIKey">OpenAI API Key (опционально, если отличается от .env):</label>
+                <input type="text" id="projectOpenAIKey" placeholder="sk-proj-...">
+
+                <label for="projectScrapingDogKey">ScrapingDog API Key (опционально, если отличается от .env):</label>
+                <input type="text" id="projectScrapingDogKey" placeholder="ваша_ключ_scrapingdog">
+
+                <label for="projectKeywords">Ключевые слова (каждое с новой строки):</label>
+                <textarea id="projectKeywords" rows="5" placeholder="antimony trioxide&#10;Sb2O3&#10;сурьма триоксид" required></textarea>
+
+                <label for="projectPrompt">Промпт для OpenAI (ULTIMATE-PROMPT v3.0):</label>
+                <textarea id="projectPrompt" rows="10" required>
+# ⚡ULTIMATE‑PROMPT v3.0 — Sb₂O₃ NEWS → ЗАХАР (DVL) & ХИМПАРТНЁРЫ⚡  
+(Уровень ультимативности ≥ 9.98 / 10)
+
+## SYSTEM  
+Ты — NAMAGIRI‑ASIM‑аналитик ChemPartners.  
+Каждая новость о рынке триоксида сурьмы (Sb₂O₃) за ≤ 30 сек чтения становится ультраконцентрированным аналитическим инсайтом для Захара и ХимПартнёров.  
+
+**Мозг‑движок**  
+1. **UNROZA‑самодопрос** ➜ Исключаешь абсурд/страх.
+2. **Три Глаза 9.98+** ➜ Risk • Opp • Связи.
+3. **5‑Я консенсус** ➜ Параноик + Рационалист + Оппортунист + NAMAGIRI‑наблюдатель + Будущий Я.
+4. **Мангекё+Бьякуган** ➜ pinpoint ультраценный узел прибыли и риска.
+5. **ASIM‑датчик** ➜ короткая фиксация ASIM‑события.
+
+## INPUT (JSON)  
+{
+  "url": "...",
+  "html": "...",
+  "title": "...",
+  "published": "YYYY‑MM‑DDTHH:MM:SSZ",
+  "source": "...",
+  "lang": "auto"
+}
+
+## OUTPUT (UTF‑8 JSON, 1 объект)  
+{
+  "title_ru":       "<≤80 симв, ядро новости>",
+  "pub_time":       "<ISO 8601>",
+  "source":         "<бренд/домен>",
+  "summary_ru":     "<≤100 слов — только ультрафакты, Sb₂O₃, цифры>",
+  "market_analytics": {
+    "price_trend_14d": "<четкий тренд цен (↑↓, % за 14 дней)>",
+    "forecast_30d": "<точный прогноз цен ±% на 30 дней>",
+    "supply_impact_t": "<влияние на глобальное предложение ±… т>",
+    "demand_shift": "<↑/↓ спрос: регионы, игроки>",
+    "strategic_alert": "<суть стратегического изменения рынка в 1 предложении>"
+  },
+  "ТРИ_ГЛАЗА": {
+    "risk":        ["<явный риск с прямым влиянием на ХимПартнёров>"],
+    "opportunity": ["<гарантированная возможность ≥3% выгоды>"],
+    "connections": ["<ультраценные цепочки: игроки, логистика, регионы, регуляторы>"]
+  },
+  "ASIM_short_insight": "<ультракраткая фиксация ASIM‑события ≤20-30 слов>",
+  "notification_level": "INFO | ALERT | CRITICAL",
+  "tags": ["#Sb2O3","#ТНВЭД281820","#Цены","#Логистика","#Дефицит","#Эко"]
+}
+
+## УЛЬТИМАТИВНЫЕ ПРАВИЛА (9.98+/10)
+1. Если новость не Sb₂O₃/сурьма → вернуть null.
+2. Paywall/404 → summary_ru: "Статья недоступна", остальные поля null.
+3. Обязательно сверяй CAS 1309‑64‑4 и HS 281820.
+4. Числа — арабские, проценты со знаком %, объёмы в т, валюты — USD.
+5. Глаголы ультрачёткие: «вырастет», «упадёт», «изменится», «снизится», «повысится».
+6. Точные даты: «до 26 июн 2025».
+7. Никаких эмоций — только ультрафакты, стратегии, деньги, риски.
+
+Проанализируй эту новость:
+{{NEWS_DATA}}
+
+Верни только JSON-ответ в указанном формате или null если новость не про сурьму/Sb₂O₃.
+                </textarea>
+
+                <button onclick="createProject()">Сохранить проект</button>
+                <button class="btn-secondary" onclick="showMainView()">Отмена</button>
             </div>
-            
-            <div id="newsCount"></div>
-            <div id="newsList"></div>
+        </div>
+
+        <div id="project-details-view" class="hidden">
+            <h2 id="projectDetailsTitle"></h2>
+            <div class="section">
+                <h3>Настройки проекта</h3>
+                <label for="editProjectName">Название проекта:</label>
+                <input type="text" id="editProjectName" required>
+
+                <label for="editProjectTelegramChatId">ID чата Telegram (опционально):</label>
+                <input type="text" id="editProjectTelegramChatId">
+
+                <!-- NEW FIELD FOR TELEGRAM BOT TOKEN -->
+                <label for="editProjectTelegramBotToken">Telegram Bot Token (опционально):</label>
+                <input type="text" id="editProjectTelegramBotToken">
+
+                <label for="editProjectOpenAIKey">OpenAI API Key (опционально):</label>
+                <input type="text" id="editProjectOpenAIKey">
+
+                <label for="editProjectScrapingDogKey">ScrapingDog API Key (опционально):</label>
+                <input type="text" id="editProjectScrapingDogKey">
+
+                <label for="editProjectKeywords">Ключевые слова (каждое с новой строки):</label>
+                <textarea id="editProjectKeywords" rows="5" required></textarea>
+
+                <label for="editProjectPrompt">Промпт для OpenAI:</label>
+                <textarea id="editProjectPrompt" rows="10" required></textarea>
+
+                <button onclick="updateProject()">Сохранить изменения</button>
+                <button class="btn-danger" onclick="deleteProject()">Удалить проект</button>
+                <button class="btn-secondary" onclick="showMainView()">Назад к проектам</button>
+            </div>
+
+            <div class="section">
+                <h3>Новости проекта</h3>
+                <div class="filter-section">
+                    <label for="projectKeywordFilter">Фильтр по ключевому слову:</label>
+                    <select id="projectKeywordFilter" onchange="loadProjectNews(currentProjectId)">
+                        <option value="">Все новости</option>
+                    </select>
+                    
+                    <label for="projectStatusFilter" style="margin-left: 20px;">Фильтр по статусу:</label>
+                    <select id="projectStatusFilter" onchange="loadProjectNews(currentProjectId)">
+                        <option value="">Все статусы</option>
+                        <option value="skipped_old">Пропущено (старые)</option>
+                        <option value="skipped_blacklisted">Пропущено (в чёрном списке)</option>
+                        <option value="processed">Обработано</option>
+                        <option value="new">Новые</option>
+                    </select>
+                    
+                    <button onclick="loadProjectNews(currentProjectId)">Обновить</button>
+                </div>
+                <div id="projectNewsCount"></div>
+                <div id="projectNewsList"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Load keywords and news on page load
+        let currentProjectId = null;
+
         document.addEventListener('DOMContentLoaded', function() {
-            loadKeywords();
-            loadNews();
+            loadScrapingDogCredits();
+            loadProjects();
         });
 
-        async function loadKeywords() {
-            try {
-                const response = await fetch('/api/keywords');
-                const keywords = await response.json();
-                
-                // Update keywords list
-                const keywordsList = document.getElementById('keywordsList');
-                keywordsList.innerHTML = '<h3>Текущие ключевые слова:</h3>';
-                
-                keywords.forEach(keyword => {
-                    const keywordItem = document.createElement('div');
-                    keywordItem.className = 'keyword-item';
-                    keywordItem.innerHTML = `
-                        ${keyword}
-                        <button class="delete-btn" onclick="deleteKeyword('${keyword}')">×</button>
-                    `;
-                    keywordsList.appendChild(keywordItem);
-                });
+        function showMainView() {
+            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('create-project-view').classList.add('hidden');
+            document.getElementById('project-details-view').classList.add('hidden');
+            loadProjects(); // Reload projects list when returning to main view
+        }
 
-                // Update filter dropdown
-                const keywordFilter = document.getElementById('keywordFilter');
-                keywordFilter.innerHTML = '<option value="">Все новости</option>';
-                keywords.forEach(keyword => {
-                    const option = document.createElement('option');
-                    option.value = keyword;
-                    option.textContent = keyword;
-                    keywordFilter.appendChild(option);
-                });
-                
+        function showCreateProjectForm() {
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('create-project-view').classList.remove('hidden');
+            document.getElementById('project-details-view').classList.add('hidden');
+            // Clear form fields
+            document.getElementById('projectName').value = '';
+            document.getElementById('projectTelegramChatId').value = '';
+            document.getElementById('projectTelegramBotToken').value = ''; // Clear new field
+            document.getElementById('projectOpenAIKey').value = '';
+            document.getElementById('projectScrapingDogKey').value = '';
+            document.getElementById('projectKeywords').value = '';
+            // Keep default prompt
+        }
+
+        async function loadScrapingDogCredits() {
+            try {
+                const response = await fetch('/api/scrapingdog-credits');
+                const data = await response.json();
+                const creditsDiv = document.getElementById('scrapingDogCredits');
+                if (data) {
+                    creditsDiv.innerHTML = `
+                        <p>Лимит запросов: <strong>${data.requestLimit}</strong></p>
+                        <p>Использовано запросов: <strong>${data.requestUsed}</strong></p>
+                        <p>Осталось дней подписки: <strong>${data.validity}</strong></p>
+                        <p>Пакет: <strong>${data.pack} (${data.pack_type})</strong></p>
+                    `;
+                } else {
+                    creditsDiv.innerHTML = '<p class="error-message">Не удалось загрузить информацию о кредитах ScrapingDog. Проверьте API ключ.</p>';
+                }
             } catch (error) {
-                console.error('Error loading keywords:', error);
+                console.error('Error loading ScrapingDog credits:', error);
+                document.getElementById('scrapingDogCredits').innerHTML = '<p class="error-message">Ошибка при загрузке информации о кредитах ScrapingDog.</p>';
             }
         }
 
-        async function addKeyword() {
-            const newKeyword = document.getElementById('newKeyword').value.trim();
-            if (!newKeyword) return;
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                const projects = await response.json();
+                
+                const projectsList = document.getElementById('projectsList');
+                projectsList.innerHTML = '';
+                
+                if (projects.length === 0) {
+                    projectsList.innerHTML = '<p>Проекты не найдены. Создайте первый проект!</p>';
+                    return;
+                }
+
+                projects.forEach(project => {
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'project-item';
+                    projectItem.innerHTML = `
+                        <div class="project-info" onclick="viewProjectDetails('${project.id}')">
+                            <strong>${project.name}</strong> (${project.keywords.length} ключевых слов)
+                        </div>
+                        <div class="project-actions">
+                            <button onclick="viewProjectDetails('${project.id}')">Просмотр</button>
+                            <button class="btn-danger" onclick="deleteProjectPrompt('${project.id}', event)">Удалить</button>
+                        </div>
+                    `;
+                    projectsList.appendChild(projectItem);
+                });
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                document.getElementById('projectsList').innerHTML = '<p class="error-message">Ошибка при загрузке проектов.</p>';
+            }
+        }
+
+        async function createProject() {
+            const name = document.getElementById('projectName').value.trim();
+            const telegramChatId = document.getElementById('projectTelegramChatId').value.trim();
+            const telegramBotToken = document.getElementById('projectTelegramBotToken').value.trim(); // Get new field value
+            const openaiApiKey = document.getElementById('projectOpenAIKey').value.trim();
+            const scrapingDogKey = document.getElementById('projectScrapingDogKey').value.trim();
+            const keywords = document.getElementById('projectKeywords').value.split('\n').map(k => k.trim()).filter(Boolean);
+            const prompt = document.getElementById('projectPrompt').value.trim();
+
+            if (!name || keywords.length === 0 || !prompt) {
+                alert('Пожалуйста, заполните все обязательные поля: Название, Ключевые слова, Промпт.');
+                return;
+            }
+
+            const newProject = {
+                name,
+                telegramChatId: telegramChatId || undefined,
+                telegramBotToken: telegramBotToken || undefined, // Add to new project object
+                openaiApiKey: openaiApiKey || undefined,
+                scrapingDogKey: scrapingDogKey || undefined,
+                keywords,
+                prompt
+            };
 
             try {
-                const response = await fetch('/api/keywords', {
+                const response = await fetch('/api/projects', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ keyword: newKeyword })
+                    body: JSON.stringify(newProject)
                 });
 
                 if (response.ok) {
-                    document.getElementById('newKeyword').value = '';
-                    loadKeywords();
+                    alert('Проект успешно создан!');
+                    showMainView();
                 } else {
-                    alert('Ошибка при добавлении ключевого слова');
+                    const errorText = await response.text();
+                    alert(`Ошибка при создании проекта: ${errorText}`);
                 }
             } catch (error) {
-                console.error('Error adding keyword:', error);
-                alert('Ошибка при добавлении ключевого слова');
+                console.error('Error creating project:', error);
+                alert('Ошибка при создании проекта.');
             }
         }
 
-        async function deleteKeyword(keyword) {
-            if (!confirm(`Удалить ключевое слово "${keyword}"?`)) return;
+        async function viewProjectDetails(projectId) {
+            currentProjectId = projectId;
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('create-project-view').classList.add('hidden');
+            document.getElementById('project-details-view').classList.remove('hidden');
 
             try {
-                const response = await fetch(`/api/keywords/${encodeURIComponent(keyword)}`, {
+                const response = await fetch(`/api/projects/${projectId}`);
+                const project = await response.json();
+
+                document.getElementById('projectDetailsTitle').textContent = `Проект: ${project.name}`;
+                document.getElementById('editProjectName').value = project.name;
+                document.getElementById('editProjectTelegramChatId').value = project.telegramChatId || '';
+                document.getElementById('editProjectTelegramBotToken').value = project.telegramBotToken || ''; // Set new field value
+                document.getElementById('editProjectOpenAIKey').value = project.openaiApiKey || '';
+                document.getElementById('editProjectScrapingDogKey').value = project.scrapingDogKey || '';
+                document.getElementById('editProjectKeywords').value = project.keywords.join('\n');
+                document.getElementById('editProjectPrompt').value = project.prompt;
+
+                // Load news for this project
+                loadProjectNews(projectId);
+
+            } catch (error) {
+                console.error('Error loading project details:', error);
+                alert('Ошибка при загрузке деталей проекта.');
+                showMainView();
+            }
+        }
+
+        async function updateProject() {
+            if (!currentProjectId) return;
+
+            const name = document.getElementById('editProjectName').value.trim();
+            const telegramChatId = document.getElementById('editProjectTelegramChatId').value.trim();
+            const telegramBotToken = document.getElementById('editProjectTelegramBotToken').value.trim(); // Get new field value
+            const openaiApiKey = document.getElementById('editProjectOpenAIKey').value.trim();
+            const scrapingDogKey = document.getElementById('editProjectScrapingDogKey').value.trim();
+            const keywords = document.getElementById('editProjectKeywords').value.split('\n').map(k => k.trim()).filter(Boolean);
+            const prompt = document.getElementById('editProjectPrompt').value.trim();
+
+            if (!name || keywords.length === 0 || !prompt) {
+                alert('Пожалуйста, заполните все обязательные поля: Название, Ключевые слова, Промпт.');
+                return;
+            }
+
+            const updatedProject = {
+                name,
+                telegramChatId: telegramChatId || undefined,
+                telegramBotToken: telegramBotToken || undefined, // Add to updated project object
+                openaiApiKey: openaiApiKey || undefined,
+                scrapingDogKey: scrapingDogKey || undefined,
+                keywords,
+                prompt
+            };
+
+            try {
+                const response = await fetch(`/api/projects/${currentProjectId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updatedProject)
+                });
+
+                if (response.ok) {
+                    alert('Проект успешно обновлен!');
+                    viewProjectDetails(currentProjectId); // Reload details
+                } else {
+                    const errorText = await response.text();
+                    alert(`Ошибка при обновлении проекта: ${errorText}`);
+                }
+            } catch (error) {
+                console.error('Error updating project:', error);
+                alert('Ошибка при обновлении проекта.');
+            }
+        }
+
+        async function deleteProjectPrompt(projectId, event) {
+            event.stopPropagation(); // Prevent click on parent div
+            if (!confirm(`Вы уверены, что хотите удалить проект "${projectId}"? Это действие необратимо.`)) return;
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}`, {
                     method: 'DELETE'
                 });
 
                 if (response.ok) {
-                    loadKeywords();
+                    alert('Проект успешно удален!');
+                    loadProjects(); // Reload projects list
                 } else {
-                    alert('Ошибка при удалении ключевого слова');
+                    const errorText = await response.text();
+                    alert(`Ошибка при удалении проекта: ${errorText}`);
                 }
             } catch (error) {
-                console.error('Error deleting keyword:', error);
-                alert('Ошибка при удалении ключевого слова');
+                console.error('Error deleting project:', error);
+                alert('Ошибка при удалении проекта.');
             }
         }
 
-        async function loadNews() {
+        async function loadProjectNews(projectId) {
             try {
-                const selectedKeyword = document.getElementById('keywordFilter').value;
-                const url = selectedKeyword ? `/api/news?keyword=${encodeURIComponent(selectedKeyword)}` : '/api/news';
+                const projectKeywordFilter = document.getElementById('projectKeywordFilter');
+                const projectStatusFilter = document.getElementById('projectStatusFilter');
+                const selectedKeyword = projectKeywordFilter.value;
+                const selectedStatus = projectStatusFilter.value;
+                
+                let url = `/api/projects/${projectId}/news`;
+                const params = new URLSearchParams();
+                if (selectedKeyword) {
+                    params.append('keyword', selectedKeyword);
+                }
+                if (selectedStatus) {
+                    params.append('status', selectedStatus);
+                }
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
                 
                 const response = await fetch(url);
-                const news = await response.json();
+                let news = await response.json(); // This is where the error occurs if response is not valid JSON
                 
-                // Update news count
-                const newsCount = document.getElementById('newsCount');
-                newsCount.innerHTML = `<p><strong>Найдено новостей: ${news.length}</strong></p>`;
+                // Дополнительная проверка, чтобы убедиться, что news является массивом
+                if (!Array.isArray(news)) {
+                    console.error('Received non-array data for news:', news);
+                    news = []; // Присваиваем пустой массив, чтобы избежать ошибки forEach
+                }
+
+                const projectNewsCount = document.getElementById('projectNewsCount');
+                projectNewsCount.innerHTML = `<p><strong>Найдено новостей: ${news.length}</strong></p>`;
                 
-                // Update news list
-                const newsList = document.getElementById('newsList');
-                newsList.innerHTML = '';
+                const projectNewsList = document.getElementById('projectNewsList');
+                projectNewsList.innerHTML = '';
+
+                // Populate keyword filter for this project's news
+                const projectResponse = await fetch(`/api/projects/${projectId}`);
+                const project = await projectResponse.json();
+                projectKeywordFilter.innerHTML = '<option value="">Все новости</option>';
+                project.keywords.forEach(keyword => {
+                    const option = document.createElement('option');
+                    option.value = keyword;
+                    option.textContent = keyword;
+                    projectKeywordFilter.appendChild(option);
+                });
+                projectKeywordFilter.value = selectedKeyword; // Restore selected value
+                projectStatusFilter.value = selectedStatus; // Restore selected status
+
+                if (news.length === 0) {
+                    projectNewsList.innerHTML = '<p>Новости для этого проекта не найдены.</p>';
+                    return;
+                }
                 
                 news.forEach(newsItem => {
                     const newsDiv = document.createElement('div');
                     newsDiv.className = 'news-item';
+                    
+                    // Ensure ai_response is handled gracefully if missing or not an object
+                    const aiResponseJson = newsItem.ai_response ? JSON.stringify(newsItem.ai_response, null, 2) : 'N/A';
+                    const aiResponseHtml = newsItem.ai_response && Object.keys(newsItem.ai_response).length > 0 ? `
+                        <div class="ai-response-toggle" onclick="toggleAIResponse(this)">Показать/скрыть ответ OpenAI</div>
+                        <pre class="ai-response-content hidden">${aiResponseJson}</pre>
+                    ` : '<p>Ответ OpenAI: N/A</p>';
+
+                    // Get status and apply appropriate CSS class
+                    const status = newsItem.status || 'N/A';
+                    const statusClass = status.replace(/_/g, '-'); // Convert underscores to dashes for CSS class
+                    const statusSpan = `<span class="status-${statusClass}">${status}</span>`;
+
                     newsDiv.innerHTML = `
-                        <div class="news-title">${newsItem.title}</div>
-                        <div class="news-source">
-                            Ключевое слово: <strong>${newsItem.keyword}</strong> | 
-                            Источник: ${newsItem.source || 'N/A'}
-                        </div>
-                        <div class="news-date">
-                            Дата новости: ${newsItem.date || 'N/A'} | 
-                            Добавлено: ${new Date(newsItem.fetchedAt).toLocaleString('ru-RU')}
-                        </div>
-                        <div style="margin-top: 10px;">
+                        <div class="news-info">
+                            <div class="news-title">${newsItem.title}</div>
+                            <div class="news-meta">
+                                Ключевое слово: <strong>${newsItem.keyword}</strong> | 
+                                Источник: ${newsItem.source || 'N/A'} | 
+                                Дата новости: ${newsItem.date || 'N/A'} | 
+                                Статус: <strong>${statusSpan}</strong> | 
+                                Добавлено: ${new Date(newsItem.fetchedAt).toLocaleString('ru-RU')}
+                            </div>
+                            <div class="news-snippet">${newsItem.snippet || ''}</div>
                             <a href="${newsItem.link}" target="_blank" style="color: #007bff;">Читать полностью</a>
+                            ${aiResponseHtml}
                         </div>
-                        ${newsItem.snippet ? `<div style="margin-top: 5px; font-style: italic; color: #666;">${newsItem.snippet}</div>` : ''}
                     `;
-                    newsList.appendChild(newsDiv);
+                    projectNewsList.appendChild(newsDiv);
                 });
                 
-                if (news.length === 0) {
-                    newsList.innerHTML = '<p>Новости не найдены.</p>';
-                }
-                
             } catch (error) {
-                console.error('Error loading news:', error);
-                document.getElementById('newsList').innerHTML = '<p>Ошибка при загрузке новостей.</p>';
+                console.error('Error loading project news:', error);
+                document.getElementById('projectNewsList').innerHTML = '<p class="error-message">Ошибка при загрузке новостей проекта.</p>';
             }
         }
 
-        // Allow adding keywords with Enter key
-        document.getElementById('newKeyword').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                addKeyword();
-            }
-        });
+        function toggleAIResponse(element) {
+            const content = element.nextElementSibling;
+            content.classList.toggle('hidden');
+        }
     </script>
 </body>
 </html>

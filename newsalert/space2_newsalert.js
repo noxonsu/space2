@@ -5,16 +5,49 @@ const path = require('path');
 const http = require('http');
 const url = require('url');
 
-const KEYWORDS_FILE_PATH = path.join(__dirname, '.env_keys');
 const NEWS_DATA_FILE_PATH = path.join(__dirname, 'fetched_news.json');
-const PROMPT_FILE_PATH = path.join(__dirname, '.env_prompt');
+const PROJECTS_FILE_PATH = path.join(__dirname, 'projects.json');
 const BLACKLIST_FILE_PATH = path.join(__dirname, 'processed_urls_blacklist.json');
-const SERPAPI_API_KEY = process.env.SERPAPI_KEY;
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY;
+
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+async function fetchScrapingDogCredits() {
+    try {
+        const apiKey = process.env.SCRAPINGDOG_API_KEY;
+        if (!apiKey) {
+            console.warn('SCRAPINGDOG_API_KEY is not set. Skipping credits check.');
+            return null;
+        }
+        const response = await axios.get('https://api.scrapingdog.com/v1/account', {
+            params: {
+                api_key: apiKey
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching ScrapingDog credits:', error.message);
+        return null;
+    }
+}
+
+/**
+ * Loads news from the local JSON file.
+ * @returns {Array} The loaded news articles.
+ */
+async function loadNewsData() {
+    try {
+        const fileData = await fs.promises.readFile(NEWS_DATA_FILE_PATH, 'utf8');
+        return JSON.parse(fileData);
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            console.log('News data file not found, returning empty array.');
+            return [];
+        } else {
+            console.error('Error reading or parsing news data file:', err.message);
+            throw err;
+        }
+    }
+}
 
 // --- Admin Panel Code ---
 const adminPort = 3656;
@@ -25,14 +58,43 @@ let newsCache = {
     lastModified: null
 };
 
-async function getNewsData() {
+async function loadProjects() {
+    try {
+        const projectsData = await fs.promises.readFile(PROJECTS_FILE_PATH, 'utf8');
+        return JSON.parse(projectsData);
+    } catch (err) {
+        if (err.code === 'ENOENT') {
+            console.log('Projects file not found, returning empty array.');
+            return [];
+        } else {
+            console.error('Error reading or parsing projects file:', err.message);
+            throw err;
+        }
+    }
+}
+
+async function saveProjects(projects) {
+    try {
+        await fs.promises.writeFile(PROJECTS_FILE_PATH, JSON.stringify(projects, null, 2), 'utf8');
+        console.log('Projects saved successfully.');
+    } catch (err) {
+        console.error('Error saving projects file:', err.message);
+        throw err;
+    }
+}
+
+async function getNewsData(projectId = null) {
     try {
         const stats = await fs.promises.stat(NEWS_DATA_FILE_PATH);
         const lastModified = stats.mtime.getTime();
 
         if (newsCache.lastModified && newsCache.lastModified === lastModified) {
             console.log('Serving news from cache.');
-            return newsCache.data;
+            let news = newsCache.data;
+            if (projectId) {
+                news = news.filter(item => item.projectId === projectId);
+            }
+            return news;
         }
 
         console.log('Reading and caching news file.');
@@ -42,14 +104,18 @@ async function getNewsData() {
         newsCache.data = newsData;
         newsCache.lastModified = lastModified;
 
-        return newsData;
+        let news = newsData;
+        if (projectId) {
+            news = news.filter(item => item.projectId === projectId);
+        }
+        return news;
     } catch (err) {
         if (err.code === 'ENOENT') {
             console.log('News data file not found, returning empty array.');
-            return []; // Файл еще не создан, возвращаем пустой массив
+            return [];
         } else {
             console.error('Error reading or parsing news data file:', err.message);
-            throw err; // Пробрасываем ошибку выше
+            throw err;
         }
     }
 }
@@ -75,7 +141,7 @@ const server = http.createServer((req, res) => {
   const method = req.method;
 
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (method === 'OPTIONS') {
@@ -95,86 +161,170 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(data);
     });
-  } else if (pathname === '/api/keywords' && method === 'GET') {
-    fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => {
-      if (err) {
-        console.error('Error reading keywords file:', err);
+  } else if (pathname === '/api/projects' && method === 'GET') {
+    loadProjects()
+      .then(projects => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(projects));
+      })
+      .catch(err => {
+        console.error('Error getting projects:', err);
         res.writeHead(500);
-        res.end('Error reading keywords');
+        res.end('Error reading projects');
+      });
+  } else if (pathname === '/api/projects' && method === 'POST') {
+    parseBody(req, (err, newProject) => {
+      if (err || !newProject || !newProject.name || !newProject.keywords || !newProject.prompt) {
+        res.writeHead(400);
+        res.end('Project name, keywords, and prompt are required');
         return;
       }
-      const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(keywords));
+      loadProjects()
+        .then(projects => {
+          newProject.id = `proj_${Date.now()}`; // Simple unique ID
+          // Ensure telegramBotToken is saved if provided
+          if (newProject.telegramBotToken === '') newProject.telegramBotToken = undefined; // Store as undefined if empty string
+          projects.push(newProject);
+          return saveProjects(projects);
+        })
+        .then(() => {
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(newProject));
+        })
+        .catch(err => {
+          console.error('Error creating project:', err);
+          res.writeHead(500);
+          res.end('Error creating project');
+        });
     });
-  } else if (pathname === '/api/news' && method === 'GET') {
-    getNewsData()
+  } else if (pathname.startsWith('/api/projects/') && pathname.endsWith('/news') && method === 'GET') { // <-- Перемещено выше
+    const projectId = pathname.split('/')[3];
+    getNewsData(projectId)
       .then(newsData => {
         let filteredData = [...newsData];
         const keyword = parsedUrl.query.keyword;
+        const status = parsedUrl.query.status;
+        
         if (keyword) {
-          console.log(`Запрошены новости по ключевому слову: "${keyword}"`);
+          console.log(`Запрошены новости по ключевому слову: "${keyword}" для проекта ${projectId}`);
           filteredData = filteredData.filter(item => item.keyword === keyword);
-        } else {
-          console.log('Запрошены все новости.');
         }
         
-        // Sort by fetchedAt descending (newest first)
-        filteredData.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
+        if (status) {
+          console.log(`Запрошены новости по статусу: "${status}" для проекта ${projectId}`);
+          filteredData = filteredData.filter(item => item.status === status);
+        }
         
-        // Ensure every item has a link property to avoid client-side errors
-        const sanitizedNewsData = filteredData.map(item => ({...item, link: item.link || ''}));
+        if (!keyword && !status) {
+          console.log(`Запрошены все новости для проекта ${projectId}.`);
+        }
+        
+        filteredData.sort((a, b) => new Date(b.fetchedAt) - new Date(a.fetchedAt));
+        const sanitizedNewsData = filteredData.map(item => ({
+            ...item,
+            link: item.link || '',
+            ai_response: item.ai_response || {}
+        }));
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(sanitizedNewsData));
       })
       .catch(err => {
-        console.error('Error getting news data:', err);
-        res.writeHead(500);
-        res.end('Error reading news');
+        console.error('Error getting news data for project:', err);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([]));
       });
-  } else if (pathname === '/api/keywords' && method === 'POST') {
-    parseBody(req, (err, body) => {
-      if (err || !body || !body.keyword) {
+  } else if (pathname.startsWith('/api/projects/') && method === 'GET') { // <-- Теперь этот маршрут будет обрабатывать только /api/projects/:id
+    const projectId = pathname.split('/')[3];
+    loadProjects()
+      .then(projects => {
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(project));
+        } else {
+          res.writeHead(404);
+          res.end('Project not found');
+        }
+      })
+      .catch(err => {
+        console.error('Error getting project:', err);
+        res.writeHead(500);
+        res.end('Error reading project');
+      });
+  } else if (pathname.startsWith('/api/projects/') && method === 'PUT') {
+    const projectId = pathname.split('/')[3];
+    parseBody(req, (err, updatedProject) => {
+      if (err || !updatedProject) {
         res.writeHead(400);
-        res.end('Keyword is required');
+        res.end('Invalid project data');
         return;
       }
-      fs.appendFile(KEYWORDS_FILE_PATH, `\n${body.keyword}`, (err) => {
-        if (err) {
-          console.error('Error adding keyword:', err);
+      loadProjects()
+        .then(projects => {
+          const index = projects.findIndex(p => p.id === projectId);
+          if (index !== -1) {
+            // Ensure telegramBotToken is saved if provided
+            if (updatedProject.telegramBotToken === '') updatedProject.telegramBotToken = undefined; // Store as undefined if empty string
+            projects[index] = { ...projects[index], ...updatedProject, id: projectId }; // Ensure ID is not changed
+            return saveProjects(projects);
+          } else {
+            res.writeHead(404);
+            res.end('Project not found');
+            return Promise.reject('Project not found'); // Propagate error
+          }
+        })
+        .then(() => {
+          res.writeHead(200);
+          res.end('Project updated');
+        })
+        .catch(err => {
+          console.error('Error updating project:', err);
           res.writeHead(500);
-          res.end('Error adding keyword');
-          return;
-        }
-        res.writeHead(201);
-        res.end('Keyword added');
-      });
+          res.end('Error updating project');
+        });
     });
-  } else if (pathname.startsWith('/api/keywords/') && method === 'DELETE') {
-    const keywordToDelete = decodeURIComponent(pathname.split('/').pop());
-    fs.readFile(KEYWORDS_FILE_PATH, 'utf8', (err, data) => {
-      if (err) {
-        console.error('Error reading keywords file:', err);
-        res.writeHead(500);
-        res.end('Error reading keywords');
-        return;
-      }
-      const keywords = data.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-      const newKeywords = keywords.filter(k => k !== keywordToDelete);
-      const newData = newKeywords.join('\n');
-      fs.writeFile(KEYWORDS_FILE_PATH, newData, 'utf8', (err) => {
-        if (err) {
-          console.error('Error deleting keyword:', err);
-          res.writeHead(500);
-          res.end('Error deleting keyword');
-          return;
+  } else if (pathname.startsWith('/api/projects/') && method === 'DELETE') {
+    const projectId = pathname.split('/')[3];
+    loadProjects()
+      .then(projects => {
+        const initialLength = projects.length;
+        const newProjects = projects.filter(p => p.id !== projectId);
+        if (newProjects.length < initialLength) {
+          return saveProjects(newProjects);
+        } else {
+          res.writeHead(404);
+          res.end('Project not found');
+          return Promise.reject('Project not found');
         }
+      })
+      .then(() => {
         res.writeHead(200);
-        res.end('Keyword deleted');
+        res.end('Project deleted');
+      })
+      .catch(err => {
+        console.error('Error deleting project:', err);
+        res.writeHead(500);
+        res.end('Error deleting project');
       });
-    });
-  } else {
+  } else if (pathname === '/api/scrapingdog-credits' && method === 'GET') {
+    fetchScrapingDogCredits()
+      .then(credits => {
+        if (credits) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(credits));
+        } else {
+          res.writeHead(500);
+          res.end('Failed to fetch ScrapingDog credits');
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching ScrapingDog credits:', err);
+        res.writeHead(500);
+        res.end('Error fetching ScrapingDog credits');
+      });
+  }
+  else {
     res.writeHead(404);
     res.end('Not found');
   }
@@ -190,13 +340,13 @@ if (process.env.NODE_ENV !== 'test') {
 // --- End Admin Panel Code ---
 
 
-async function sendTelegramMessage(chatId, text) {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+async function sendTelegramMessage(chatId, text, telegramBotToken) {
+    const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
     try {
         await axios.post(url, {
             chat_id: chatId,
             text: text,
-            disable_web_page_preview: true // Optional: disable link previews
+            disable_web_page_preview: true
         });
         console.log('Telegram message sent successfully.');
     } catch (error) {
@@ -207,35 +357,12 @@ async function sendTelegramMessage(chatId, text) {
     }
 }
 
-async function processNewsWithOpenAI(newsItem) {
-    if (!OPENAI_API_KEY) {
+async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
+    if (!openaiApiKey) {
         console.error('OpenAI API key not set. Skipping AI processing.');
         return null;
     }
 
-    // Читаем промпт из файла
-    let promptTemplate;
-    try {
-        promptTemplate = fs.readFileSync(PROMPT_FILE_PATH, 'utf8');
-    } catch (error) {
-        console.error('Error reading prompt file:', error.message);
-        console.error('Using fallback prompt.');
-        promptTemplate = `## УЛЬТИМАТИВНЫЕ ПРАВИЛА (9.98+/10)
-1. Если новость не Sb₂O₃/сурьма → вернуть null.
-2. Paywall/404 → summary_ru: "Статья недоступна", остальные поля null.
-3. Обязательно сверяй CAS 1309‑64‑4 и HS 281820.
-4. Числа — арабские, проценты со знаком %, объёмы в т, валюты — USD.
-5. Глаголы ультрачёткие: «вырастет», «упадёт», «изменится», «снизится», «повысится».
-6. Точные даты: «до 26 июн 2025».
-7. Никаких эмоций — только ультрафакты, стратегии, деньги, риски.
-
-Проанализируй эту новость:
-{{NEWS_DATA}}
-
-Верни только JSON-ответ в указанном формате или null если новость не про сурьму/Sb₂O₃.`;
-    }
-
-    // Заменяем плейсхолдер на данные новости
     const prompt = promptTemplate.replace('{{NEWS_DATA}}', JSON.stringify(newsItem, null, 2));
 
     try {
@@ -257,20 +384,18 @@ async function processNewsWithOpenAI(newsItem) {
             max_tokens: 2000
         }, {
             headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${openaiApiKey}`,
                 'Content-Type': 'application/json'
             }
         });
 
         let aiResponse = response.data.choices[0].message.content.trim();
         
-        // Извлекаем JSON из Markdown блока, если он есть
         const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
         if (jsonMatch && jsonMatch[1]) {
             aiResponse = jsonMatch[1].trim();
         }
 
-        // Попытка распарсить JSON ответ
         if (aiResponse === 'null' || aiResponse.toLowerCase() === 'null' || aiResponse === '') {
             console.log(`  - OpenAI: новость не про сурьму или пустой ответ, пропускаем`);
             return null;
@@ -295,15 +420,15 @@ async function processNewsWithOpenAI(newsItem) {
     }
 }
 
-async function fetchNewsForKeyword(keyword) {
-    if (!SCRAPINGDOG_API_KEY) {
+async function fetchNewsForKeyword(keyword, scrapingDogApiKey) {
+    if (!scrapingDogApiKey) {
         console.error('ScrapingDog API key not set. Skipping news fetch.');
         return [];
     }
     
     const url = 'https://api.scrapingdog.com/google_news/';
     const params = {
-        api_key: SCRAPINGDOG_API_KEY,
+        api_key: scrapingDogApiKey,
         query: keyword,
         results: 5,
         page: 0,
@@ -327,16 +452,15 @@ async function fetchNewsForKeyword(keyword) {
                     }
                     console.log('---');
                 });
-                // Map news_results to the expected format before passing to processAndSendNews
                 const formattedNewsResults = data.news_results.map(item => ({
                     title: item.title,
-                    link: item.url, // Use 'url' from API response as 'link'
+                    link: item.url,
                     source: item.source,
-                    date: item.lastUpdated, // Use 'lastUpdated' from API response as 'date'
+                    date: item.lastUpdated,
                     snippet: item.snippet,
                     thumbnail: item.thumbnail
                 }));
-                await processAndSendNews(keyword, formattedNewsResults);
+                return formattedNewsResults; // Return news items to be processed by the caller
             } else {
                 console.log(`No news found for keyword: "${keyword}".`);
             }
@@ -346,7 +470,6 @@ async function fetchNewsForKeyword(keyword) {
     } catch (error) {
         console.error('Error making the request: ' + error.message);
     }
-    // Return empty array in case of error or no results
     return [];
 }
 
@@ -435,254 +558,200 @@ function testDateFiltering() {
     });
     console.log("=== Конец теста ===\n");
 }
-async function processAndSendNews(keyword, newsItems) {
+async function processAndSendNews(projectId, keyword, newsItems, telegramChatId, telegramBotToken, promptTemplate, openaiApiKey) {
     let allNews = [];
     try {
         if (fs.existsSync(NEWS_DATA_FILE_PATH)) {
-            const fileData = fs.readFileSync(NEWS_DATA_FILE_PATH, 'utf8');
+            const fileData = await fs.promises.readFile(NEWS_DATA_FILE_PATH, 'utf8');
             if (fileData) {
                 allNews = JSON.parse(fileData);
             }
         }
     } catch (err) {
         console.error('Error reading or parsing existing news data file:', err.message);
-        // Continue with an empty array if parsing fails
         allNews = [];
     }
 
-    // Загружаем блэклист обработанных URL
     const blacklist = loadBlacklist();
     console.log(`Loaded blacklist with ${blacklist.size} processed URLs`);
 
     const fetchedAt = new Date().toISOString();
     
-    // Filter out news older than 2 days before processing
-    const recentNewsItems = newsItems.filter(item => {
+    const newsToSave = []; // Будем собирать все новости, которые нужно сохранить
+
+    for (const item of newsItems) {
+        const baseNewsItem = {
+            projectId: projectId,
+            keyword: keyword,
+            title: item.title,
+            link: item.link,
+            source: item.source ? item.source.name : null,
+            date: item.date,
+            snippet: item.snippet,
+            thumbnail: item.thumbnail,
+            fetchedAt: fetchedAt,
+            status: 'fetched' // Начальный статус
+        };
+
+        // Проверка на старые новости
         const isOld = isNewsOlderThan2Days(item.date);
         if (isOld) {
             console.log(`  - Пропущена старая новость (${item.date}): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_old' });
+            continue;
         }
-        return !isOld;
-    });
-    
-    if (recentNewsItems.length < newsItems.length) {
-        console.log(`Пропущено ${newsItems.length - recentNewsItems.length} старых новостей для "${keyword}"`);
-    }
-    
-    const newEntries = recentNewsItems.map(item => ({
-        keyword: keyword,
-        title: item.title,
-        link: item.link, // This is already mapped from item.url in fetchNewsForKeyword
-        source: item.source ? item.source.name : null, // Ensure source.name is used if source is an object
-        date: item.date, // This is already mapped from item.lastUpdated in fetchNewsForKeyword
-        snippet: item.snippet,
-        thumbnail: item.thumbnail,
-        fetchedAt: fetchedAt
-    }));
 
-    const existingNewsLinks = new Set(allNews.map(item => item.link));
-    const newNewsItems = newEntries.filter(item => !existingNewsLinks.has(item.link));
-    const skippedItems = newEntries.filter(item => existingNewsLinks.has(item.link));
+        // Проверка на дубликаты (уже есть в fetched_news.json)
+        const isExisting = allNews.some(existingItem => existingItem.link === item.link);
+        if (isExisting) {
+            console.log(`  - Пропущена (уже есть в истории): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_duplicate' });
+            continue;
+        }
 
-    if (skippedItems.length > 0) {
-        console.log(`Пропущено ${skippedItems.length} новостей для "${keyword}" - уже есть в истории`);
-        skippedItems.forEach(item => {
-            console.log(`  - Пропущена: "${item.title}"`);
-        });
-    }
-
-    // Дополнительно фильтруем по блэклисту обработанных URL
-    const unprocessedNewsItems = newNewsItems.filter(item => {
+        // Проверка на блэклист (уже обработана OpenAI)
         const isBlacklisted = isInBlacklist(item.link, blacklist);
         if (isBlacklisted) {
             console.log(`  - Пропущена (уже обработана OpenAI): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_blacklisted' });
+            continue;
         }
-        return !isBlacklisted;
-    });
 
-    const blacklistedCount = newNewsItems.length - unprocessedNewsItems.length;
-    if (blacklistedCount > 0) {
-        console.log(`Пропущено ${blacklistedCount} новостей для "${keyword}" - уже обработаны OpenAI`);
-    }
+        // Если новость прошла все фильтры, отправляем в OpenAI
+        const processedNews = await processNewsWithOpenAI({
+            url: item.link,
+            title: item.title,
+            published: item.date,
+            source: item.source,
+            snippet: item.snippet
+        }, promptTemplate, openaiApiKey);
 
-    if (unprocessedNewsItems.length > 0) {
-        console.log(`Found ${unprocessedNewsItems.length} new unprocessed news items for "${keyword}".`);
-
-        // Список для хранения только валидных новостей (прошедших OpenAI фильтрацию)
-        const validNewsItems = [];
-        let blacklistUpdated = false;
-        
-        for (const newsItem of unprocessedNewsItems) {
-            // Добавляем URL в блэклист независимо от результата обработки OpenAI
-            const wasAdded = addToBlacklist(newsItem.link, blacklist);
-            if (wasAdded) {
-                blacklistUpdated = true;
-            }
-
-            // Обрабатываем новость через OpenAI
-            const processedNews = await processNewsWithOpenAI({
-                url: newsItem.link,
-                title: newsItem.title,
-                published: newsItem.date,
-                source: newsItem.source,
-                snippet: newsItem.snippet
-            });
-
-            // Если OpenAI вернул null (новость не про сурьму), пропускаем её
-            if (!processedNews) {
-                console.log(`  - Пропущена новость (не про сурьму): "${newsItem.title}"`);
-                continue;
-            }
-
-            // Добавляем в список валидных новостей
-            validNewsItems.push(newsItem);
-
-            // Отправляем в Telegram только если настроен
-            if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-                // Формируем сообщение на основе обработанных данных
-                let message = `🔥 ${processedNews.title_ru}\n\n`;
-                message += `📊 ${processedNews.summary_ru}\n\n`;
-                
-                if (processedNews.market_analytics) {
-                    message += `📈 Аналитика:\n`;
-                    if (processedNews.market_analytics.price_trend_14d) {
-                        message += `• Тренд 14д: ${processedNews.market_analytics.price_trend_14d}\n`;
-                    }
-                    if (processedNews.market_analytics.forecast_30d) {
-                        message += `• Прогноз 30д: ${processedNews.market_analytics.forecast_30d}\n`;
-                    }
-                    if (processedNews.market_analytics.supply_impact_t) {
-                        message += `• Влияние на предложение: ${processedNews.market_analytics.supply_impact_t}\n`;
-                    }
-                    message += `\n`;
-                }
-
-                if (processedNews['ТРИ_ГЛАЗА']) {
-                    const triGlaza = processedNews['ТРИ_ГЛАЗА'];
-                    message += `🎯 Ключевые моменты:\n`;
-                    if (triGlaza.risk && triGlaza.risk.length > 0) {
-                        message += `⚠️ Риски: ${triGlaza.risk.join('; ')}\n`;
-                    }
-                    if (triGlaza.opportunity && triGlaza.opportunity.length > 0) {
-                        message += `💰 Возможности: ${triGlaza.opportunity.join('; ')}\n`;
-                    }
-                    message += `\n`;
-                }
-
-                if (processedNews.ASIM_short_insight) {
-                    message += `🧠 Инсайт: ${processedNews.ASIM_short_insight}\n\n`;
-                }
-
-                message += `🔗 ${newsItem.link}\n`;
-                message += `📅 ${processedNews.pub_time || newsItem.date || 'N/A'}\n`;
-                message += `📰 ${processedNews.source || newsItem.source || 'N/A'}`;
-
-                if (processedNews.notification_level === 'CRITICAL') {
-                    message = `🚨 КРИТИЧНО! 🚨\n\n${message}`;
-                }
-
-                await sendTelegramMessage(TELEGRAM_CHAT_ID, message);
-                // Add a small delay between Telegram messages to avoid hitting rate limits
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            } else {
-                console.log(`  - Валидная новость (про сурьму): "${newsItem.title}"`);
-            }
+        if (!processedNews) {
+            console.log(`  - Пропущена новость (не про сурьму): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_irrelevant' });
+            continue;
         }
-        
-        // Сохраняем обновленный блэклист
-        if (blacklistUpdated) {
-            saveBlacklist(blacklist);
-        }
-        
-        // Сохраняем только валидные новости (прошедшие OpenAI фильтрацию)
-        if (validNewsItems.length > 0) {
-            allNews.push(...validNewsItems);
-            try {
-                fs.writeFileSync(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
-                console.log(`Successfully saved ${validNewsItems.length} valid news items for "${keyword}" to ${NEWS_DATA_FILE_PATH}`);
-            } catch (err) {
-                console.error('Error writing news data to file:', err.message);
+
+        // Если OpenAI обработал, добавляем в блэклист и сохраняем
+        addToBlacklist(item.link, blacklist); // Добавляем в блэклист только после успешной обработки OpenAI
+        newsToSave.push({ ...baseNewsItem, ai_response: processedNews, status: 'processed' });
+
+        // Отправка в Telegram
+        if (telegramBotToken && telegramChatId) {
+            let message = `🔥 ${processedNews.title_ru}\n\n`;
+            message += `📊 ${processedNews.summary_ru}\n\n`;
+            
+            if (processedNews.market_analytics) {
+                message += `📈 Аналитика:\n`;
+                if (processedNews.market_analytics.price_trend_14d) {
+                    message += `• Тренд 14д: ${processedNews.market_analytics.price_trend_14d}\n`;
+                }
+                if (processedNews.market_analytics.forecast_30d) {
+                    message += `• Прогноз 30д: ${processedNews.market_analytics.forecast_30d}\n`;
+                }
+                if (processedNews.market_analytics.supply_impact_t) {
+                    message += `• Влияние на предложение: ${processedNews.market_analytics.supply_impact_t}\n`;
+                }
+                message += `\n`;
             }
+
+            if (processedNews['ТРИ_ГЛАЗА']) {
+                const triGlaza = processedNews['ТРИ_ГЛАЗА'];
+                message += `🎯 Ключевые моменты:\n`;
+                if (triGlaza.risk && triGlaza.risk.length > 0) {
+                    message += `⚠️ Риски: ${triGlaza.risk.join('; ')}\n`;
+                }
+                if (triGlaza.opportunity && triGlaza.opportunity.length > 0) {
+                    message += `💰 Возможности: ${triGlaza.opportunity.join('; ')}\n`;
+                }
+                message += `\n`;
+            }
+
+            if (processedNews.ASIM_short_insight) {
+                message += `🧠 Инсайт: ${processedNews.ASIM_short_insight}\n\n`;
+            }
+
+            message += `🔗 ${item.link}\n`;
+            message += `📅 ${processedNews.pub_time || item.date || 'N/A'}\n`;
+            message += `📰 ${processedNews.source || item.source || 'N/A'}`;
+
+            if (processedNews.notification_level === 'CRITICAL') {
+                message = `🚨 КРИТИЧНО! 🚨\n\n${message}`;
+            }
+
+            await sendTelegramMessage(telegramChatId, message, telegramBotToken);
+            await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-            console.log(`No valid news items found for "${keyword}" after OpenAI filtering.`);
+            console.log(`  - Валидная новость (про сурьму): "${item.title}"`);
+        }
+    }
+    
+    saveBlacklist(blacklist); // Сохраняем блэклист после всех операций
+
+    if (newsToSave.length > 0) {
+        allNews.push(...newsToSave);
+        try {
+            await fs.promises.writeFile(NEWS_DATA_FILE_PATH, JSON.stringify(allNews, null, 2), 'utf8');
+            console.log(`Successfully saved ${newsToSave.length} news items to ${NEWS_DATA_FILE_PATH}`);
+        } catch (err) {
+            console.error('Error writing news data to file:', err.message);
         }
     } else {
-        console.log(`No new unprocessed news items found for "${keyword}".`);
+        console.log(`No new news items to save.`);
     }
 }
 
+// ... (unchanged code below)
 
-async function processKeywords() {
-    try {
-        const keywordsData = fs.readFileSync(KEYWORDS_FILE_PATH, 'utf8');
-        const keywords = keywordsData.split(/\r?\n/).map(k => k.trim()).filter(k => k.length > 0); // Split by newline, trim, filter empty
+async function processProjects() {
+    const projects = await loadProjects();
+    if (projects.length === 0) {
+        console.log('No projects found in projects.json.');
+        return;
+    }
 
-        if (keywords.length === 0) {
-            console.log('No keywords found in .env_keys file.');
-            return;
+    console.log(`Found ${projects.length} projects.`);
+
+    for (const project of projects) {
+        console.log(`\n--- Processing project: "${project.name}" (ID: ${project.id}) ---`);
+        // Destructure telegramBotToken from project
+        const { id, name, telegramChatId, keywords, prompt, openaiApiKey, scrapingDogApiKey, telegramBotToken } = project; // Добавлено telegramBotToken
+
+        if (!keywords || keywords.length === 0) {
+            console.warn(`Project "${name}" has no keywords. Skipping news fetch.`);
+            continue;
         }
-
-        console.log(`Found keywords: ${keywords.join(', ')}`);
+        if (!prompt) {
+            console.warn(`Project "${name}" has no prompt. Skipping AI processing.`);
+            continue;
+        }
 
         for (const keyword of keywords) {
-            await fetchNewsForKeyword(keyword);
-            // Add a small delay between requests to be polite to the API
-            await new Promise(resolve => setTimeout(resolve, 1000)); 
+            const newsItems = await fetchNewsForKeyword(keyword, scrapingDogApiKey);
+            if (newsItems.length > 0) {
+                // Передаем project-specific telegramBotToken
+                await processAndSendNews(id, keyword, newsItems, telegramChatId, telegramBotToken, prompt, openaiApiKey);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Задержка между запросами по ключевым словам
         }
-    } catch (error) {
-        console.error('Error reading or processing keywords file:', error.message);
     }
 }
 
 async function runDailyTask() {
     console.log(`\nStarting news check cycle at ${new Date().toISOString()}`);
-    
-    // Временный тест фильтрации дат
-    testDateFiltering();
-    
-    await processKeywords();
+    testDateFiltering(); // Keep for now, can be removed later
+    await processProjects();
     console.log(`News check cycle finished. Next check in 24 hours.`);
     setTimeout(runDailyTask, CHECK_INTERVAL_MS);
 }
 
-// Start the first cycle
-if (!OPENAI_API_KEY) {
-    console.error('OpenAI API key is not set. News filtering will be disabled.');
-}
-
-if (!SCRAPINGDOG_API_KEY) {
-    console.error('ScrapingDog API key is not set. News fetching will be disabled.');
-}
-
-if (!fs.existsSync(PROMPT_FILE_PATH)) {
-    console.error('Prompt file (.env_prompt) not found. AI processing may use fallback prompt.');
-} else {
-    console.log('Prompt file loaded successfully.');
-}
-
-if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.warn('Telegram BOT_TOKEN or CHAT_ID is not set. News will be fetched and saved, but not sent to Telegram.');
-    console.log('News Alert script started. Initial check will run now.');
+// Initial startup logic
+console.log('News Alert script started.');
+if (process.env.NODE_ENV !== 'test') {
     runDailyTask();
 }
-else {
-    console.log('News Alert script started. Initial check will run now.');
-    console.log(`Telegram Bot Token loaded successfully: ${TELEGRAM_BOT_TOKEN.substring(0, 5)}...`);
-    console.log(`Telegram Chat ID loaded successfully: ${TELEGRAM_CHAT_ID}`);
-    if (OPENAI_API_KEY) {
-        console.log(`OpenAI API key loaded successfully: ${OPENAI_API_KEY.substring(0, 5)}...`);
-    }
-    if (SCRAPINGDOG_API_KEY) {
-        console.log(`ScrapingDog API key loaded successfully: ${SCRAPINGDOG_API_KEY.substring(0, 5)}...`);
-    }
-    
-    // Запускаем только если не в тестовой среде
-    if (process.env.NODE_ENV !== 'test') {
-        runDailyTask();
-    }
-}
 
-// Экспорт функций для тестирования
+// Export functions for testing
 module.exports = {
     isNewsOlderThan2Days,
     processNewsWithOpenAI,
@@ -690,15 +759,16 @@ module.exports = {
     fetchNewsForKeyword,
     filterNewsByDate,
     filterNewsByKeywords,
-    loadPromptFromFile,
-    loadKeywordsFromFile,
-    fetchNewsFromSerpApi: fetchNewsForKeyword, // alias
-    fetchNewsFromScrapingDog: fetchNewsForKeyword, // alias  
-    sendTelegramNotification: sendTelegramMessage,
+    loadProjects,
+    saveProjects,
+    fetchScrapingDogCredits,
     loadBlacklist,
     saveBlacklist,
     addToBlacklist,
-    isInBlacklist
+    isInBlacklist,
+    // Expose for initial project creation logic if needed in tests
+    KEYWORDS_FILE_PATH: path.join(__dirname, '.env_keys'), // Re-add for manual migration
+    PROMPT_FILE_PATH: path.join(__dirname, '.env_prompt') // Re-add for manual migration
 };
 
 // Utility functions for filtering and processing

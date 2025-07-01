@@ -5,12 +5,12 @@
 [![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)](./tests)
 [![License](https://img.shields.io/badge/license-ISC-blue)](./LICENSE)
 
-**Enterprise-grade AI-powered news monitoring and analysis system specifically designed for Antimony Trioxide (Sb₂O₃) market intelligence. Powered by OpenAI GPT-4o with advanced Russian/English dual-language processing and real-time market analytics.**
+**Enterprise-grade AI-powered news monitoring and analysis system specifically designed for Antimony Trioxide (Sb₂O₃) market intelligence. Now with multi-project support and an enhanced admin panel. Powered by OpenAI GPT-4o with advanced Russian/English dual-language processing and real-time market analytics.**
 
 ## 🏗️ System Architecture
 
 ```mermaid
-graph TB
+graph TD
     subgraph "Data Sources"
         A[SerpAPI Google News] --> E[News Aggregator]
         B[ScrapingDog Web Scraper] --> E
@@ -20,7 +20,7 @@ graph TB
     
     subgraph "Processing Pipeline"
         E --> F[Date Filter<br/>≤ 24h]
-        F --> G[Keyword Filter<br/>Sb₂O₃ Related]
+        F --> G[Keyword Filter<br/>Project Specific]
         G --> H[Content Extraction]
         H --> I[AI Processing<br/>GPT-4o]
     end
@@ -33,22 +33,26 @@ graph TB
     end
     
     subgraph "Output & Notifications"
-        M --> N[Telegram Alerts]
-        M --> O[JSON Data Store]
-        M --> P[Admin Dashboard]
+        M --> N[Telegram Alerts<br/>Project Specific]
+        M --> O[JSON Data Store<br/>(by Project)]
+        M --> P[Admin Dashboard<br/>Multi-Project View]
         M --> Q[API Endpoints]
     end
     
     subgraph "Configuration"
-        R[.env - API Keys] --> E
-        S[.env_keys - Keywords] --> G
-        T[.env_prompt - AI Prompt] --> I
+        R[projects.json - Project Configs] --> G
+        R --> I
+        R --> N
+        S[.env - Global API Keys] --> B
+        S --> I
+        S --> N
     end
     
     subgraph "Monitoring & Control"
         P --> U[Real-time Logs]
         P --> V[Manual Triggers]
-        P --> W[Configuration Management]
+        P --> W[Project Management]
+        P --> X[ScrapingDog Credits]
     end
 ```
 
@@ -62,6 +66,8 @@ graph TB
 - **Strategic Alerts**: Critical market events with business impact
 
 ### 📊 **Market Intelligence Features**
+- **Multi-Project Support**: Manage multiple parsing bots, keyword lists, and prompts.
+- **Project-Specific Notifications**: Telegram alerts configured per project.
 - **Real-time Price Monitoring**: 14-day trends and 30-day forecasts
 - **Supply Chain Analytics**: Global tonnage impact calculations
 - **Demand Analysis**: Regional and player-specific shifts
@@ -72,7 +78,7 @@ graph TB
 - **Dual-language Processing**: Russian/English content analysis
 - **Smart Filtering**: Date + keyword + relevance algorithms
 - **API Integrations**: SerpAPI, ScrapingDog, OpenAI, Telegram
-- **Admin Dashboard**: Real-time monitoring and controls
+- **Admin Dashboard**: Real-time monitoring and controls for multiple projects
 - **Comprehensive Testing**: 32 test cases with 95% coverage
 
 ## 📂 Project Structure
@@ -92,10 +98,9 @@ newsalert/
 │   ├── ARCHITECTURE.md        # Technical architecture details
 │   ├── TEST_REPORT.md         # Test coverage and quality report
 │   └── DEPLOYMENT.md          # Production deployment guide
-├── ⚙️ .env                     # API keys and secrets (create manually)
-├── ⚙️ .env_keys               # Search keywords configuration
-├── ⚙️ .env_prompt             # ULTIMATE-PROMPT v3.0 (AI instructions)
-├── 📊 fetched_news.json       # News data storage (auto-generated)
+├── ⚙️ .env                     # Global API keys and secrets (create manually)
+├── ⚙️ projects.json            # Project configurations (NEW!)
+├── 📊 fetched_news.json       # News data storage (auto-generated, now with projectId)
 ├── 📦 package.json            # Dependencies and npm scripts
 ├── 🔧 jest.config.js          # Testing configuration
 └── 📖 README.md               # This comprehensive documentation
@@ -114,9 +119,9 @@ cd /workspaces/space2/newsalert
 npm install
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Global Environment Variables
 
-Create `.env` file with your API credentials:
+Create `.env` file with your global API credentials. These will be used as defaults for projects unless overridden in `projects.json`:
 ```env
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=7215285050:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -134,27 +139,11 @@ NODE_ENV=production
 CHECK_INTERVAL_HOURS=24
 ```
 
-### 3. Configure Keywords
+### 3. Configure Projects
 
-Edit `.env_keys` file (one keyword per line):
-```
-antimony trioxide
-Sb2O3
-сурьма триоксид
-antimony oxide
-antimony
-трехокись сурьмы
-ТНВЭД281820
-CAS1309-64-4
-```
+The system now uses `projects.json` to manage individual projects. A default project has been automatically created for you based on the previous `.env_keys` and `.env_prompt` files. You can manage projects via the Admin Dashboard.
 
-### 4. AI Prompt Configuration
-
-The system uses the advanced ULTIMATE-PROMPT v3.0 stored in `.env_prompt`. This prompt is automatically loaded and provides:
-- Market analytics with price trends and forecasts
-- Risk and opportunity assessment
-- Strategic business insights
-- Multi-language processing (Russian/English)
+**Important**: `projects.json` contains sensitive API keys and should be kept out of version control. It has been added to `.gitignore`.
 
 ## 🚀 Usage
 
@@ -199,19 +188,22 @@ npm run test:watch
 Access the web-based admin panel at: **http://localhost:3656**
 
 ### Features:
-- **📊 Real-time Monitoring**: Live news processing status
-- **🔧 Manual Controls**: Trigger news checks on demand
-- **📈 Analytics View**: News processing statistics
-- **⚙️ Configuration**: Keyword and settings management
-- **📝 Logs Display**: Real-time system logs
-- **🔍 News Preview**: View processed news items
+- **📊 Real-time Monitoring**: Live news processing status and ScrapingDog credits.
+- **➕ Project Management**: Create, view, edit, and delete multiple projects.
+- **📈 Analytics View**: News processing statistics per project.
+- **⚙️ Configuration**: Manage keywords, Telegram chat IDs, and OpenAI prompts for each project.
+- **📝 Logs Display**: Real-time system logs.
+- **🔍 News Preview**: View processed news items with full AI analysis (OpenAI response).
 
 ### Dashboard Sections:
-1. **Status Overview**: System health and last check time
-2. **Manual Triggers**: Force news check button
-3. **Recent News**: Last processed items with AI analysis
-4. **Configuration**: Keywords and settings management
-5. **System Logs**: Real-time application logs
+1.  **ScrapingDog API Status**: Displays your current request limit, used requests, and subscription validity.
+2.  **Projects List**: Overview of all configured projects.
+3.  **Create New Project Form**: Add new projects with custom names, keywords, Telegram chat IDs, and OpenAI prompts.
+4.  **Project Details View**:
+    *   Edit project settings.
+    *   View news items specific to that project.
+    *   Filter news by keyword within the project.
+    *   Toggle to view the full JSON response from OpenAI for each news item.
 
 ## 🧪 Testing Architecture
 
@@ -258,41 +250,45 @@ Response:
 }
 ```
 
-### Configuration Status
+### ScrapingDog Credits
 ```http
-GET /api/config
+GET /api/scrapingdog-credits
 ```
 Response:
 ```json
 {
-  "promptLoaded": true,
-  "keywordsCount": 8,
-  "hasOpenAIKey": true,
-  "hasTelegramToken": true
+  "threadCount": 0,
+  "requestLimit": 201000,
+  "requestUsed": 2620,
+  "email": "i448539@gmail.com",
+  "username": "nalerttyf",
+  "apiKey": "685cfa3b0a27983e23a49711",
+  "validity": 23,
+  "pack": "lite",
+  "pack_type": "monthly"
 }
 ```
 
-### Process News Items
-```http
-POST /api/process-news
-Content-Type: application/json
+### Projects
+- `GET /api/projects` - Get all projects
+- `POST /api/projects` - Create a new project
+- `GET /api/projects/:id` - Get project details
+- `PUT /api/projects/:id` - Update a project
+- `DELETE /api/projects/:id` - Delete a project
 
-{
-  "newsItems": [...],
-  "daysBack": 1
-}
-```
+### Project News
+- `GET /api/projects/:id/news` - Get news for a specific project (with optional `keyword` filter)
 
 ## 🔧 Advanced Configuration
 
 ### Custom AI Prompts
-The ULTIMATE-PROMPT v3.0 can be customized in `.env_prompt`. Key placeholders:
+The ULTIMATE-PROMPT v3.0 can be customized for each project in the Admin Dashboard. Key placeholders:
 - `{{NEWS_DATA}}` - Replaced with actual news content
 - System-level instructions for market analysis
 - Output format specifications (JSON)
 
 ### Keyword Optimization
-Keywords in `.env_keys` support:
+Keywords are configured per project in the Admin Dashboard and support:
 - **Chemical Names**: "antimony trioxide", "Sb2O3"
 - **Regulatory Codes**: "ТНВЭД281820", "CAS1309-64-4"  
 - **Market Terms**: "price", "supply", "demand"
@@ -335,7 +331,7 @@ Currently supports Telegram with plans for:
 • Перепродажа запасов +10% прибыли
 
 🎯 КЛЮЧЕВОЙ ИНСАЙТ:
-Срочный переход Китая на турецкое сырьё — риск роста мировых цен на 10–15%
+Срочный переход Китая на турецкое сырьё — риск роста мировых цен на Sb₂O₃ на 10–15%
 
 #Sb2O3 #ТНВЭД281820 #Цены #Дефицит
 ```
@@ -343,7 +339,8 @@ Currently supports Telegram with plans for:
 ## 🔒 Security & Best Practices
 
 ### Environment Security:
-- Store API keys in `.env` (never commit to git)
+- Store global API keys in `.env` (never commit to git)
+- Store project-specific API keys in `projects.json` (added to .gitignore)
 - Use secure Telegram bot tokens
 - Implement rate limiting for API calls
 - Regular key rotation recommended
@@ -353,20 +350,6 @@ Currently supports Telegram with plans for:
 - Set up automated backups of news data
 - Implement failover for critical alerts
 - Regular testing of notification channels
-
-## 🛡️ Error Handling & Recovery
-
-### Graceful Degradation:
-- **API Failures**: Automatic fallback to alternative sources
-- **Network Issues**: Retry mechanism with exponential backoff
-- **AI Service Downtime**: Queue messages for later processing
-- **Configuration Errors**: Default settings and user notifications
-
-### Monitoring Points:
-- API response times and success rates
-- News processing pipeline throughput
-- AI analysis quality metrics
-- Notification delivery success
 
 ## 🎯 Business Impact
 
@@ -428,4 +411,4 @@ For technical support or feature requests:
 
 **Built with ❤️ for the Antimony Trioxide market intelligence community**
 
-*Last updated: June 26, 2025*
+*Last updated: July 1, 2025*
