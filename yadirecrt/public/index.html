@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Яндекс.Директ Сервис</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .auth-section {
+            background: #f8f9ff;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-upload {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload label {
+            cursor: pointer;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .token-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin: 10px 0;
+            transition: border-color 0.3s ease;
+        }
+
+        .token-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .result {
+            background: #f0f8ff;
+            border: 1px solid #b8daff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .error {
+            background: #ffe6e6;
+            border: 1px solid #ffb3b3;
+            color: #cc0000;
+        }
+
+        .success {
+            background: #e6ffe6;
+            border: 1px solid #b3ffb3;
+            color: #006600;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .code-example {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Яндекс.Директ Сервис</h1>
+            <p>Автоматизация создания рекламных кампаний с помощью ИИ</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Секция авторизации -->
+            <div class="section">
+                <h2>🔐 Авторизация</h2>
+                <div class="auth-section">
+                    <p>Для работы с сервисом необходимо авторизоваться в Яндекс.Директ:</p>
+                    <button class="button" onclick="startAuth()">Авторизоваться в Яндексе</button>
+                    
+                    <div style="margin-top: 20px;">
+                        <label for="accessToken">Или введите токен доступа:</label>
+                        <input type="text" id="accessToken" class="token-input" placeholder="Вставьте ваш токен доступа...">
+                        <button class="button" onclick="validateToken()">Проверить токен</button>
+                    </div>
+
+                    <div id="authResult" class="result"></div>
+                </div>
+            </div>
+
+            <!-- Секция загрузки файла -->
+            <div class="section">
+                <h2>📁 Загрузка файла</h2>
+                <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+                    <input type="file" id="fileInput" accept=".yaml,.yml,.txt,.md" onchange="handleFileSelect(event)">
+                    <label for="fileInput">
+                        📤 Нажмите для выбора файла<br>
+                        <small>Поддерживаемые форматы: YAML, TXT, MD</small>
+                    </label>
+                </div>
+                
+                <button class="button" onclick="processFile()" id="processBtn" disabled>Обработать файл</button>
+                
+                <div id="fileResult" class="result"></div>
+            </div>
+
+            <!-- Секция управления кампаниями -->
+            <div class="section">
+                <h2>📊 Управление кампаниями</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>Просмотр кампаний</h3>
+                        <p>Получите список всех ваших кампаний в Яндекс.Директ</p>
+                        <button class="button" onclick="getCampaigns()">Показать кампании</button>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>Генерация объявлений</h3>
+                        <p>Создание объявлений с помощью OpenAI на основе данных страницы</p>
+                        <button class="button" onclick="generateAds()">Сгенерировать объявления</button>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <h3>Создание кампании</h3>
+                        <p>Полное создание кампании с группами и объявлениями</p>
+                        <button class="button" onclick="createCampaign()">Создать кампанию</button>
+                    </div>
+                </div>
+                
+                <div id="campaignResult" class="result"></div>
+            </div>
+
+            <!-- Секция с примером файла -->
+            <div class="section">
+                <h2>📝 Пример файла</h2>
+                <p>Ваш файл должен содержать следующую структуру:</p>
+                <div class="code-example">---
+url: https://habab.ru/brachnogo-dogovora
+title: Проверка договора брачного договора онлайн нейросетью
+meta_description: 'Бесплатная онлайн проверка брачного договора с нейросетью'
+meta_keywords:
+- проверка брачного договора
+- анализ условий брачного договора
+- юридическая проверка брачного договора
+related_keywords:
+- юридическая экспертиза брачного договора
+- консультация по брачному договору
+main_keyword: брачного договора
+---
+
+Основной контент страницы...</div>
+                
+                <button class="button" onclick="downloadExample()">Скачать пример файла</button>
+            </div>
+
+            <!-- Индикатор загрузки -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Обработка запроса...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let currentToken = null;
+
+        // Авторизация
+        async function startAuth() {
+            try {
+                const response = await fetch('/auth/yandex/url');
+                const data = await response.json();
+                
+                if (data.authUrl) {
+                    window.open(data.authUrl, '_blank');
+                    showResult('authResult', 'success', 'Окно авторизации открыто. После авторизации скопируйте токен доступа.');
+                } else {
+                    showResult('authResult', 'error', 'Ошибка получения URL авторизации');
+                }
+            } catch (error) {
+                showResult('authResult', 'error', 'Ошибка: ' + error.message);
+            }
+        }
+
+        // Проверка токена
+        async function validateToken() {
+            const token = document.getElementById('accessToken').value.trim();
+            if (!token) {
+                showResult('authResult', 'error', 'Введите токен доступа');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const response = await fetch('/auth/yandex/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ access_token: token })
+                });
+
+                const data = await response.json();
+                
+                if (data.valid) {
+                    currentToken = token;
+                    showResult('authResult', 'success', 'Токен действителен! Теперь вы можете использовать сервис.');
+                } else {
+                    showResult('authResult', 'error', 'Токен недействителен или истек');
+                }
+            } catch (error) {
+                showResult('authResult', 'error', 'Ошибка проверки токена: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Обработка выбора файла
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                document.querySelector('.file-upload label').innerHTML = 
+                    `📁 Выбран файл: ${selectedFile.name}<br><small>Размер: ${(selectedFile.size / 1024).toFixed(1)} KB</small>`;
+                document.getElementById('processBtn').disabled = false;
+            }
+        }
+
+        // Обработка файла
+        async function processFile() {
+            if (!selectedFile) {
+                showResult('fileResult', 'error', 'Выберите файл для обработки');
+                return;
+            }
+
+            if (!currentToken) {
+                showResult('fileResult', 'error', 'Необходимо авторизоваться или ввести токен доступа');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('accessToken', currentToken);
+
+            showLoading(true);
+            try {
+                const response = await fetch('/api/process-file', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = `
+                        <h3>✅ Файл успешно обработан!</h3>
+                        <p><strong>URL:</strong> ${data.data.parsedData.url}</p>
+                        <p><strong>Заголовок:</strong> ${data.data.parsedData.title}</p>
+                        <p><strong>Сгенерировано объявлений:</strong> ${data.data.generatedAds.length}</p>
+                        <p><strong>ID кампании:</strong> ${data.data.campaignResult.campaignId}</p>
+                        <p><strong>Создано объявлений:</strong> ${data.data.campaignResult.adsCreated}</p>
+                        <p><strong>Создано ключевых слов:</strong> ${data.data.campaignResult.keywordsCreated}</p>
+                    `;
+                    showResult('fileResult', 'success', result);
+                } else {
+                    showResult('fileResult', 'error', data.error || 'Ошибка обработки файла');
+                }
+            } catch (error) {
+                showResult('fileResult', 'error', 'Ошибка: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Получение кампаний
+        async function getCampaigns() {
+            if (!currentToken) {
+                showResult('campaignResult', 'error', 'Необходимо авторизоваться');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const response = await fetch('/api/campaigns', {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const campaigns = data.campaigns.map(campaign => 
+                        `<li>ID: ${campaign.Id}, Название: ${campaign.Name}, Статус: ${campaign.Status}</li>`
+                    ).join('');
+                    
+                    showResult('campaignResult', 'success', 
+                        `<h3>📊 Ваши кампании (${data.total}):</h3><ul>${campaigns}</ul>`);
+                } else {
+                    showResult('campaignResult', 'error', data.error);
+                }
+            } catch (error) {
+                showResult('campaignResult', 'error', 'Ошибка: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Генерация объявлений
+        async function generateAds() {
+            const exampleData = {
+                url: 'https://habab.ru/brachnogo-dogovora',
+                title: 'Проверка договора брачного договора онлайн нейросетью',
+                meta_description: 'Бесплатная онлайн проверка брачного договора с нейросетью',
+                meta_keywords: ['проверка брачного договора', 'анализ условий'],
+                main_keyword: 'брачного договора'
+            };
+
+            showLoading(true);
+            try {
+                const response = await fetch('/api/campaigns/generate-ads', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken || 'demo'}`
+                    },
+                    body: JSON.stringify({ pageData: exampleData })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const ads = data.ads.map((ad, index) => 
+                        `<div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px;">
+                            <h4>Объявление ${index + 1}</h4>
+                            <p><strong>Заголовок:</strong> ${ad.title}</p>
+                            <p><strong>Описание:</strong> ${ad.description}</p>
+                            <p><strong>URL:</strong> ${ad.url}</p>
+                        </div>`
+                    ).join('');
+                    
+                    showResult('campaignResult', 'success', 
+                        `<h3>🤖 Сгенерированные объявления:</h3>${ads}`);
+                } else {
+                    showResult('campaignResult', 'error', data.error);
+                }
+            } catch (error) {
+                showResult('campaignResult', 'error', 'Ошибка: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Создание кампании
+        async function createCampaign() {
+            if (!currentToken) {
+                showResult('campaignResult', 'error', 'Необходимо авторизоваться для создания кампании');
+                return;
+            }
+
+            const exampleData = {
+                url: 'https://habab.ru/brachnogo-dogovora',
+                title: 'Проверка договора брачного договора онлайн нейросетью',
+                meta_description: 'Бесплатная онлайн проверка брачного договора с нейросетью',
+                meta_keywords: ['проверка брачного договора', 'анализ условий'],
+                main_keyword: 'брачного договора'
+            };
+
+            showLoading(true);
+            try {
+                const response = await fetch('/api/campaigns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ pageData: exampleData })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('campaignResult', 'success', 
+                        `<h3>🎉 Кампания создана!</h3>
+                        <p><strong>ID кампании:</strong> ${data.result.campaignId}</p>
+                        <p><strong>Создано объявлений:</strong> ${data.result.adsCreated}</p>
+                        <p><strong>Создано ключевых слов:</strong> ${data.result.keywordsCreated}</p>`);
+                } else {
+                    showResult('campaignResult', 'error', data.error);
+                }
+            } catch (error) {
+                showResult('campaignResult', 'error', 'Ошибка: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Скачивание примера файла
+        function downloadExample() {
+            const content = `---
+url: https://habab.ru/brachnogo-dogovora
+title: Проверка договора брачного договора онлайн нейросетью
+meta_description: 'Бесплатная онлайн проверка брачного договора с нейросетью: анализ условий, юридическая экспертиза и оценка условий брачного контракта'
+meta_keywords:
+- проверка брачного договора
+- анализ условий брачного договора
+- юридическая проверка брачного договора
+- экспертиза брачного договора
+- оценка условий брачного контракта
+related_keywords:
+- юридическая экспертиза брачного договора
+- консультация по брачному договору
+- подбор условий брачного договора
+main_keyword: брачного договора
+---
+
+Проверка брачного договора — важный этап для защиты ваших интересов и уверенности в юридической чистоте документа. Сегодня современное решение — это онлайн-проверка брачного договора с помощью нейросети.`;
+
+            const blob = new Blob([content], { type: 'text/yaml' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'example.yaml';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Вспомогательные функции
+        function showResult(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.className = `result ${type}`;
+            element.innerHTML = message;
+            element.style.display = 'block';
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Проверка статуса сервиса при загрузке
+        window.onload = async function() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                console.log('Сервис работает:', data);
+            } catch (error) {
+                console.error('Сервис недоступен:', error);
+            }
+        };
+    </script>
+</body>
+</html>
