@@ -14,18 +14,29 @@ const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 async function fetchScrapingDogCredits() {
     try {
         const apiKey = process.env.SCRAPINGDOG_API_KEY;
+        console.log('Fetching ScrapingDog credits with API key:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT SET');
         if (!apiKey) {
             console.warn('SCRAPINGDOG_API_KEY is not set. Skipping credits check.');
             return null;
         }
+        
+        console.log('Making request to ScrapingDog API...');
         const response = await axios.get('https://api.scrapingdog.com/v1/account', {
             params: {
                 api_key: apiKey
             }
         });
+        
+        console.log('ScrapingDog API response status:', response.status);
+        console.log('ScrapingDog API response data:', response.data);
+        
         return response.data;
     } catch (error) {
         console.error('Error fetching ScrapingDog credits:', error.message);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
         return null;
     }
 }
