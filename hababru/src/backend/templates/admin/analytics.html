@@ -1,0 +1,315 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Аналитика - Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.metric-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    text-align: center;
+    border-left: 4px solid var(--secondary-color);
+}
+
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.chart-container {
+    height: 300px;
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #666;
+}
+
+.filter-bar {
+    background: white;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.top-keywords {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.keyword-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.keyword-item:last-child {
+    border-bottom: none;
+}
+
+.keyword-badge {
+    background: var(--light-bg);
+    color: var(--primary-color);
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📈 Аналитика</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a> › Аналитика
+    </div>
+</div>
+
+<div class="filter-bar">
+    <label>Период:</label>
+    <select id="period-filter">
+        <option value="week">Неделя</option>
+        <option value="month" selected>Месяц</option>
+        <option value="quarter">Квартал</option>
+        <option value="year">Год</option>
+    </select>
+    
+    <label>Продукт:</label>
+    <select id="product-filter">
+        <option value="">Все продукты</option>
+        <option value="contract_analysis">Анализ договоров</option>
+        <option value="news_analysis">Анализ новостей</option>
+    </select>
+    
+    <button class="btn btn-primary btn-sm" onclick="updateAnalytics()">🔄 Обновить</button>
+    <button class="btn btn-success btn-sm" onclick="exportData()">📊 Экспорт</button>
+</div>
+
+<div class="analytics-grid">
+    <div class="metric-card">
+        <div class="metric-value" id="total-pages">22</div>
+        <div class="metric-label">SEO-страниц</div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-value" id="total-keywords">111</div>
+        <div class="metric-label">Ключевых слов</div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-value" id="avg-keywords">5</div>
+        <div class="metric-label">Среднее кол-во ключей</div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-value" id="total-views">1,234</div>
+        <div class="metric-label">Просмотров</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+    <div class="card">
+        <h3>📊 Динамика создания страниц</h3>
+        <div class="chart-container">
+            <div style="text-align: center;">
+                <p>📈 График будет отображен здесь</p>
+                <p style="font-size: 0.9rem; color: #999;">Интеграция с Chart.js или другой библиотекой</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="top-keywords">
+        <h3>🔝 Топ ключевых слов</h3>
+        <div id="keywords-list">
+            <div class="keyword-item">
+                <span>договор аренды</span>
+                <span class="keyword-badge">15</span>
+            </div>
+            <div class="keyword-item">
+                <span>анализ договора</span>
+                <span class="keyword-badge">12</span>
+            </div>
+            <div class="keyword-item">
+                <span>юридическая проверка</span>
+                <span class="keyword-badge">8</span>
+            </div>
+            <div class="keyword-item">
+                <span>договор поставки</span>
+                <span class="keyword-badge">7</span>
+            </div>
+            <div class="keyword-item">
+                <span>трудовой договор</span>
+                <span class="keyword-badge">6</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <div class="card">
+        <h3>📦 Статистика по продуктам</h3>
+        <div style="margin-top: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--light-bg); border-radius: 5px; margin-bottom: 1rem;">
+                <div>
+                    <strong>Анализ договоров</strong>
+                    <div style="font-size: 0.9rem; color: #666;">contract_analysis</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--secondary-color);">20</div>
+                    <div style="font-size: 0.8rem; color: #666;">страниц</div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--light-bg); border-radius: 5px;">
+                <div>
+                    <strong>Анализ новостей</strong>
+                    <div style="font-size: 0.9rem; color: #666;">news_analysis</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--success-color);">2</div>
+                    <div style="font-size: 0.8rem; color: #666;">страниц</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>⏱️ Активность</h3>
+        <div style="margin-top: 1rem;">
+            <div style="padding: 0.75rem 0; border-bottom: 1px solid #eee;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>📄 Создана страница "договор подряда"</span>
+                    <span style="color: #666; font-size: 0.9rem;">2 часа назад</span>
+                </div>
+            </div>
+            <div style="padding: 0.75rem 0; border-bottom: 1px solid #eee;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>📈 Обновлена аналитика</span>
+                    <span style="color: #666; font-size: 0.9rem;">4 часа назад</span>
+                </div>
+            </div>
+            <div style="padding: 0.75rem 0; border-bottom: 1px solid #eee;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>🔧 Настроен продукт</span>
+                    <span style="color: #666; font-size: 0.9rem;">вчера</span>
+                </div>
+            </div>
+            <div style="padding: 0.75rem 0;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>📦 Массовая генерация (5 страниц)</span>
+                    <span style="color: #666; font-size: 0.9rem;">2 дня назад</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateAnalytics() {
+    const period = document.getElementById('period-filter').value;
+    const product = document.getElementById('product-filter').value;
+    
+    console.log('Обновление аналитики:', { period, product });
+    
+    // Имитируем обновление данных
+    const metrics = generateRandomMetrics();
+    
+    document.getElementById('total-pages').textContent = metrics.pages;
+    document.getElementById('total-keywords').textContent = metrics.keywords;
+    document.getElementById('avg-keywords').textContent = metrics.avgKeywords;
+    document.getElementById('total-views').textContent = metrics.views.toLocaleString();
+    
+    // Показываем уведомление
+    showNotification('📊 Аналитика обновлена');
+}
+
+function exportData() {
+    const data = {
+        pages: document.getElementById('total-pages').textContent,
+        keywords: document.getElementById('total-keywords').textContent,
+        avgKeywords: document.getElementById('avg-keywords').textContent,
+        views: document.getElementById('total-views').textContent
+    };
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "Метрика,Значение\n"
+        + "Страниц," + data.pages + "\n"
+        + "Ключевых слов," + data.keywords + "\n"
+        + "Среднее ключей," + data.avgKeywords + "\n"
+        + "Просмотров," + data.views;
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "analytics_" + new Date().toISOString().split('T')[0] + ".csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showNotification('📥 Данные экспортированы');
+}
+
+function generateRandomMetrics() {
+    return {
+        pages: Math.floor(Math.random() * 50) + 10,
+        keywords: Math.floor(Math.random() * 300) + 50,
+        avgKeywords: Math.floor(Math.random() * 10) + 3,
+        views: Math.floor(Math.random() * 5000) + 500
+    };
+}
+
+function showNotification(message) {
+    // Создаем временное уведомление
+    const notification = document.createElement('div');
+    notification.innerHTML = `
+        <div style="position: fixed; top: 20px; right: 20px; background: var(--success-color); color: white; padding: 1rem; border-radius: 5px; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            ${message}
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        document.body.removeChild(notification);
+    }, 3000);
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+    // Можно добавить автообновление
+    setInterval(updateAnalytics, 30000); // Каждые 30 секунд
+});
+</script>
+{% endblock %}

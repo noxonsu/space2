@@ -1,0 +1,209 @@
+{% extends "admin/base.html" %}
+
+{% block title %}SEO-страницы - B2B SEO-Platform Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>SEO-страницы</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a> / SEO-страницы
+    </div>
+</div>
+
+<!-- Фильтры и поиск -->
+<div class="card">
+    <h3>🔍 Поиск и фильтры</h3>
+    <div style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="searchInput">Поиск по страницам:</label>
+            <input type="text" id="searchInput" placeholder="Поиск по заголовку, слагу или ключевым словам...">
+        </div>
+        <div style="white-space: nowrap;">
+            <a href="/admin/create-page" class="btn btn-primary">➕ Создать страницу</a>
+            <button class="btn btn-warning" onclick="refreshPages()">🔄 Обновить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Список страниц -->
+<div class="card">
+    <h3>📄 Список страниц (<span id="pagesCount">0</span>)</h3>
+    
+    <div class="loading" id="pagesLoading">
+        <div class="spinner"></div>
+        <div>Загрузка страниц...</div>
+    </div>
+    
+    <div id="pagesContainer">
+        <!-- Страницы будут загружены динамически -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class SeoPagesList {
+    constructor() {
+        this.pages = [];
+        this.filteredPages = [];
+        this.init();
+    }
+
+    async init() {
+        await this.loadPages();
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            this.filterPages(e.target.value);
+        });
+    }
+
+    async loadPages() {
+        const loading = document.getElementById('pagesLoading');
+        const container = document.getElementById('pagesContainer');
+        
+        try {
+            loading.style.display = 'block';
+            const response = await fetch('/api/v1/seo_pages_list');
+            if (!response.ok) throw new Error('Не удалось загрузить страницы');
+            
+            this.pages = await response.json();
+            this.filteredPages = [...this.pages];
+            this.renderPages();
+            this.updateCount();
+        } catch (error) {
+            console.error('Ошибка загрузки страниц:', error);
+            container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 2rem;">Ошибка загрузки страниц</div>';
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    filterPages(query) {
+        if (!query.trim()) {
+            this.filteredPages = [...this.pages];
+        } else {
+            const lowerQuery = query.toLowerCase();
+            this.filteredPages = this.pages.filter(page => 
+                page.title.toLowerCase().includes(lowerQuery) ||
+                page.slug.toLowerCase().includes(lowerQuery) ||
+                page.main_keyword.toLowerCase().includes(lowerQuery) ||
+                (page.meta_keywords && page.meta_keywords.some(keyword => 
+                    keyword.toLowerCase().includes(lowerQuery)
+                ))
+            );
+        }
+        this.renderPages();
+        this.updateCount();
+    }
+
+    renderPages() {
+        const container = document.getElementById('pagesContainer');
+        
+        if (this.filteredPages.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: #666;">
+                    <p>Страниц не найдено</p>
+                    <a href="/admin/create-page" class="btn btn-primary" style="margin-top: 1rem;">➕ Создать первую страницу</a>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.filteredPages.map(page => `
+            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f8f9fa;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                    <div>
+                        <h4 style="color: var(--primary-color); margin: 0 0 0.25rem 0;">
+                            <a href="/${page.slug}" target="_blank" style="text-decoration: none; color: inherit;">${page.title}</a>
+                        </h4>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            <span>🔗 <code>/${page.slug}</code></span>
+                            <span style="margin-left: 1rem;">🎯 ${page.meta_keywords ? page.meta_keywords.length : 0} ключей</span>
+                            <span style="margin-left: 1rem;">📝 ${page.main_keyword}</span>
+                            ${page.product_info && page.product_info.product_name ? `
+                                <span style="margin-left: 1rem;">🔧 ${page.product_info.product_name}</span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                        <a href="/${page.slug}" class="btn btn-sm btn-primary" target="_blank" title="Просмотр">👁️</a>
+                        <a href="/admin/edit-page/${page.slug}" class="btn btn-sm btn-warning" title="Редактировать">✏️</a>
+                        <a href="/admin/prompts/${page.slug}" class="btn btn-sm" style="background-color: #9b59b6; color: white;" title="Промпты">🤖</a>
+                        <button class="btn btn-sm btn-danger" onclick="seoPagesList.confirmDelete('${page.slug}')" title="Удалить">🗑️</button>
+                    </div>
+                </div>
+                
+                <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">
+                    ${page.meta_description || 'Нет описания'}
+                </div>
+                
+                ${page.product_info && page.product_info.product_description ? `
+                    <div style="font-size: 0.85rem; color: #495057; margin-bottom: 0.5rem; padding: 0.5rem; background: #e3f2fd; border-radius: 4px;">
+                        <strong>Продукт:</strong> ${page.product_info.product_description}
+                    </div>
+                ` : ''}
+                
+                ${page.meta_keywords && page.meta_keywords.length > 0 ? `
+                    <div style="font-size: 0.8rem;">
+                        <strong>Ключевые слова:</strong> 
+                        ${page.meta_keywords.slice(0, 5).map(keyword => 
+                            `<span style="background: #e9ecef; padding: 0.2rem 0.4rem; border-radius: 3px; margin-right: 0.3rem;">${keyword}</span>`
+                        ).join('')}
+                        ${page.meta_keywords.length > 5 ? `<span style="color: #666;">+${page.meta_keywords.length - 5} еще</span>` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `).join('');
+    }
+
+    updateCount() {
+        document.getElementById('pagesCount').textContent = this.filteredPages.length;
+    }
+
+    async confirmDelete(slug) {
+        if (!confirm(`Вы уверены, что хотите удалить страницу "${slug}"? Это действие нельзя отменить.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/v1/delete_page/${slug}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error('Ошибка удаления страницы');
+
+            this.showAlert('Страница успешно удалена', 'success');
+            await this.loadPages();
+        } catch (error) {
+            console.error('Ошибка удаления страницы:', error);
+            this.showAlert('Не удалось удалить страницу', 'error');
+        }
+    }
+
+    showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = message;
+        
+        document.querySelector('.main-container').insertBefore(alertDiv, document.querySelector('.main-container').firstChild);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+}
+
+function refreshPages() {
+    seoPagesList.loadPages();
+}
+
+// Инициализация
+let seoPagesList;
+document.addEventListener('DOMContentLoaded', () => {
+    seoPagesList = new SeoPagesList();
+});
+</script>
+{% endblock %}

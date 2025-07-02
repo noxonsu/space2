@@ -3,222 +3,602 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Администрирование SEO-страниц</title>
+    <title>B2B SEO-Platform Admin Panel</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #ecf0f1;
+            --dark-text: #2c3e50;
+            --border-color: #bdc3c7;
+        }
+
+        * {
             margin: 0;
             padding: 0;
-            background-color: #f4f4f4;
-            color: #333;
-        }
-        header {
-            background-color: #333;
-            color: #fff;
-            padding: 1em 0;
-            text-align: center;
-        }
-        main {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 20px auto;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        .page-list {
-            margin-top: 20px;
-        }
-        .page-item {
-            border: 1px solid #eee;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .page-item h3 {
-            margin-top: 0;
-            color: #0056b3;
-        }
-        .page-item p {
-            margin: 5px 0;
-        }
-        .page-item a {
-            color: #007bff;
-            text-decoration: none;
-        }
-        .page-item a:hover {
-            text-decoration: underline;
-        }
-        .prompt-section {
-            margin-top: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background-color: #f0f8ff;
-        }
-        .template-section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background-color: #e6ffe6; /* Light green background for templates */
-        }
-        .template-section h2 {
-            color: #28a745;
-        }
-        .template-buttons button {
-            margin-right: 10px;
-            margin-bottom: 10px;
-            background-color: #28a745; /* Green for template buttons */
-        }
-        .template-buttons button:hover {
-            background-color: #218838;
-        }
-        .prompt-section h2 {
-            color: #28a745;
-        }
-        textarea {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            min-height: 100px;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
             box-sizing: border-box;
         }
-        button {
-            background-color: #007bff;
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
+        }
+
+        .admin-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
-            padding: 10px 15px;
+            padding: 1.5rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .admin-header .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .admin-header .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 0.3rem;
+        }
+
+        .admin-nav {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .admin-nav a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .admin-nav a:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        .admin-nav a.active {
+            background-color: rgba(255,255,255,0.3);
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 20px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .dashboard-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+
+        .stat-label {
+            color: var(--primary-color);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
         }
-        button:hover {
-            background-color: #0056b3;
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            color: white;
         }
-        .result-output {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #28a745;
-            background-color: #e6ffe6;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+
+        .btn-primary:hover {
+            background-color: #2980b9;
         }
-        .error-output {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #dc3545;
-            background-color: #ffe6e6;
-            border-radius: 5px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
         }
-        .loading-spinner {
+
+        .btn-success:hover {
+            background-color: #229954;
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background-color: #d68910;
+        }
+
+        .input-group {
+            display: flex;
+            margin-bottom: 1rem;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 5px 0 0 5px;
+            font-size: 0.9rem;
+        }
+
+        .input-group button {
+            border-radius: 0 5px 5px 0;
+        }
+
+        .seo-pages-table {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .table-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pages-grid {
+            display: grid;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .page-card {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            background: #f8f9fa;
+            transition: all 0.3s;
+        }
+
+        .page-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        .page-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .page-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .page-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .modal {
             display: none;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 2s linear infinite;
-            margin-left: 10px;
-            vertical-align: middle;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
         }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .form-group textarea {
+            height: 120px;
+            resize: vertical;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--secondary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .action-buttons button {
-            margin-right: 10px;
-            margin-bottom: 10px;
+
+        .alert {
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
         }
-        footer {
-            text-align: center;
-            padding: 20px;
-            margin-top: 30px;
-            background-color: #333;
-            color: #fff;
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f3f3;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--success-color);
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .admin-header .container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .admin-nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Администрирование SEO-страниц</h1>
+    <header class="admin-header">
+        <div class="container">
+            <div>
+                <h1>B2B SEO-Platform</h1>
+                <div class="subtitle">Система управления контентом и SEO-оптимизацией</div>
+            </div>
+            <nav class="admin-nav">
+                <a href="/">🏠 На главную</a>
+                <a href="/seo_admin">⚙️ Админка</a>
+                <a href="#" id="generateClusterBtn">🎯 Генерация кластера</a>
+            </nav>
+        </div>
     </header>
 
-    <main>
-        <section class="template-section">
-            <h2>Предустановленные шаблоны промптов</h2>
-            <p>Выберите один из предустановленных шаблонов для быстрого создания промпта:</p>
-            <div class="template-buttons">
-                <button id="template-audience-channels">Собрать аудиторию и Telegram-каналы</button>
-                <button id="template-ad-text">Сделать объявление (до 140 символов)</button>
-                <button id="template-image-idea">Придумать картинку для статьи</button>
-                <button id="template-find-channels-for-ads" class="template-button">Найти каналы для рекламы</button>
+    <main class="main-container">
+        <!-- Статистика -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalPages">0</div>
+                <div class="stat-label">SEO-страниц</div>
             </div>
-        </section>
-
-        <section class="model-selection-section prompt-section">
-            <h2>Выбор модели LLM</h2>
-            <p>Выберите модель, которую использовать для генерации промптов:</p>
-            <label for="llm-model-select">Модель LLM:</label>
-            <select id="llm-model-select">
-                <!-- Опции будут загружены динамически через JavaScript -->
-            </select>
-        </section>
-
-        <section class="prompt-section">
-            <h2>Инструменты LLM для SEO-страниц</h2>
-            <p>Введите промпт для выбранной LLM. Вы можете использовать следующие заполнители:</p>
-            {% raw %}
-            <ul>
-                <li><code>{{PAGE_TITLE}}</code>: Заголовок страницы</li>
-                <li><code>{{PAGE_KEYWORDS}}</code>: Ключевые слова страницы (через запятую)</li>
-                <li><code>{{PAGE_DESCRIPTION}}</code>: Описание страницы</li>
-                <li><code>{{CONTRACT_TEXT}}</code>: Текст договора, связанный со страницей</li>
-                <li><code>{FILE_LLM_RESULT:префикс_имени_файла}</code>: Вывод из предыдущего анализа LLM (например, <code>{FILE_LLM_RESULT:target_audience_result}</code>)</li>
-            </ul>
-            {% endraw %}
-            <label for="openai-prompt">Промпт для OpenAI:</label>
-            <textarea id="openai-prompt" placeholder="Например: 'Собери, пожалуйста, целевую аудиторию для этой страницы: {{PAGE_TITLE}}. Текст договора: {{CONTRACT_TEXT}}. Используй предыдущий анализ: {FILE_LLM_RESULT:target_audience_result}'"></textarea>
-            
-            <label for="output-filename-prefix">Префикс имени файла для результата (например, 'target_audience_result'):</label>
-            <input type="text" id="output-filename-prefix" value="llm_result">
-
-            <div class="action-buttons">
-                <button id="run-single-prompt-button">Запустить промпт для выбранной страницы</button>
-                <button id="run-all-prompts-button">Запустить промпт для ВСЕХ страниц</button>
-                <span id="loading-spinner" class="loading-spinner"></span>
+            <div class="stat-card">
+                <div class="stat-number" id="totalKeywords">0</div>
+                <div class="stat-label">Ключевых слов</div>
             </div>
-            <div id="prompt-output" class="result-output" style="display: none;"></div>
-            <div id="prompt-error" class="error-output" style="display: none;"></div>
-        </section>
-
-        <section class="page-list">
-            <h2>Список SEO-страниц</h2>
-            <div id="seo-pages-container">
-                <p>Загрузка страниц...</p>
+            <div class="stat-card">
+                <div class="stat-number" id="avgKeywords">0</div>
+                <div class="stat-label">Среднее кол-во ключей</div>
             </div>
-        </section>
+            <div class="stat-card">
+                <div class="stat-number" id="lastGenerated">-</div>
+                <div class="stat-label">Последняя генерация</div>
+            </div>
+        </div>
+
+        <!-- Основная панель управления -->
+        <div class="dashboard-grid">
+            <!-- Быстрые действия -->
+            <div class="dashboard-card">
+                <h3>🚀 Быстрые действия</h3>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="openModal('singlePageModal')">
+                        ➕ Создать страницу
+                    </button>
+                    <button class="btn btn-success" onclick="openModal('bulkGenerateModal')">
+                        📄 Массовая генерация
+                    </button>
+                    <button class="btn btn-warning" onclick="refreshPages()">
+                        🔄 Обновить список
+                    </button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Быстрое создание страницы:</label>
+                    <div class="input-group">
+                        <input type="text" id="quickKeyword" placeholder="Введите ключевое слово">
+                        <button class="btn btn-primary" onclick="generateSinglePage()">Создать</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Управление кластерами -->
+            <div class="dashboard-card">
+                <h3>🎯 Семантические кластеры</h3>
+                <div class="form-group">
+                    <label>Генерация кластера:</label>
+                    <div class="input-group">
+                        <input type="text" id="clusterKeyword" placeholder="Базовое ключевое слово">
+                        <button class="btn btn-success" onclick="generateCluster()">Создать кластер</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Размер кластера:</label>
+                    <select id="clusterSize">
+                        <option value="5">5 страниц</option>
+                        <option value="10">10 страниц</option>
+                        <option value="15">15 страниц</option>
+                        <option value="20">20 страниц</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Список SEO-страниц -->
+        <div class="seo-pages-table">
+            <div class="table-header">
+                <h3>📊 SEO-страницы</h3>
+                <div class="action-buttons">
+                    <input type="text" id="searchPages" placeholder="Поиск по страницам..." style="padding: 0.5rem; border: none; border-radius: 3px;">
+                </div>
+            </div>
+            <div class="loading" id="pagesLoading">
+                <div class="spinner"></div>
+                <div>Загрузка страниц...</div>
+            </div>
+            <div class="pages-grid" id="pagesContainer">
+                <!-- Страницы будут загружены динамически -->
+            </div>
+        </div>
     </main>
 
-    <footer>
-        <p>&copy; 2025 Сервис проверки договоров</p>
-    </footer>
+    <!-- Модальные окна -->
+    <!-- Модальное окно создания одной страницы -->
+    <div id="singlePageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создание SEO-страницы</h3>
+                <span class="close" onclick="closeModal('singlePageModal')">&times;</span>
+            </div>
+            <form id="singlePageForm">
+                <div class="form-group">
+                    <label for="singleKeyword">Ключевое слово:</label>
+                    <input type="text" id="singleKeyword" name="keyword" required>
+                </div>
+                <div class="form-group">
+                    <label for="singleModel">Модель LLM:</label>
+                    <select id="singleModel" name="model">
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-primary">Создать страницу</button>
+                    <button type="button" class="btn" onclick="closeModal('singlePageModal')">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    <script src="{{ url_for('static', filename='js/seo_admin.js') }}"></script>
+    <!-- Модальное окно массовой генерации -->
+    <div id="bulkGenerateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Массовая генерация страниц</h3>
+                <span class="close" onclick="closeModal('bulkGenerateModal')">&times;</span>
+            </div>
+            <form id="bulkGenerateForm">
+                <div class="form-group">
+                    <label for="bulkKeywords">Ключевые слова (по одному на строку):</label>
+                    <textarea id="bulkKeywords" name="keywords" placeholder="анализ договора поставки&#10;проверка договора аренды&#10;экспертиза договора подряда" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="bulkDelay">Задержка между запросами (сек):</label>
+                    <input type="number" id="bulkDelay" name="delay" value="2" min="1" max="10">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="skipExisting" name="skipExisting" checked>
+                        Пропускать существующие страницы
+                    </label>
+                </div>
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-success">Начать генерацию</button>
+                    <button type="button" class="btn" onclick="closeModal('bulkGenerateModal')">Отмена</button>
+                </div>
+                <div id="bulkProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="bulkProgressFill" style="width: 0%"></div>
+                    </div>
+                    <div id="bulkProgressText">Подготовка...</div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно генерации кластера -->
+    <div id="clusterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Генерация семантического кластера</h3>
+                <span class="close" onclick="closeModal('clusterModal')">&times;</span>
+            </div>
+            <form id="clusterForm">
+                <div class="form-group">
+                    <label for="clusterMainKeyword">Основное ключевое слово:</label>
+                    <input type="text" id="clusterMainKeyword" name="keyword" required>
+                </div>
+                <div class="form-group">
+                    <label for="clusterSizeModal">Размер кластера:</label>
+                    <select id="clusterSizeModal" name="size">
+                        <option value="5">5 страниц</option>
+                        <option value="10">10 страниц</option>
+                        <option value="15">15 страниц</option>
+                        <option value="20">20 страниц</option>
+                    </select>
+                </div>
+                <div class="action-buttons">
+                    <button type="submit" class="btn btn-success">Создать кластер</button>
+                    <button type="button" class="btn" onclick="closeModal('clusterModal')">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/seo_admin_new.js') }}"></script>
 </body>
 </html>

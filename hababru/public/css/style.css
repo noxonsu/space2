@@ -386,3 +386,40 @@ footer {
         line-height: 1.1;
     }
 }
+
+/* Стили для админки - переопределяем базовые стили */
+.admin-layout {
+    background-color: #ecf0f1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.admin-layout main {
+    background-color: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+}
+
+.admin-layout header {
+    background: linear-gradient(135deg, #2c3e50, #3498db) !important;
+    color: white !important;
+    padding: 1.5rem 0 !important;
+    margin-bottom: 0 !important;
+    text-align: left !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+}
+
+.admin-layout header h1,
+.admin-layout header h2, 
+.admin-layout header h3, 
+.admin-layout header h4, 
+.admin-layout header h5, 
+.admin-layout header h6,
+.admin-layout header p,
+.admin-layout header a {
+    color: white !important;
+}
+
+/* Основные стили для админки */

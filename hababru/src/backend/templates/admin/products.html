@@ -1,0 +1,267 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Управление продуктами{% endblock %}
+
+{% block content %}
+<div class="content-section">
+    <div class="section-header">
+        <h1>Управление продуктами</h1>
+        <button class="btn btn-primary" onclick="showCreateProductForm()">Добавить продукт</button>
+    </div>
+
+    <div class="products-grid">
+        <div class="product-card" data-product="contract_analysis">
+            <div class="product-header">
+                <h3>Анализ договоров</h3>
+                <span class="product-status active">Активен</span>
+            </div>
+            <p>Автоматизированный анализ юридических договоров с выявлением рисков</p>
+            <div class="product-stats">
+                <div class="stat">
+                    <span class="stat-value" id="contract-pages-count">0</span>
+                    <span class="stat-label">SEO страниц</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">95%</span>
+                    <span class="stat-label">Точность</span>
+                </div>
+            </div>
+            <div class="product-actions">
+                <button class="btn btn-secondary" onclick="manageProduct('contract_analysis')">Управление</button>
+                <button class="btn btn-primary" onclick="createSEOPages('contract_analysis')">Создать SEO-страницы</button>
+            </div>
+        </div>
+
+        <div class="product-card" data-product="news_analysis">
+            <div class="product-header">
+                <h3>Анализ новостей</h3>
+                <span class="product-status active">Активен</span>
+            </div>
+            <p>Автоматический мониторинг отраслевых новостей с ИИ-анализом</p>
+            <div class="product-stats">
+                <div class="stat">
+                    <span class="stat-value" id="news-pages-count">0</span>
+                    <span class="stat-label">SEO страниц</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">24/7</span>
+                    <span class="stat-label">Мониторинг</span>
+                </div>
+            </div>
+            <div class="product-actions">
+                <button class="btn btn-secondary" onclick="manageProduct('news_analysis')">Управление</button>
+                <button class="btn btn-primary" onclick="createSEOPages('news_analysis')">Создать SEO-страницы</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно создания продукта -->
+    <div id="create-product-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Создать новый продукт</h2>
+                <span class="close" onclick="hideCreateProductForm()">&times;</span>
+            </div>
+            <form id="create-product-form">
+                <div class="form-group">
+                    <label for="product-id">ID продукта:</label>
+                    <input type="text" id="product-id" name="product_id" required placeholder="Например: fintech_analysis">
+                </div>
+                <div class="form-group">
+                    <label for="product-name">Название продукта:</label>
+                    <input type="text" id="product-name" name="name" required placeholder="Например: Анализ финтех решений">
+                </div>
+                <div class="form-group">
+                    <label for="product-description">Описание:</label>
+                    <textarea id="product-description" name="description" required placeholder="Краткое описание функционала продукта"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="target-audience">Целевая аудитория (через запятую):</label>
+                    <input type="text" id="target-audience" name="target_audience" placeholder="Банки, Финтех компании, Инвесторы">
+                </div>
+                <div class="form-group">
+                    <label for="key-benefits">Ключевые преимущества (через запятую):</label>
+                    <textarea id="key-benefits" name="key_benefits" placeholder="Быстрый анализ, Высокая точность, Экономия времени"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideCreateProductForm()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать продукт</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.product-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.product-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.product-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.product-status.active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.product-stats {
+    display: flex;
+    gap: 20px;
+    margin: 15px 0;
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #666;
+}
+
+.product-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 50px auto;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.close {
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 20px;
+    border-top: 1px solid #ddd;
+}
+</style>
+
+<script>
+// Загрузка статистики продуктов
+function loadProductStats() {
+    fetch('/api/v1/products/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.contract_analysis) {
+                document.getElementById('contract-pages-count').textContent = data.contract_analysis.seo_pages_count || 0;
+            }
+            if (data.news_analysis) {
+                document.getElementById('news-pages-count').textContent = data.news_analysis.seo_pages_count || 0;
+            }
+        })
+        .catch(error => console.error('Error loading stats:', error));
+}
+
+function showCreateProductForm() {
+    document.getElementById('create-product-modal').style.display = 'block';
+}
+
+function hideCreateProductForm() {
+    document.getElementById('create-product-modal').style.display = 'none';
+}
+
+function manageProduct(productId) {
+    window.location.href = `/admin/products/${productId}`;
+}
+
+function createSEOPages(productId) {
+    window.location.href = `/admin/generate_cluster?product_id=${productId}`;
+}
+
+// Обработчик создания продукта
+document.getElementById('create-product-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Преобразуем строки в массивы
+    data.target_audience = data.target_audience.split(',').map(s => s.trim()).filter(s => s);
+    data.key_benefits = data.key_benefits.split(',').map(s => s.trim()).filter(s => s);
+    
+    fetch('/api/v1/products', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            hideCreateProductForm();
+            location.reload(); // Перезагружаем страницу чтобы показать новый продукт
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Произошла ошибка при создании продукта');
+    });
+});
+
+// Загружаем статистику при загрузке страницы
+document.addEventListener('DOMContentLoaded', loadProductStats);
+</script>
+{% endblock %}

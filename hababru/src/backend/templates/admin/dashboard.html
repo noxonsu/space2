@@ -1,0 +1,273 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Дашборд - B2B SEO-Platform Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Дашборд</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="card">
+    <h3>📊 Общая статистика</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div style="text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--secondary-color);" id="totalPages">0</div>
+            <div style="color: #495057; font-size: 0.9rem; font-weight: 500;">SEO-страниц</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--success-color);" id="totalKeywords">0</div>
+            <div style="color: #495057; font-size: 0.9rem; font-weight: 500;">Ключевых слов</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--warning-color);" id="avgKeywords">0</div>
+            <div style="color: #495057; font-size: 0.9rem; font-weight: 500;">Среднее кол-во ключей</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+            <div style="font-size: 1.2rem; font-weight: bold; color: var(--primary-color);" id="lastGenerated">-</div>
+            <div style="color: #495057; font-size: 0.9rem; font-weight: 500;">Последняя генерация</div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика по продуктам -->
+<div class="card">
+    <h3>🛍️ Статистика по продуктам</h3>
+    <div class="products-stats-grid" id="productsStatsGrid">
+        <!-- Будет загружено через JavaScript -->
+    </div>
+</div>
+
+<!-- Быстрые действия -->
+<div class="card">
+    <h3>🚀 Быстрые действия</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div>
+            <h4>Создание контента</h4>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <a href="/admin/create-page" class="btn btn-primary">➕ Создать страницу</a>
+                <a href="/admin/bulk-generate" class="btn btn-success">📦 Массовая генерация</a>
+                <a href="/admin/generate-cluster" class="btn btn-warning">🎯 Генерация кластера</a>
+            </div>
+            
+            <form id="quickCreateForm" style="margin-top: 1rem;">
+                <div class="form-group">
+                    <label for="quickKeyword">Быстрое создание:</label>
+                    <div class="input-group">
+                        <input type="text" id="quickKeyword" name="keyword" placeholder="Введите ключевое слово">
+                        <button type="submit" class="btn btn-primary">Создать</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div>
+            <h4>Управление</h4>
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <a href="/admin/seo-pages" class="btn btn-primary">📄 Все страницы</a>
+                <a href="/admin/analytics" class="btn btn-secondary">📈 Аналитика</a>
+                <button class="btn btn-warning" onclick="refreshStats()">🔄 Обновить</button>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                <h5>Статус системы</h5>
+                <div id="systemStatus">
+                    <div>🟢 LLM сервис: <span id="llmStatus">Готов</span></div>
+                    <div>🟢 Кэш сервис: <span id="cacheStatus">Готов</span></div>
+                    <div>🟢 SEO сервис: <span id="seoStatus">Готов</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Последние страницы -->
+<div class="card">
+    <h3>📄 Последние созданные страницы</h3>
+    <div id="recentPages">
+        <div class="loading" id="recentPagesLoading">
+            <div class="spinner"></div>
+            <div>Загрузка...</div>
+        </div>
+    </div>
+    <div style="margin-top: 1rem;">
+        <a href="/admin/seo-pages" class="btn btn-primary">Показать все страницы</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class AdminDashboard {
+    constructor() {
+        this.init();
+    }
+
+    async init() {
+        await this.loadStats();
+        await this.loadRecentPages();
+        this.setupEventListeners();
+        await this.loadProductsStats();
+    }
+
+    setupEventListeners() {
+        document.getElementById('quickCreateForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleQuickCreate();
+        });
+    }
+
+    async loadStats() {
+        try {
+            const response = await fetch('/api/v1/seo_pages_list');
+            if (!response.ok) throw new Error('Не удалось загрузить статистику');
+            
+            const pages = await response.json();
+            this.updateStats(pages);
+        } catch (error) {
+            console.error('Ошибка загрузки статистики:', error);
+        }
+    }
+
+    updateStats(pages) {
+        const totalKeywords = pages.reduce((sum, page) => sum + (page.meta_keywords ? page.meta_keywords.length : 0), 0);
+        const avgKeywords = pages.length > 0 ? Math.round(totalKeywords / pages.length) : 0;
+
+        document.getElementById('totalPages').textContent = pages.length;
+        document.getElementById('totalKeywords').textContent = totalKeywords;
+        document.getElementById('avgKeywords').textContent = avgKeywords;
+        document.getElementById('lastGenerated').textContent = new Date().toLocaleDateString('ru-RU');
+    }
+
+    async loadRecentPages() {
+        const loading = document.getElementById('recentPagesLoading');
+        const container = document.getElementById('recentPages');
+        
+        try {
+            loading.style.display = 'block';
+            const response = await fetch('/api/v1/seo_pages_list');
+            if (!response.ok) throw new Error('Не удалось загрузить страницы');
+            
+            const pages = await response.json();
+            const recentPages = pages.slice(0, 5); // Показываем только 5 последних
+            
+            if (recentPages.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 2rem;">Страниц пока нет</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Заголовок</th>
+                            <th>Слаг</th>
+                            <th>Ключи</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recentPages.map(page => `
+                            <tr>
+                                <td>${page.title}</td>
+                                <td><code>/${page.slug}</code></td>
+                                <td>${page.meta_keywords ? page.meta_keywords.length : 0}</td>
+                                <td>
+                                    <a href="/${page.slug}" class="btn btn-sm btn-primary" target="_blank">👁️</a>
+                                    <a href="/admin/edit-page/${page.slug}" class="btn btn-sm btn-warning">✏️</a>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } catch (error) {
+            console.error('Ошибка загрузки страниц:', error);
+            container.innerHTML = '<div style="color: var(--danger-color);">Ошибка загрузки страниц</div>';
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    async loadProductsStats() {
+        const container = document.getElementById('productsStatsGrid');
+        container.innerHTML = '<div class="spinner"></div>';
+
+        try {
+            const response = await fetch('/api/v1/products/stats');
+            if (!response.ok) throw new Error('Не удалось загрузить статистику по продуктам');
+
+            const stats = await response.json();
+            
+            const productsHtml = Object.entries(stats).map(([productId, data]) => {
+                const productName = productId === 'contract_analysis' ? 'Анализ договоров' : 
+                                  productId === 'news_analysis' ? 'Анализ новостей' : productId;
+                return `
+                    <div style="padding: 1.5rem; background: white; border-radius: 8px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <h4 style="margin: 0 0 0.5rem 0; color: var(--primary-color); font-size: 1.1rem;">${productName}</h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <span style="font-size: 1.8rem; font-weight: bold; color: var(--secondary-color);">${data.seo_pages_count}</span>
+                            <span style="font-size: 0.9rem; color: #6c757d; font-weight: 500;">SEO-страниц</span>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <a href="/admin/products/${productId}" class="btn btn-sm btn-primary">Управление</a>
+                            <a href="/admin/generate-cluster?product_id=${productId}" class="btn btn-sm btn-success">Создать страницы</a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = productsHtml || '<div style="color: #666; text-align: center; padding: 2rem;">Продукты не найдены</div>';
+            
+        } catch (error) {
+            console.error('Ошибка загрузки статистики продуктов:', error);
+            container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 2rem;">Ошибка загрузки статистики продуктов</div>';
+        }
+    }
+
+    async handleQuickCreate() {
+        const keyword = document.getElementById('quickKeyword').value.trim();
+        if (!keyword) return;
+
+        // Перенаправляем на страницу создания с заполненным полем
+        window.location.href = `/admin/create-page?keyword=${encodeURIComponent(keyword)}`;
+    }
+}
+
+function refreshStats() {
+    window.location.reload();
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+    new AdminDashboard();
+});
+</script>
+
+<style>
+.products-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}

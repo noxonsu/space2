@@ -1,0 +1,346 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Создать страницу - B2B SEO-Platform Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Создание SEO-страницы</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a> / <a href="/admin/seo-pages">SEO-страницы</a> / Создать
+    </div>
+</div>
+
+<div class="card">
+    <h3>➕ Новая SEO-страница</h3>
+    
+    <form id="createPageForm">
+        <div class="form-group">
+            <label for="productSelect">Продукт/Сервис:</label>
+            <select id="productSelect" name="product_id" required>
+                <option value="">Выберите продукт...</option>
+                <!-- Продукты будут загружены динамически -->
+            </select>
+            <small style="color: #666;">Выберите продукт для связи с SEO-страницей</small>
+        </div>
+
+        <div class="form-group">
+            <label for="keyword">Ключевое слово:</label>
+            <input type="text" id="keyword" name="keyword" required 
+                   placeholder="Например: анализ договора поставки"
+                   value="{{ request.args.get('keyword', '') }}">
+            <small style="color: #666;">Основное ключевое слово для генерации контента страницы</small>
+        </div>
+
+        <div class="form-group">
+            <label for="pageTitle">Заголовок страницы:</label>
+            <input type="text" id="pageTitle" name="title" required 
+                   placeholder="Будет сгенерирован автоматически">
+            <small style="color: #666;">Заголовок SEO-страницы (генерируется автоматически на основе ключевого слова)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="metaDescription">Мета-описание:</label>
+            <textarea id="metaDescription" name="meta_description" rows="3" 
+                      placeholder="Будет сгенерировано автоматически на основе продукта и ключевого слова"></textarea>
+            <small style="color: #666;">Описание для поисковых систем (оставьте пустым для автогенерации)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="model">Модель LLM:</label>
+            <select id="model" name="model">
+                <option value="deepseek">DeepSeek (рекомендуется)</option>
+                <option value="openai">OpenAI</option>
+            </select>
+            <small style="color: #666;">Выберите модель для генерации контента</small>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="skipExisting" name="skipExisting" checked>
+                Пропустить, если страница уже существует
+            </label>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button type="submit" class="btn btn-success">🚀 Создать страницу</button>
+            <a href="/admin/seo-pages" class="btn btn-secondary">❌ Отмена</a>
+        </div>
+    </form>
+
+    <div id="creationProgress" style="display: none; margin-top: 2rem;">
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px;">
+            <h4>Создание страницы...</h4>
+            <div class="loading">
+                <div class="spinner"></div>
+                <div id="progressText">Инициализация...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="creationResult" style="display: none; margin-top: 2rem;">
+        <!-- Результат будет здесь -->
+    </div>
+</div>
+
+<!-- Быстрые шаблоны -->
+<div class="card">
+    <h3>🎯 Быстрые шаблоны</h3>
+    <p>Выберите готовый шаблон для быстрого создания страницы:</p>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>Договоры аренды</h4>
+            <p style="font-size: 0.9rem; color: #666;">Анализ договоров аренды недвижимости</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('анализ договора аренды')">Использовать</button>
+        </div>
+        
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>Договоры поставки</h4>
+            <p style="font-size: 0.9rem; color: #666;">Проверка договоров поставки товаров</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('проверка договора поставки')">Использовать</button>
+        </div>
+        
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>Трудовые договоры</h4>
+            <p style="font-size: 0.9rem; color: #666;">Экспертиза трудовых договоров</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('экспертиза трудового договора')">Использовать</button>
+        </div>
+        
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>IT-договоры</h4>
+            <p style="font-size: 0.9rem; color: #666;">Анализ договоров IT-услуг</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('анализ договора IT-услуг')">Использовать</button>
+        </div>
+        
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>Договоры подряда</h4>
+            <p style="font-size: 0.9rem; color: #666;">Проверка договоров подряда</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('проверка договора подряда')">Использовать</button>
+        </div>
+        
+        <div style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; background: #f8f9fa;">
+            <h4>Кредитные договоры</h4>
+            <p style="font-size: 0.9rem; color: #666;">Анализ кредитных договоров</p>
+            <button class="btn btn-sm btn-primary" onclick="useTemplate('анализ кредитного договора')">Использовать</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class CreatePageForm {
+    constructor() {
+        this.init();
+    }
+
+    async init() {
+        await this.loadProducts();
+        this.setupEventListeners();
+    }
+
+    async loadProducts() {
+        try {
+            const response = await fetch('/api/v1/products');
+            if (!response.ok) throw new Error('Не удалось загрузить продукты');
+            
+            const products = await response.json();
+            const select = document.getElementById('productSelect');
+            
+            // Очищаем опции кроме первой
+            select.innerHTML = '<option value="">Выберите продукт...</option>';
+            
+            products.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.product_id;
+                option.textContent = product.name;
+                option.dataset.description = product.description;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки продуктов:', error);
+            this.showAlert('Не удалось загрузить список продуктов', 'error');
+        }
+    }
+
+    setupEventListeners() {
+        // Обработчик выбора продукта
+        document.getElementById('productSelect').addEventListener('change', (e) => {
+            this.onProductChange(e.target.value);
+        });
+        
+        // Автогенерация заголовка при изменении ключевого слова
+        document.getElementById('keyword').addEventListener('input', (e) => {
+            this.generateTitle(e.target.value);
+        });
+        
+        // Обработчик формы
+        document.getElementById('createPageForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleSubmit();
+        });
+    }
+
+    onProductChange(productId) {
+        const select = document.getElementById('productSelect');
+        const selectedOption = select.querySelector(`option[value="${productId}"]`);
+        
+        if (selectedOption && selectedOption.dataset.description) {
+            // Обновляем мета-описание на основе продукта
+            const keyword = document.getElementById('keyword').value;
+            if (keyword) {
+                this.generateMetaDescription(keyword, selectedOption.dataset.description);
+            }
+        }
+    }
+
+    generateTitle(keyword) {
+        if (!keyword.trim()) return;
+        
+        const title = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+        document.getElementById('pageTitle').value = title;
+        
+        // Также обновляем мета-описание если выбран продукт
+        const productSelect = document.getElementById('productSelect');
+        const selectedOption = productSelect.querySelector(`option[value="${productSelect.value}"]`);
+        if (selectedOption && selectedOption.dataset.description) {
+            this.generateMetaDescription(keyword, selectedOption.dataset.description);
+        }
+    }
+
+    generateMetaDescription(keyword, productDescription) {
+        const metaDescription = `${keyword} - ${productDescription}. Быстро, качественно, конфиденциально.`;
+        document.getElementById('metaDescription').value = metaDescription;
+    }
+
+    async handleSubmit() {
+        const formData = new FormData(document.getElementById('createPageForm'));
+        const data = {
+            product_id: formData.get('product_id'),
+            keyword: formData.get('keyword').trim(),
+            title: formData.get('title').trim(),
+            meta_description: formData.get('meta_description').trim(),
+            model: formData.get('model'),
+            skipExisting: formData.has('skipExisting')
+        };
+
+        if (!data.product_id) {
+            this.showAlert('Пожалуйста, выберите продукт', 'error');
+            return;
+        }
+
+        if (!data.keyword) {
+            this.showAlert('Пожалуйста, введите ключевое слово', 'error');
+            return;
+        }
+
+        if (!data.title) {
+            this.showAlert('Пожалуйста, введите заголовок страницы', 'error');
+            return;
+        }
+
+        try {
+            this.showProgress(true, 'Создание страницы...');
+            this.hideResult();
+
+            // Создаем slug из ключевого слова
+            const slug = data.keyword.toLowerCase()
+                .replace(/[^а-яё\w\s]/gi, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-+|-+$/g, '');
+
+            const response = await fetch('/api/v1/create_page_with_product', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    slug: slug,
+                    title: data.title,
+                    keywords: [data.keyword],
+                    product_id: data.product_id,
+                    meta_description: data.meta_description
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Ошибка создания страницы');
+            }
+
+            const result = await response.json();
+            this.showResult(result, data.keyword);
+            this.showAlert('Страница успешно создана!', 'success');
+            
+            // Очищаем форму
+            document.getElementById('keyword').value = '';
+            document.getElementById('pageTitle').value = '';
+            document.getElementById('metaDescription').value = '';
+            document.getElementById('productSelect').value = '';
+            
+        } catch (error) {
+            console.error('Ошибка создания страницы:', error);
+            this.showAlert(error.message || 'Не удалось создать страницу', 'error');
+        } finally {
+            this.showProgress(false);
+        }
+    }
+
+    showProgress(show, text = '') {
+        const progressDiv = document.getElementById('creationProgress');
+        const progressText = document.getElementById('progressText');
+        
+        progressDiv.style.display = show ? 'block' : 'none';
+        if (text) progressText.textContent = text;
+    }
+
+    showResult(result, keyword) {
+        const resultDiv = document.getElementById('creationResult');
+        resultDiv.style.display = 'block';
+        
+        resultDiv.innerHTML = `
+            <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 1rem; border-radius: 8px;">
+                <h4 style="color: #155724; margin: 0 0 1rem 0;">✅ Страница успешно создана!</h4>
+                <div style="margin-bottom: 1rem;">
+                    <strong>Ключевое слово:</strong> ${keyword}<br>
+                    <strong>Слаг:</strong> <code>${result.slug || 'generating...'}</code><br>
+                    <strong>URL:</strong> <a href="/${result.slug || ''}" target="_blank">/${result.slug || ''}</a>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <a href="/${result.slug || ''}" class="btn btn-primary" target="_blank">👁️ Просмотреть</a>
+                    <a href="/admin/edit-page/${result.slug || ''}" class="btn btn-warning">✏️ Редактировать</a>
+                    <a href="/admin/seo-pages" class="btn btn-secondary">📄 К списку страниц</a>
+                </div>
+            </div>
+        `;
+    }
+
+    hideResult() {
+        document.getElementById('creationResult').style.display = 'none';
+    }
+
+    showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = message;
+        
+        document.querySelector('.main-container').insertBefore(alertDiv, document.querySelector('.main-container').firstChild);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+}
+
+function useTemplate(keyword) {
+    document.getElementById('keyword').value = keyword;
+    document.getElementById('keyword').focus();
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', () => {
+    new CreatePageForm();
+});
+</script>
+{% endblock %}

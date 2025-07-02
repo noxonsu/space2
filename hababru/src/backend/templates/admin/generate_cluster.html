@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Генерация кластера SEO-страниц{% endblock %}
+
+{% block content %}
+<div class="content-section">
+    <h1>Генерация кластера SEO-страниц</h1>
+    <p>Создание группы связанных SEO-страниц для конкретного продукта</p>
+
+    <form id="cluster-form" method="POST">
+        <div class="form-group">
+            <label for="product-select">Выберите продукт:</label>
+            <select id="product-select" name="product_id" required>
+                <option value="">-- Выберите продукт --</option>
+                <option value="contract_analysis">Анализ договоров</option>
+                <option value="news_analysis">Анализ новостей</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="cluster-theme">Тема кластера:</label>
+            <input type="text" id="cluster-theme" name="theme" placeholder="Например: ВЭД мониторинг" required>
+        </div>
+
+        <div class="form-group">
+            <label for="keywords-file">Файл с ключевыми словами (CSV):</label>
+            <input type="file" id="keywords-file" name="keywords_file" accept=".csv,.txt" required>
+            <small>Формат: ключевое_слово,частотность,конкуренция</small>
+        </div>
+
+        <div class="form-group">
+            <label for="pages-count">Количество страниц:</label>
+            <input type="number" id="pages-count" name="pages_count" value="10" min="1" max="100">
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="auto-interlink" name="auto_interlink" checked>
+                Автоматическая перелинковка между страницами кластера
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сгенерировать кластер</button>
+    </form>
+
+    <div id="generation-progress" style="display: none;">
+        <h3>Прогресс генерации</h3>
+        <div class="progress-bar">
+            <div id="progress" style="width: 0%"></div>
+        </div>
+        <div id="progress-text">Подготовка...</div>
+    </div>
+
+    <div id="generation-results" style="display: none;">
+        <h3>Результаты генерации</h3>
+        <div id="results-content"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('cluster-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const progressDiv = document.getElementById('generation-progress');
+    const resultsDiv = document.getElementById('generation-results');
+    
+    progressDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+    
+    // Отправляем запрос на генерацию
+    fetch('/api/v1/generate_cluster', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('results-content').innerHTML = `
+                <p>Успешно создано ${data.pages_created} страниц для продукта "${data.product_name}"</p>
+                <ul>
+                    ${data.created_pages.map(page => `<li><a href="/seo/${page.slug}">${page.title}</a></li>`).join('')}
+                </ul>
+            `;
+            resultsDiv.style.display = 'block';
+        } else {
+            alert('Ошибка: ' + data.error);
+        }
+        progressDiv.style.display = 'none';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Произошла ошибка при генерации кластера');
+        progressDiv.style.display = 'none';
+    });
+});
+</script>
+{% endblock %}

@@ -11,7 +11,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript" >
-       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments}};
        m[i].l=1*new Date();
        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
@@ -39,6 +39,7 @@
         </section>
         {% endif %}
 
+        {% if product_info and product_info.product_id == 'contract_analysis' %}
         <section id="upload-section">
             <h2>Загрузить другой договор</h2>
             <input type="file" id="contract-upload" accept=".pdf,.doc,.docx">
@@ -48,6 +49,7 @@
                 <div id="progress-bar" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 5px; text-align: center; line-height: 20px; color: white;">0%</div>
             </div>
         </section>
+        {% endif %}
 
         <section id="main-content" class="two-column-layout">
             <div id="contract-view-container">
@@ -63,6 +65,56 @@
                 </div>
             </div>
         </section>
+        
+        {% if product_info and product_info.get('name') %}
+        <section id="product-info-section" class="product-info-section" style="padding: 20px; background-color: #f8f9fa; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>О сервисе "{{ product_info.get('name') }}"</h2>
+            <p>{{ product_info.get('description', '') }}</p>
+            
+            {% if product_info.get('key_benefits') %}
+            <h3>Ключевые преимущества:</h3>
+            <ul class="product-benefits-list">
+                {% for benefit in product_info.get('key_benefits', []) %}
+                    <li>{{ benefit }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            
+            {% if product_info.get('target_audience') %}
+            <h3>Для кого подходит:</h3>
+            <ul class="target-audience-list">
+                {% for audience in product_info.get('target_audience', []) %}
+                    <li>{{ audience }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            
+            {% if product_info.get('use_cases') %}
+            <h3>Сценарии использования:</h3>
+            <ul class="use-cases-list">
+                {% for use_case in product_info.get('use_cases', []) %}
+                    <li>{{ use_case }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if demo_content and demo_content.get('demo_screenshot_description') %}
+        <section id="demo-section" class="demo-section" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>Как это работает</h2>
+            <p>{{ demo_content.get('demo_screenshot_description', '') }}</p>
+            
+            {% if demo_content.get('process_steps') %}
+            <h3>Процесс анализа:</h3>
+            <ol class="process-steps-list">
+                {% for step in demo_content.get('process_steps', []) %}
+                    <li>{{ step }}</li>
+                {% endfor %}
+            </ol>
+            {% endif %}
+        </section>
+        {% endif %}
         
         {% if page_text_content %}
         <section id="page-specific-content" class="page-content" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">

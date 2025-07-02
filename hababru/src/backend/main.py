@@ -1,17 +1,17 @@
 import os
-from flask import Flask, render_template, send_from_directory, abort, jsonify, request
+from flask import Flask, render_template, send_from_directory, abort, jsonify, request, redirect
 from dotenv import load_dotenv
 import subprocess
 import io
 
 # Импорты сервисов
-from .api.v1.contract_analyzer import contract_analyzer_bp
-from .api.v1.seo_tools import create_seo_tools_blueprint
-from .services.llm_service import LLMService
-from .services.seo_service import SeoService
-from .services.seo_prompt_service import SeoPromptService
-from .services.parsing_service import ParsingService
-from .services.cache_service import CacheService
+from src.backend.api.v1.contract_analyzer import contract_analyzer_bp
+from src.backend.api.v1.seo_tools import create_seo_tools_blueprint
+from src.backend.services.llm_service import LLMService
+from src.backend.services.seo_service import SeoService
+from src.backend.services.seo_prompt_service import SeoPromptService
+from src.backend.services.parsing_service import ParsingService
+from src.backend.services.cache_service import CacheService
 
 # Загрузка переменных окружения из .env файла
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
@@ -54,6 +54,20 @@ def create_app(
         content_base_path=os.path.join(app.root_path, 'content', 'seo_pages')
     )
 
+    # Инициализация системы продуктов ПОСЛЕ инициализации сервисов
+    from .services.products import product_registry
+    from .services.products.contract_analysis import ContractAnalysisProduct
+    from .services.products.news_analysis import NewsAnalysisProduct
+    
+    # Регистрация продуктов
+    contract_product = ContractAnalysisProduct(llm_service, parsing_service, cache_service)
+    news_product = NewsAnalysisProduct(llm_service)
+    
+    product_registry.register_product(contract_product)
+    product_registry.register_product(news_product)
+    
+    app.logger.info(f"Зарегистрированы продукты: {list(product_registry.get_all_products().keys())}")
+
     # Сохраняем экземпляры сервисов в конфигурации приложения, чтобы они были доступны в Blueprint
     app.config['PARSING_SERVICE'] = parsing_service
     app.config['LLM_SERVICE'] = llm_service
@@ -84,11 +98,12 @@ def create_app(
             analysis_results_raw=None
         )
 
-    # Новый маршрут для страницы администрирования SEO
+    # Устаревший роут для совместимости  
     @app.route('/seo_admin')
     def seo_admin():
-        app.logger.info("Запрос к странице администрирования SEO.")
-        return render_template('seo_admin_template.html')
+        app.logger.info("Редирект со старой админки на новую.")
+        from flask import redirect
+        return redirect('/admin')
 
     # Маршрут для обслуживания статических файлов (CSS, JS, assets)
     @app.route('/css/<path:filename>')
@@ -185,7 +200,93 @@ def create_app(
         except Exception as e:
             app.logger.exception(f"Критическая ошибка при рендеринге SEO-страницы '{slug}': {e}")
             abort(500)
-    
+
+    # Админка - основная страница
+    @app.route('/admin')
+    def admin_dashboard():
+        app.logger.info("Запрос к главной странице админки.")
+        return render_template('admin/dashboard.html')
+
+    # Админка - список SEO-страниц
+    @app.route('/admin/seo-pages')
+    def admin_seo_pages():
+        app.logger.info("Запрос к списку SEO-страниц.")
+        return render_template('admin/seo_pages.html')
+
+    # Админка - создание страницы
+    @app.route('/admin/create-page')
+    def admin_create_page():
+        app.logger.info("Запрос к странице создания SEO-страницы.")
+        return render_template('admin/create_page.html')
+
+    # Админка - редактирование страницы
+    @app.route('/admin/edit-page/<slug>')
+    def admin_edit_page(slug):
+        app.logger.info(f"Запрос к редактированию SEO-страницы: {slug}")
+        try:
+            # Загружаем данные страницы
+            page_data = seo_service.get_page_data(slug)
+            return render_template('admin/edit_page.html', page_data=page_data, slug=slug)
+        except FileNotFoundError:
+            app.logger.error(f"SEO-страница не найдена: {slug}")
+            abort(404)
+
+    # Админка - массовая генерация
+    @app.route('/admin/bulk-generate')
+    def admin_bulk_generate():
+        app.logger.info("Запрос к странице массовой генерации.")
+        return render_template('admin/bulk_generate.html')
+
+    # Админка - генерация кластера
+    @app.route('/admin/generate-cluster')
+    def admin_generate_cluster():
+        app.logger.info("Запрос к странице генерации кластера.")
+        return render_template('admin/generate_cluster.html')
+
+    # Админка - промпты для страницы
+    @app.route('/admin/prompts/<slug>')
+    def admin_page_prompts(slug):
+        app.logger.info(f"Запрос к промптам для страницы: {slug}")
+        try:
+            page_data = seo_service.get_page_data(slug)
+            return render_template('admin/page_prompts.html', page_data=page_data, slug=slug)
+        except FileNotFoundError:
+            app.logger.error(f"SEO-страница не найдена: {slug}")
+            abort(404)
+
+    # Админка - аналитика
+    @app.route('/admin/analytics')
+    def admin_analytics():
+        app.logger.info("Запрос к странице аналитики.")
+        return render_template('admin/analytics.html')
+
+    # Админка - управление продуктами
+    @app.route('/admin/products')
+    def admin_products():
+        app.logger.info("Запрос к странице управления продуктами.")
+        return render_template('admin/products.html')
+
+    # Админка - детальная страница продукта
+    @app.route('/admin/products/<product_id>')
+    def admin_product_detail(product_id):
+        app.logger.info(f"Запрос к детальной странице продукта: {product_id}")
+        # Здесь будет логика отображения детальной информации о продукте
+        from .services.products import product_registry
+        product = product_registry.get_product(product_id)
+        if not product:
+            abort(404)
+        
+        product_info = product.get_product_info()
+        seo_pages = product_registry.get_seo_pages_for_product(product_id)
+        
+        return render_template('admin/product_detail.html', 
+                             product=product,
+                             product_info=product_info, 
+                             seo_pages=seo_pages,
+                             product_id=product_id,
+                             stats={'total_pages': len(seo_pages), 'total_keywords': 0, 'avg_keywords': 0},
+                             screenshots=product.get_screenshots())
+
     return app
 
 if __name__ == '__main__':

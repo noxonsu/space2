@@ -5,7 +5,9 @@ from .llm_service import LLMService # Изменено на LLMService
 from .parsing_service import ParsingService # Для анализа на лету
 # Импортируем новые функции кэширования для SEO
 from .cache_service import CacheService
+from .products import product_registry, BaseProduct
 import markdown # Добавляем импорт markdown
+import json
 
 class SeoService:
     def __init__(self, llm_service: LLMService, parsing_service: ParsingService, content_base_path: str): # Изменено на llm_service
@@ -22,7 +24,6 @@ class SeoService:
         logger = self._get_logger()
         page_dir = os.path.join(self.content_base_path, slug)
         source_md_path = os.path.join(page_dir, 'source.md')
-        contract_file_path = os.path.join(page_dir, 'generated_contract.txt')
 
         if logger:
             logger.info(f"SeoService: Попытка загрузить source.md из: {source_md_path}")
@@ -44,32 +45,47 @@ class SeoService:
         front_matter = yaml.safe_load(parts[1])
         page_text_content = parts[2].strip()
 
-        # Чтение сгенерированного договора
-        generated_contract_text = ""
-        if os.path.exists(contract_file_path):
-            with open(contract_file_path, 'r', encoding='utf-8') as f:
-                generated_contract_text = f.read()
-        else:
-            print(f"Внимание: Файл договора не найден для SEO-страницы: {contract_file_path}")
+        # Получаем связанный продукт
+        product = self.get_product_for_page(slug)
+        product_info = product.get_product_info() if product else {}
+        demo_content = product.get_demo_content() if product else {}
 
-        analysis_results = {"summary": "Договор пуст, анализ невозможен.", "paragraphs": []}
-        if generated_contract_text:
-            if logger:
-                logger.info("SeoService: Выполняем анализ 'на лету' для SEO-страницы, полагаясь на гранулированное кэширование абзацев.")
-            # Выполнение анализа "на лету", который теперь использует кэш сегментации и кэш абзацев
-            analysis_results = self._perform_on_the_fly_analysis(generated_contract_text)
-        else:
-            if logger:
-                logger.warning("SeoService: Текст договора для SEO-страницы пуст, анализ невозможен.")
+        # Подготавливаем данные для демо в зависимости от типа продукта
+        demo_data = {}
+        analysis_results = {"summary": "Нет данных для анализа", "paragraphs": []}
+        
+        if product and product.product_id == 'contract_analysis':
+            # Для анализа договоров ищем сгенерированный договор
+            contract_file_path = os.path.join(page_dir, 'generated_contract.txt')
+            generated_contract_text = ""
+            
+            if os.path.exists(contract_file_path):
+                with open(contract_file_path, 'r', encoding='utf-8') as f:
+                    generated_contract_text = f.read()
+            elif demo_content.get('demo_contract_text'):
+                # Используем демо-текст из продукта
+                generated_contract_text = demo_content['demo_contract_text']
+            
+            if generated_contract_text:
+                if logger:
+                    logger.info("SeoService: Выполняем анализ договора для SEO-страницы")
+                analysis_results = self._perform_contract_analysis(generated_contract_text)
+                demo_data = {
+                    "contract_text": generated_contract_text,
+                    "analysis_results": analysis_results
+                }
+        
+        elif product and product.product_id == 'news_analysis':
+            # Для анализа новостей используем демо-запросы
+            if demo_content.get('demo_queries'):
+                sample_query = demo_content['demo_queries'][0]
+                demo_results = product.execute_demo({'query': sample_query})
+                demo_data = {
+                    "sample_query": sample_query,
+                    "demo_results": demo_results
+                }
 
-
-        # Подготовка данных для шаблона index_template.html
-        # Важно: contract_text_raw и analysis_results_raw должны быть строками, содержащими JSON, или None
-        import json # Добавляем импорт json для сериализации
-
-        # Prepare data for the template.
-        # These will be passed as Python objects/strings.
-        # We will JSON dump them here to ensure valid JSON in the template.
+        # Подготовка данных для шаблона
         template_data = {
             "is_seo_page": True,
             "page_title": front_matter.get("title", slug),
@@ -80,8 +96,12 @@ class SeoService:
             "related_keywords_list": front_matter.get("related_keywords", []),
             "page_text_content": markdown.markdown(page_text_content),
             "main_keyword": front_matter.get("main_keyword", slug),
-            "contract_text_raw": generated_contract_text,
-            "analysis_results_raw": analysis_results
+            "product_info": product_info,
+            "demo_content": demo_content,
+            "demo_data": demo_data,
+            # Для обратной совместимости
+            "contract_text_raw": demo_data.get("contract_text", ""),
+            "analysis_results_raw": demo_data.get("analysis_results", analysis_results)
         }
         
         # Convert relevant data to JSON strings here
@@ -89,29 +109,91 @@ class SeoService:
             "isSeoPage": template_data["is_seo_page"],
             "mainKeyword": template_data["main_keyword"],
             "seoPageContractTextRaw": template_data["contract_text_raw"],
-            "analysis_results_raw": template_data["analysis_results_raw"]
+            "analysis_results_raw": template_data["analysis_results_raw"],
+            "productInfo": template_data["product_info"],
+            "demoContent": template_data["demo_content"],
+            "demoData": template_data["demo_data"]
         }
 
         if logger:
             logger.info(f"SeoService: Данные, передаваемые в шаблон 'index_template.html' для '{slug}':")
             logger.info(f"  is_seo_page: {template_data['is_seo_page']}")
             logger.info(f"  page_title: {template_data['page_title']}")
-            logger.info(f"  meta_keywords: {template_data['meta_keywords']}")
-            logger.info(f"  meta_description: {template_data['meta_description']}")
-            logger.info(f"  related_keywords_list: {template_data['related_keywords_list']}")
-            logger.info(f"  page_text_content (первые 100): {template_data['page_text_content'][:100]}...")
-            logger.info(f"  main_keyword: {template_data['main_keyword']}")
-            logger.info(f"  contract_text_raw (raw, length {len(template_data['contract_text_raw'])}): {template_data['contract_text_raw'][:100] if template_data['contract_text_raw'] else 'None'}...")
-            logger.info(f"  analysis_results_raw (raw, paragraphs: {len(template_data['analysis_results_raw'].get('paragraphs', [])) if template_data['analysis_results_raw'] else 'None'}): {str(template_data['analysis_results_raw'])[:100] if template_data['analysis_results_raw'] else 'None'}...")
+            logger.info(f"  product_info: {product_info.get('name', 'Не указан') if product_info else 'Нет продукта'}")
             logger.info(f"  template_data_json (dumped, length {len(json.dumps(template_data_json))}): {json.dumps(template_data_json)[:100]}...")
-
 
         import html # Import html module for escaping
 
         # Escape the JSON string for embedding within a JavaScript string literal
         app_config_json_escaped = html.escape(json.dumps(template_data_json))
 
-        return render_template('index_template.html', **template_data, app_config_json=app_config_json_escaped)
+        # Выбираем шаблон в зависимости от продукта
+        template_name = 'index_template.html'  # По умолчанию для contract_analysis
+        
+        if product and product.product_id == 'news_analysis':
+            template_name = 'news_analysis_template.html'
+        elif product and product.product_id == 'contract_analysis':
+            template_name = 'index_template.html'
+        # Для новых продуктов можно добавить другие шаблоны
+        
+        if logger:
+            logger.info(f"SeoService: Используем шаблон '{template_name}' для продукта '{product.product_id if product else 'default'}'")
+
+        return render_template(template_name, **template_data, app_config_json=app_config_json_escaped)
+
+    def _perform_contract_analysis(self, contract_text: str):
+        """Выполняет анализ договора (рефакторинг старого метода)"""
+        logger = self._get_logger()
+        if not contract_text:
+            return {"summary": "Договор пуст, анализ невозможен.", "paragraphs": []}
+
+        # Используем llm_service для сегментации, чтобы она кэшировалась
+        paragraphs = self.llm_service.segment_text_into_paragraphs(contract_text)
+        
+        # Анализ каждого абзаца с LLM, используя analyze_paragraph_in_context
+        analyzed_paragraphs = []
+        file_hash = self.cache_service._generate_hash(contract_text)
+
+        for i, paragraph in enumerate(paragraphs):
+            if logger:
+                logger.info(f"SeoService: Подготовка к анализу пункта {i+1}/{len(paragraphs)} для file_hash: {file_hash}")
+
+            analysis_html = self.cache_service.get_cached_paragraph_analysis(file_hash, paragraph)
+
+            if analysis_html:
+                if logger:
+                    logger.info(f"SeoService: Анализ пункта {i+1} найден в кэше (HTML).")
+            else:
+                if logger:
+                    logger.info(f"SeoService: Анализ пункта {i+1} не найден в кэше, выполняем через LLM.")
+                try:
+                    # Получаем анализ в Markdown от LLM
+                    analysis_markdown = self.llm_service.analyze_paragraph_in_context(paragraph, contract_text)
+                    if analysis_markdown:
+                        # Конвертируем в HTML
+                        analysis_html = markdown.markdown(analysis_markdown)
+                        # Сохраняем HTML в кэш абзацев
+                        self.cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph, analysis_html)
+                        if logger:
+                            logger.info(f"SeoService: Анализ пункта {i+1} выполнен и сохранен в кэш.")
+                    else:
+                        analysis_html = "Не удалось получить анализ для этого пункта."
+                        if logger:
+                            logger.warning(f"SeoService: Не удалось получить анализ для пункта {i+1}.")
+                except Exception as e:
+                    if logger:
+                        logger.error(f"SeoService: Ошибка при анализе абзаца {i+1}: {e}", exc_info=True)
+                    analysis_html = f"Ошибка анализа пункта: {e}"
+            
+            analyzed_paragraphs.append({
+                "original_paragraph": paragraph,
+                "analysis": analysis_html
+            })
+        
+        return {
+            "summary": "Анализ договора завершен успешно.",
+            "paragraphs": analyzed_paragraphs
+        }
 
     def _perform_on_the_fly_analysis(self, contract_text: str):
         logger = self._get_logger()
@@ -166,55 +248,181 @@ class SeoService:
             "paragraphs": analyzed_paragraphs
         }
 
-    def _perform_on_the_fly_analysis(self, contract_text: str):
-        logger = self._get_logger()
-        if not contract_text:
-            return {"summary": "Договор пуст, анализ невозможен.", "paragraphs": []}
-
-        # Используем llm_service для сегментации, чтобы она кэшировалась
-        paragraphs = self.llm_service.segment_text_into_paragraphs(contract_text) # Изменено на llm_service
+    def get_product_for_page(self, slug: str) -> BaseProduct:
+        """Получает продукт, связанный с SEO-страницей"""
+        # Сначала пытаемся найти в реестре продуктов
+        product = product_registry.get_product_for_seo_page(slug)
         
-        # Анализ каждого абзаца с LLM, используя analyze_paragraph_in_context
-        analyzed_paragraphs = []
-        file_hash = self.cache_service._generate_hash(contract_text) # Генерируем хеш для всего договора
-
-        for i, paragraph in enumerate(paragraphs): # Анализируем все абзацы
-            if logger:
-                logger.info(f"SeoService: Подготовка к анализу пункта {i+1}/{len(paragraphs)} для file_hash: {file_hash}, paragraph_hash: {self.cache_service._generate_hash(paragraph)}")
-
-            analysis_html = self.cache_service.get_cached_paragraph_analysis(file_hash, paragraph) # Пытаемся получить HTML из кэша
-
-            if analysis_html:
-                if logger:
-                    logger.info(f"SeoService: Анализ пункта {i+1} найден в индивидуальном кэше (HTML).")
-            else:
-                if logger:
-                    logger.info(f"SeoService: Анализ пункта {i+1} не найден в кэше, выполняем через LLM.")
-                try:
-                    # Получаем анализ в Markdown от LLM
-                    analysis_markdown = self.llm_service.analyze_paragraph_in_context(paragraph, contract_text) # Изменено на llm_service
-                    if analysis_markdown:
-                        # Конвертируем в HTML
-                        analysis_html = markdown.markdown(analysis_markdown)
-                        # Сохраняем HTML в индивидуальный кэш абзацев
-                        self.cache_service.save_paragraph_analysis_to_cache(file_hash, paragraph, analysis_html)
-                        if logger:
-                            logger.info(f"SeoService: Анализ пункта {i+1} выполнен, сконвертирован в HTML и сохранен в индивидуальный кэш.")
-                    else:
-                        analysis_html = "Не удалось получить анализ для этого пункта."
-                        if logger:
-                            logger.warning(f"SeoService: Не удалось получить анализ (Markdown) для пункта {i+1}. LLM вернул пустой ответ.")
-                except Exception as e:
-                    if logger:
-                        logger.error(f"SeoService: Ошибка при анализе абзаца {i+1} с LLM: {e}", exc_info=True) # Изменено на LLM
-                    analysis_html = f"Ошибка анализа пункта: {e}"
+        if product:
+            return product
             
-            analyzed_paragraphs.append({
-                "original_paragraph": paragraph,
-                "analysis": analysis_html # Добавляем HTML
-            })
+        # Если не найден, пытаемся определить по метаданным source.md
+        page_dir = os.path.join(self.content_base_path, slug)
+        source_md_path = os.path.join(page_dir, 'source.md')
+        
+        if os.path.exists(source_md_path):
+            with open(source_md_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                front_matter = yaml.safe_load(parts[1])
+                product_id = front_matter.get('product_id')
+                
+                if product_id:
+                    product = product_registry.get_product(product_id)
+                    if product:
+                        # Регистрируем связь в реестре для следующих запросов
+                        product_registry.map_seo_page_to_product(slug, product_id)
+                        return product
+        
+        # По умолчанию возвращаем продукт анализа договоров
+        return product_registry.get_product('contract_analysis')
+
+    def get_page_data(self, slug: str) -> dict:
+        """Получает полные данные SEO-страницы включая информацию о продукте"""
+        page_dir = os.path.join(self.content_base_path, slug)
+        source_md_path = os.path.join(page_dir, 'source.md')
+        
+        if not os.path.exists(source_md_path):
+            raise FileNotFoundError(f"SEO-страница не найдена: {slug}")
+        
+        # Чтение метаданных страницы
+        with open(source_md_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        parts = content.split('---', 2)
+        if len(parts) < 3:
+            raise ValueError("Некорректный формат source.md")
+        
+        front_matter = yaml.safe_load(parts[1])
+        page_text_content = parts[2].strip()
+        
+        # Получаем связанный продукт
+        product = self.get_product_for_page(slug)
+        product_info = product.get_product_info() if product else {}
+        
+        # Проверяем наличие демо-данных для продукта
+        demo_available = False
+        demo_content = {}
+        if product:
+            demo_content = product.get_demo_content()
+            demo_available = bool(demo_content)
         
         return {
-            "summary": "Это анализ договора, выполненный 'на лету'.",
-            "paragraphs": analyzed_paragraphs
+            'slug': slug,
+            'title': front_matter.get('title', slug),
+            'meta_description': front_matter.get('meta_description', ''),
+            'meta_keywords': front_matter.get('meta_keywords', []),
+            'main_keyword': front_matter.get('main_keyword', slug),
+            'related_keywords': front_matter.get('related_keywords', []),
+            'content': page_text_content,
+            'product_id': front_matter.get('product_id'),
+            'product_info': product_info,
+            'demo_available': demo_available,
+            'demo_content': demo_content,
+            'created_at': front_matter.get('created_at'),
+            'updated_at': front_matter.get('updated_at')
         }
+
+    def create_seo_page_with_product(self, slug: str, title: str, keywords: list, 
+                                   product_id: str, meta_description: str = "") -> bool:
+        """Создает новую SEO-страницу, связанную с продуктом"""
+        
+        # Проверяем, что продукт существует
+        product = product_registry.get_product(product_id)
+        if not product:
+            raise ValueError(f"Продукт {product_id} не найден в реестре")
+        
+        page_dir = os.path.join(self.content_base_path, slug)
+        os.makedirs(page_dir, exist_ok=True)
+        
+        # Получаем информацию о продукте для генерации контента
+        product_info = product.get_product_info()
+        demo_content = product.get_demo_content()
+        
+        # Создаем front matter
+        front_matter = {
+            'title': title,
+            'meta_description': meta_description or f"{title} - {product_info.get('description', '')}",
+            'meta_keywords': keywords,
+            'main_keyword': keywords[0] if keywords else slug,
+            'related_keywords': keywords[1:] if len(keywords) > 1 else [],
+            'product_id': product_id,
+            'created_at': yaml.safe_load(yaml.dump({'created_at': 'now()'}))['created_at']
+        }
+        
+        # Генерируем контент страницы на основе продукта
+        page_content = self._generate_product_page_content(product, title, keywords)
+        
+        # Создаем source.md
+        source_content = f"---\n{yaml.dump(front_matter, default_flow_style=False, allow_unicode=True)}---\n\n{page_content}"
+        
+        source_md_path = os.path.join(page_dir, 'source.md')
+        with open(source_md_path, 'w', encoding='utf-8') as f:
+            f.write(source_content)
+        
+        # Регистрируем связь страницы с продуктом
+        product_registry.map_seo_page_to_product(slug, product_id)
+        
+        # Генерируем демо-данные если это продукт анализа договоров
+        if product_id == 'contract_analysis' and demo_content:
+            self._generate_demo_contract_for_page(page_dir, demo_content)
+        
+        return True
+
+    def _generate_product_page_content(self, product: BaseProduct, title: str, keywords: list) -> str:
+        """Генерирует контент SEO-страницы на основе информации о продукте"""
+        product_info = product.get_product_info()
+        demo_content = product.get_demo_content()
+        
+        content_parts = [
+            f"# {title}",
+            "",
+            f"**{product_info.get('description', '')}**",
+            "",
+            "## Ключевые преимущества",
+            ""
+        ]
+        
+        # Добавляем преимущества
+        for benefit in product_info.get('key_benefits', []):
+            content_parts.append(f"- {benefit}")
+        
+        content_parts.extend(["", "## Для кого подходит", ""])
+        
+        # Добавляем целевую аудиторию
+        for audience in product_info.get('target_audience', []):
+            content_parts.append(f"- {audience}")
+        
+        content_parts.extend(["", "## Сценарии использования", ""])
+        
+        # Добавляем кейсы использования
+        for use_case in product_info.get('use_cases', []):
+            content_parts.append(f"- {use_case}")
+        
+        # Добавляем демо-контент если доступен
+        if demo_content and product.product_id == 'news_analysis':
+            content_parts.extend([
+                "", "## Примеры отслеживаемых тем", ""
+            ])
+            for query in demo_content.get('demo_queries', []):
+                content_parts.append(f"- {query}")
+        
+        # Добавляем призыв к действию
+        content_parts.extend([
+            "", "## Попробуйте прямо сейчас", "",
+            f"Загрузите документ и получите детальный анализ с помощью нашего {product_info.get('name', 'сервиса').lower()}.",
+            "",
+            "**Быстро • Точно • Конфиденциально**"
+        ])
+        
+        return "\n".join(content_parts)
+
+    def _generate_demo_contract_for_page(self, page_dir: str, demo_content: dict):
+        """Генерирует демо-договор для SEO-страницы анализа договоров"""
+        demo_text = demo_content.get('demo_contract_text', '')
+        if demo_text:
+            contract_file_path = os.path.join(page_dir, 'generated_contract.txt')
+            with open(contract_file_path, 'w', encoding='utf-8') as f:
+                f.write(demo_text)

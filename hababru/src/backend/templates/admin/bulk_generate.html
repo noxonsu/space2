@@ -1,0 +1,171 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Массовая генерация - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📦 Массовая генерация</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a> › Массовая генерация
+    </div>
+</div>
+
+<div class="card">
+    <h3>Настройки генерации</h3>
+    <form id="bulk-generate-form" method="post">
+        <div class="form-group">
+            <label for="product-select">Продукт:</label>
+            <select id="product-select" name="product_id" required>
+                <option value="">Выберите продукт</option>
+                <option value="contract_analysis">Анализ договоров</option>
+                <option value="news_analysis">Анализ новостей</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="keywords-input">Ключевые слова (по одному на строку):</label>
+            <textarea id="keywords-input" name="keywords" rows="6" placeholder="договор аренды&#10;договор поставки&#10;трудовой договор&#10;договор услуг&#10;договор подряда" required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="template-select">Шаблон страницы:</label>
+            <select id="template-select" name="template">
+                <option value="standard">Стандартный</option>
+                <option value="extended">Расширенный</option>
+                <option value="minimal">Минимальный</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="count-input">Количество страниц для генерации:</label>
+            <input type="number" id="count-input" name="count" min="1" max="50" value="5">
+        </div>
+
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-success">🚀 Запустить генерацию</button>
+            <button type="button" class="btn btn-primary" onclick="previewGeneration()">👁️ Предпросмотр</button>
+        </div>
+    </form>
+</div>
+
+<div id="generation-status" class="card" style="display: none;">
+    <h3>Статус генерации</h3>
+    <div id="progress-container">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Генерация в процессе...</p>
+        </div>
+        <div id="progress-details"></div>
+    </div>
+</div>
+
+<div id="generation-results" class="card" style="display: none;">
+    <h3>Результаты генерации</h3>
+    <div id="results-content"></div>
+</div>
+
+<div class="card">
+    <h3>📊 Статистика</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--secondary-color);">22</div>
+            <div style="font-size: 0.9rem; color: #666;">Всего страниц</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--success-color);">5</div>
+            <div style="font-size: 0.9rem; color: #666;">Сгенерировано сегодня</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--warning-color);">15</div>
+            <div style="font-size: 0.9rem; color: #666;">В очереди</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>💡 Рекомендации</h3>
+    <ul>
+        <li><strong>Ключевые слова:</strong> Используйте релевантные и популярные запросы из вашей ниши</li>
+        <li><strong>Количество:</strong> Генерируйте не более 10-15 страниц за раз для лучшего качества</li>
+        <li><strong>Уникальность:</strong> Убедитесь, что ключевые слова не дублируют существующие страницы</li>
+        <li><strong>Проверка:</strong> Всегда просматривайте сгенерированные страницы перед публикацией</li>
+    </ul>
+</div>
+
+<script>
+document.getElementById('bulk-generate-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const keywords = formData.get('keywords').split('\n').filter(k => k.trim());
+    
+    const data = {
+        product_id: formData.get('product_id'),
+        keywords: keywords,
+        template: formData.get('template'),
+        count: parseInt(formData.get('count'))
+    };
+    
+    // Показываем статус
+    document.getElementById('generation-status').style.display = 'block';
+    document.getElementById('generation-results').style.display = 'none';
+    
+    // Имитируем процесс генерации (в реальности это будет API вызов)
+    simulateGeneration(data);
+});
+
+function simulateGeneration(data) {
+    const progressDetails = document.getElementById('progress-details');
+    
+    setTimeout(() => {
+        progressDetails.innerHTML = '<p>✅ Анализ ключевых слов завершен</p>';
+    }, 1000);
+    
+    setTimeout(() => {
+        progressDetails.innerHTML += '<p>✅ Генерация контента завершена</p>';
+    }, 2500);
+    
+    setTimeout(() => {
+        progressDetails.innerHTML += '<p>✅ Создание SEO-страниц завершено</p>';
+        
+        // Показываем результаты
+        document.getElementById('generation-status').style.display = 'none';
+        document.getElementById('generation-results').style.display = 'block';
+        
+        const resultsContent = document.getElementById('results-content');
+        resultsContent.innerHTML = `
+            <div class="alert alert-success">
+                🎉 Успешно сгенерировано ${data.keywords.length} страниц для продукта "${data.product_id}"
+            </div>
+            <h4>Созданные страницы:</h4>
+            <ul>
+                ${data.keywords.map(keyword => `<li>📄 Страница для "${keyword}"</li>`).join('')}
+            </ul>
+            <div style="margin-top: 1rem;">
+                <a href="/admin/seo-pages" class="btn btn-primary">📋 Просмотреть все страницы</a>
+            </div>
+        `;
+    }, 4000);
+}
+
+function previewGeneration() {
+    const formData = new FormData(document.getElementById('bulk-generate-form'));
+    const keywords = formData.get('keywords').split('\n').filter(k => k.trim());
+    
+    if (keywords.length === 0) {
+        alert('Пожалуйста, введите ключевые слова');
+        return;
+    }
+    
+    const preview = `
+Будет создано ${keywords.length} страниц:
+${keywords.map((k, i) => `${i+1}. ${k}`).join('\n')}
+
+Продукт: ${formData.get('product_id')}
+Шаблон: ${formData.get('template')}
+    `;
+    
+    alert(preview);
+}
+</script>
+{% endblock %}

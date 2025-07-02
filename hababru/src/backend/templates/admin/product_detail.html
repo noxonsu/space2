@@ -1,0 +1,132 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ product.name }} - Детали продукта{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>{{ product.name }}</h2>
+    <div class="breadcrumb">
+        <a href="/admin">Дашборд</a> › 
+        <a href="/admin/products">Продукты</a> › 
+        {{ product.name }}
+    </div>
+</div>
+
+<div class="card">
+    <h3>📋 Информация о продукте</h3>
+    <div style="margin-bottom: 1rem;">
+        <strong>ID продукта:</strong> {{ product.product_id }}
+    </div>
+    <div style="margin-bottom: 1rem;">
+        <strong>Название:</strong> {{ product.name }}
+    </div>
+    <div style="margin-bottom: 1rem;">
+        <strong>Описание:</strong> {{ product.description }}
+    </div>
+</div>
+
+{% if product_info %}
+<div class="card">
+    <h3>🔧 Функциональность</h3>
+    
+    {% if product_info.get('key_benefits') %}
+    <div style="margin-bottom: 1.5rem;">
+        <h4>Ключевые преимущества:</h4>
+        <ul>
+            {% for benefit in product_info.key_benefits %}
+                <li>{{ benefit }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if product_info.get('demo_contract_types') %}
+    <div style="margin-bottom: 1.5rem;">
+        <h4>Поддерживаемые типы договоров:</h4>
+        <ul>
+            {% for contract_type in product_info.demo_contract_types %}
+                <li>{{ contract_type }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if product_info.get('supported_formats') %}
+    <div style="margin-bottom: 1.5rem;">
+        <h4>Поддерживаемые форматы:</h4>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            {% for format in product_info.supported_formats %}
+                <span style="background-color: var(--light-bg); padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.8rem;">{{ format }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if product_info.get('analysis_time') %}
+    <div style="margin-bottom: 1rem;">
+        <strong>Время анализа:</strong> {{ product_info.analysis_time }}
+    </div>
+    {% endif %}
+
+    {% if product_info.get('accuracy') %}
+    <div style="margin-bottom: 1rem;">
+        <strong>Точность:</strong> {{ product_info.accuracy }}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h3>📊 Статистика</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--secondary-color);">{{ stats.total_pages or 0 }}</div>
+            <div style="font-size: 0.9rem; color: #666;">SEO-страниц</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--success-color);">{{ stats.total_keywords or 0 }}</div>
+            <div style="font-size: 0.9rem; color: #666;">Ключевых слов</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background-color: var(--light-bg); border-radius: 5px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--warning-color);">{{ stats.avg_keywords or 0 }}</div>
+            <div style="font-size: 0.9rem; color: #666;">Средн. ключей</div>
+        </div>
+    </div>
+</div>
+
+{% if screenshots %}
+<div class="card">
+    <h3>📸 Скриншоты</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+        {% for screenshot in screenshots %}
+            <div style="border: 1px solid var(--border-color); border-radius: 5px; overflow: hidden;">
+                <img src="{{ screenshot.path }}" alt="{{ screenshot.description }}" style="width: 100%; height: 200px; object-fit: cover;">
+                {% if screenshot.description %}
+                    <div style="padding: 0.5rem; font-size: 0.9rem; background-color: var(--light-bg);">
+                        {{ screenshot.description }}
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3>⚙️ Действия</h3>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="/admin/seo-pages?product={{ product.product_id }}" class="btn btn-primary">
+            📄 Просмотреть SEO-страницы
+        </a>
+        <a href="/admin/create-page?product={{ product.product_id }}" class="btn btn-success">
+            ➕ Создать новую страницу
+        </a>
+        <a href="/admin/analytics?product={{ product.product_id }}" class="btn btn-warning">
+            📈 Аналитика продукта
+        </a>
+        <a href="/" class="btn btn-primary">
+            🚀 Демо продукта
+        </a>
+    </div>
+</div>
+{% endblock %}

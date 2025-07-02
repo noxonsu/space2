@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title | default("Мониторинг и анализ новостей") }}</title>
+    {% if meta_keywords %}<meta name="keywords" content="{{ meta_keywords }}">{% endif %}
+    {% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
+    {% if related_keywords_meta %}<meta name="related-keywords" content="{{ related_keywords_meta | join(', ') }}">{% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript" >
+       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments}};
+       m[i].l=1*new Date();
+       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+       ym(97234589, "init", {
+            clickmap:true,
+            trackLinks:true,
+            accurateTrackBounce:true,
+            webvisor:true
+       });
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/97234589" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <!-- /Yandex.Metrika counter -->
+</head>
+<body>
+    <header>
+        <h1>{{ page_h1 | default("Мониторинг и анализ новостей с ИИ") }}</h1>
+    </header>
+
+    <main>
+        {% if not is_seo_page %}
+        <section id="about-service-mainpage-text" style="padding: 20px; background-color: #fff; border-bottom: 1px solid #eee;">
+             <p>Наш сервис помогает отслеживать и анализировать отраслевые новости с использованием передовых технологий искусственного интеллекта. Настройте мониторинг по ключевым словам и получайте умные отчеты о трендах и событиях в вашей сфере.</p>
+        </section>
+        {% endif %}
+
+        <section id="news-monitoring-section" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>Настроить мониторинг новостей</h2>
+            <div style="margin-bottom: 15px;">
+                <label for="news-keywords">Ключевые слова для отслеживания:</label>
+                <input type="text" id="news-keywords" placeholder="Например: внешнеэкономическая деятельность, логистика" style="width: 100%; padding: 8px; margin-top: 5px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label for="news-sectors">Отрасли:</label>
+                <select id="news-sectors" multiple style="width: 100%; padding: 8px; margin-top: 5px;">
+                    <option value="ved">Внешнеэкономическая деятельность</option>
+                    <option value="logistics">Логистика и транспорт</option>
+                    <option value="fintech">Финансы и банкинг</option>
+                    <option value="legal">Юридические изменения</option>
+                    <option value="procurement">Государственные закупки</option>
+                    <option value="digital">IT и цифровизация</option>
+                </select>
+            </div>
+            <button id="start-monitoring-button" style="background-color: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer;">Начать мониторинг</button>
+            <div id="monitoring-progress" style="margin-top: 10px; font-weight: bold;"></div>
+        </section>
+
+        {% if demo_data and demo_data.demo_results %}
+        <section id="news-demo-results" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>Демо: Результаты мониторинга</h2>
+            <p><b>Запрос:</b> {{ demo_data.sample_query }}</p>
+            
+            <div style="margin-top: 15px;">
+                <h3>Общий анализ</h3>
+                <p>{{ demo_data.demo_results.summary }}</p>
+                <p><b>Общий тон новостей:</b> {{ demo_data.demo_results.sentiment }}</p>
+            </div>
+            
+            {% if demo_data.demo_results.trends %}
+            <div style="margin-top: 15px;">
+                <h3>Выявленные тренды</h3>
+                <ul>
+                    {% for trend in demo_data.demo_results.trends %}
+                        <li>{{ trend }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if demo_data.demo_results.news_items %}
+            <div style="margin-top: 15px;">
+                <h3>Анализ новостей ({{ demo_data.demo_results.total_news }} всего)</h3>
+                {% for news in demo_data.demo_results.news_items[:5] %}
+                <div style="border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                    <h4>{{ news.title }}</h4>
+                    <p><b>Источник:</b> {{ news.source }} | <b>Дата:</b> {{ news.date }}</p>
+                    <p>{{ news.text }}</p>
+                    <div style="background-color: #f8f9fa; padding: 8px; border-radius: 3px; margin-top: 8px;">
+                        <b>ИИ-анализ:</b> {{ news.analysis }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if product_info and product_info.get('name') %}
+        <section id="product-info-section" class="product-info-section" style="padding: 20px; background-color: #f8f9fa; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>О сервисе "{{ product_info.get('name') }}"</h2>
+            <p>{{ product_info.get('description', '') }}</p>
+            
+            {% if product_info.get('key_benefits') %}
+            <h3>Ключевые преимущества:</h3>
+            <ul class="product-benefits-list">
+                {% for benefit in product_info.get('key_benefits', []) %}
+                    <li>{{ benefit }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            
+            {% if product_info.get('target_audience') %}
+            <h3>Для кого подходит:</h3>
+            <ul class="target-audience-list">
+                {% for audience in product_info.get('target_audience', []) %}
+                    <li>{{ audience }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            
+            {% if product_info.get('use_cases') %}
+            <h3>Сценарии использования:</h3>
+            <ul class="use-cases-list">
+                {% for use_case in product_info.get('use_cases', []) %}
+                    <li>{{ use_case }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if demo_content and demo_content.get('demo_queries') %}
+        <section id="demo-section" class="demo-section" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>Примеры запросов для мониторинга</h2>
+            <p>Популярные запросы наших клиентов:</p>
+            <ul>
+                {% for query in demo_content.get('demo_queries', []) %}
+                    <li><button class="demo-query-btn" data-query="{{ query }}" style="background: none; border: 1px solid #007bff; color: #007bff; padding: 5px 10px; cursor: pointer; margin: 2px;">{{ query }}</button></li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+        
+        {% if page_text_content %}
+        <section id="page-specific-content" class="page-content" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
+            <h2>Подробнее о {{ main_keyword }}</h2>
+            <div>{{ page_text_content | safe }}</div>
+        </section>
+        {% endif %}
+
+        {% if related_keywords_list %}
+        <section id="related-keywords-section" class="related-keywords-section" style="padding: 20px; background-color: #fff; border-top: 1px solid #ddd; margin-top: 20px;">
+            <h2>Связанные ключевые слова</h2>
+            <ul class="related-keywords-list">
+                {% for keyword in related_keywords_list %}
+                    <li>{{ keyword }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+        
+        <section id="seo-links" style="padding: 20px; background-color: #fff; border-top: 1px solid #eee; margin-top: 20px;">
+            <h2>Полезные ссылки по мониторингу новостей</h2>
+            <ul>
+                <li><a href="{{ url_for('seo_page', slug='monitoring-ved-novostey') }}">Мониторинг новостей ВЭД</a></li>
+                <li><a href="{{ url_for('seo_page', slug='analiz-novostey-logistiki') }}">Анализ новостей логистики</a></li>
+                <li><a href="{{ url_for('seo_page', slug='monitoring-regulyatornyh-izmeneniy') }}">Мониторинг регуляторных изменений</a></li>
+                <li><a href="{{ url_for('seo_page', slug='analiz-finansovyh-novostey') }}">Анализ финансовых новостей</a></li>
+                <li><a href="{{ url_for('seo_page', slug='monitoring-it-trendov') }}">Мониторинг IT трендов</a></li>
+            </ul>
+        </section>
+
+    </main>
+    <footer>
+        <p>&copy; 2025 Сервис мониторинга и анализа новостей</p>
+    </footer>
+
+    <div id="app-config-data" style="display:none;">{{ app_config_json | safe }}</div>
+    <script>
+        window.appConfig = {}; // Initialize an empty object
+        const appConfigDataElement = document.getElementById('app-config-data');
+        if (appConfigDataElement && appConfigDataElement.textContent) {
+            try {
+                window.appConfig = JSON.parse(appConfigDataElement.textContent);
+            } catch (e) {
+                console.error("Ошибка парсинга appConfigData:", e);
+            }
+        }
+        
+        // Обработчики для демо-запросов
+        document.querySelectorAll('.demo-query-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const query = this.getAttribute('data-query');
+                document.getElementById('news-keywords').value = query;
+                document.getElementById('start-monitoring-button').click();
+            });
+        });
+        
+        // Обработчик запуска мониторинга
+        document.getElementById('start-monitoring-button').addEventListener('click', function() {
+            const keywords = document.getElementById('news-keywords').value;
+            const progress = document.getElementById('monitoring-progress');
+            
+            if (!keywords.trim()) {
+                alert('Пожалуйста, введите ключевые слова для мониторинга');
+                return;
+            }
+            
+            progress.textContent = 'Запуск мониторинга новостей...';
+            
+            // Здесь будет AJAX-запрос к API для запуска мониторинга
+            setTimeout(() => {
+                progress.textContent = 'Мониторинг запущен! Результаты появятся в течение нескольких минут.';
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
