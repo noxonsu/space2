@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-8.4.1, pluggy-1.6.0 -- /home/codespace/.python/current/bin/python
+cachedir: .pytest_cache
+rootdir: /workspaces/space2/hababru
+configfile: pytest.ini
+plugins: anyio-4.9.0
+collecting ... collected 21 items
+
+tests/test_api.py::test_home_page PASSED                                 [  4%]
+tests/test_api.py::test_seo_page PASSED                                  [  9%]
+tests/test_api.py::test_get_sample_contract PASSED                       [ 14%]
+tests/test_api.py::test_upload_contract PASSED                           [ 19%]
+tests/test_api.py::test_seo_page_content_display PASSED                  [ 23%]
+tests/test_api.py::test_seo_page_ipotechnyh_dogovorov_content_display PASSED [ 28%]
+tests/test_api.py::test_get_page_prompt_results PASSED                   [ 33%]
+tests/test_api.py::test_get_llm_models PASSED                            [ 38%]
+tests/test_arendy_page.py::test_arendy_page_contract_and_analysis_display PASSED [ 42%]
+tests/test_cache_service.py::test_create_analysis_task PASSED            [ 47%]
+tests/test_cache_service.py::test_paragraph_caching PASSED               [ 52%]
+tests/test_llm_service.py::test_generate_text_deepseek PASSED            [ 57%]
+tests/test_llm_service.py::test_generate_text_openai PASSED              [ 61%]
+tests/test_llm_service.py::test_api_error_handling PASSED                [ 66%]
+tests/test_parsing_service.py::test_parse_document_to_markdown_pdf PASSED [ 71%]
+tests/test_parsing_service.py::test_parse_document_to_markdown_docx PASSED [ 76%]
+tests/test_parsing_service.py::test_segment_text_into_paragraphs PASSED  [ 80%]
+tests/test_seo_admin.py::test_seo_admin_page_loads PASSED                [ 85%]
+tests/test_seo_prompt_api.py::test_run_openai_prompt_success PASSED      [ 90%]
+tests/test_seo_service.py::test_render_seo_page PASSED                   [ 95%]
+tests/test_seo_service.py::test_render_nonexistent_seo_page PASSED       [100%]
+
+=============================== warnings summary ===============================
+../../../usr/local/python/3.12.1/lib/python3.12/site-packages/pydub/utils.py:170
+  /usr/local/python/3.12.1/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+    warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 21 passed, 1 warning in 2.12s =========================
