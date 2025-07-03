@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Отправить шаблон - WhatsApp Business Admin{% endblock %}
+{% block header %}Отправить шаблон{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-send"></i> Отправка шаблона сообщения
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="from_phone_number_id" class="form-label">Номер отправителя</label>
+                            <select class="form-select" id="from_phone_number_id" name="from_phone_number_id" required>
+                                <option value="" disabled selected>-- Выберите номер --</option>
+                                {% for number in phone_numbers %}
+                                    <option value="{{ number.id }}">{{ number.display_phone_number }} ({{ number.id }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="to_number" class="form-label">Номер получателя</label>
+                            <input type="text" class="form-control" id="to_number" name="to_number" 
+                                   placeholder="48575019924" required>
+                            <div class="form-text">Номер в международном формате без +</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="template_name" class="form-label">Шаблон</label>
+                            <select class="form-select" id="template_name" name="template_name" required>
+                                <option value="" disabled selected>-- Выберите шаблон --</option>
+                                {% for template in templates %}
+                                    {% if template.status == 'APPROVED' %}
+                                        <option value="{{ template.name }}">
+                                            {{ template.name }} ({{ template.category }})
+                                        </option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Поля для параметров шаблона -->
+                    <div id="template-params" class="mb-3">
+                        <!-- Динамически добавляемые поля для параметров -->
+                    </div>
+                    
+                    <button type="submit" class="btn btn-whatsapp">
+                        <i class="bi bi-send"></i> Отправить шаблон
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-info-circle"></i> Доступные шаблоны
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if templates %}
+                    {% for template in templates %}
+                    <div class="card mb-3 border-start border-4 {% if template.status == 'APPROVED' %}border-success{% else %}border-warning{% endif %}">
+                        <div class="card-body p-3">
+                            <h6 class="card-title">{{ template.name }}</h6>
+                            <p class="card-text small">
+                                <strong>Категория:</strong> {{ template.category }}<br>
+                                <strong>Язык:</strong> {{ template.language }}<br>
+                                <strong>Статус:</strong> 
+                                <span class="badge {% if template.status == 'APPROVED' %}bg-success{% else %}bg-warning{% endif %}">
+                                    {{ template.status }}
+                                </span>
+                            </p>
+                            
+                            {% if template.components %}
+                                {% for component in template.components %}
+                                    {% if component.type == 'BODY' %}
+                                        <div class="border rounded p-2 bg-light small">
+                                            <strong>Текст:</strong><br>
+                                            {{ component.text }}
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">Шаблоны не найдены</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Последние отправленные шаблоны -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock-history"></i> История отправки шаблонов
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="recent_templates">
+                    <p class="text-muted">Загрузка истории...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const templateSelect = document.getElementById('template_name');
+        const paramsContainer = document.getElementById('template-params');
+
+        templateSelect.addEventListener('change', function() {
+            // Очищаем предыдущие параметры
+            paramsContainer.innerHTML = '';
+
+            const selectedTemplateName = this.value;
+            
+            // Пример: если выбран шаблон 'dashonoutrog_login', добавляем поле для кода
+            if (selectedTemplateName === 'dashonoutrog_login') {
+                const paramInput = `
+                    <div class="mb-3">
+                        <label for="verification_code" class="form-label">Код верификации (необязательно)</label>
+                        <input type="text" class="form-control" id="verification_code" name="verification_code" placeholder="Оставьте пустым для автогенерации">
+                    </div>
+                `;
+                paramsContainer.innerHTML = paramInput;
+            }
+            // Добавьте другие условия для других шаблонов, если им нужны параметры
+        });
+    });
+    
+    // Загрузка истории отправленных шаблонов
+    function loadRecentTemplates() {
+        // Здесь можно добавить AJAX-запрос для загрузки истории
+        document.getElementById('recent_templates').innerHTML = 
+            '<p class="text-muted">История будет доступна после отправки первого шаблона</p>';
+    }
+    
+    loadRecentTemplates();
+</script>
+{% endblock %}

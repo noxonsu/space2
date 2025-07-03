@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Разговоры и История</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button class="btn btn-primary me-2" onclick="refreshConversations()">
+            <i class="bi bi-arrow-clockwise"></i> Обновить
+        </button>
+        <button class="btn btn-outline-secondary" onclick="exportHistory()">
+            <i class="bi bi-download"></i> Экспорт
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Активные разговоры -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Активные разговоры</h5>
+            </div>
+            <div class="card-body">
+                {% if conversations %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Номер</th>
+                                    <th>Последнее сообщение</th>
+                                    <th>Сообщений</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for conversation in conversations %}
+                                <tr>
+                                    <td>{{ conversation[1] }}</td>
+                                    <td>
+                                        {% if conversation[2] %}
+                                            {{ conversation[2][:16] }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ conversation[3] }}</span>
+                                    </td>
+                                    <td>
+                                        {% if conversation[4] == 'active' %}
+                                            <span class="badge bg-success">Активен</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ conversation[4] }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-chat-dots fs-1 text-muted mb-3"></i>
+                        <h6>Нет активных разговоров</h6>
+                        <p class="text-muted">Разговоры появятся после получения входящих сообщений</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- История отправленных сообщений -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">История отправленных сообщений</h5>
+            </div>
+            <div class="card-body">
+                {% if sent_messages %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Время</th>
+                                    <th>Номер</th>
+                                    <th>Тип</th>
+                                    <th>Содержание</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for message in sent_messages %}
+                                <tr>
+                                    <td>{{ message[1][:16] }}</td>
+                                    <td>{{ message[3] }}</td>
+                                    <td>
+                                        {% if message[4] == 'template' %}
+                                            <span class="badge bg-info">Шаблон</span>
+                                        {% elif message[4] == 'text' %}
+                                            <span class="badge bg-primary">Текст</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ message[4] }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if message[4] == 'template' %}
+                                            <strong>{{ message[6] }}</strong>
+                                            {% if message[5] %}
+                                                <br><small class="text-muted">{{ message[5][:50] }}...</small>
+                                            {% endif %}
+                                        {% else %}
+                                            {{ message[5][:50] }}{% if message[5]|length > 50 %}...{% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if message[7] == 'sent' %}
+                                            <span class="badge bg-success">Отправлено</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ message[7] }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-send fs-1 text-muted mb-3"></i>
+                        <h6>Нет отправленных сообщений</h6>
+                        <p class="text-muted">История отправленных сообщений будет отображаться здесь</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика по времени -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Статистика сообщений</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <canvas id="messagesChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6>Быстрые действия:</h6>
+                        </div>
+                        <div class="list-group">
+                            <a href="{{ url_for('send_template') }}" class="list-group-item list-group-item-action">
+                                <i class="bi bi-file-text"></i> Отправить шаблон
+                            </a>
+                            <a href="{{ url_for('templates_page') }}" class="list-group-item list-group-item-action">
+                                <i class="bi bi-collection"></i> Управление шаблонами
+                            </a>
+                            <a href="{{ url_for('webhooks_page') }}" class="list-group-item list-group-item-action">
+                                <i class="bi bi-webhook"></i> Просмотреть webhooks
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function refreshConversations() {
+    location.reload();
+}
+
+function exportHistory() {
+    // Получаем данные через AJAX для экспорта
+    fetch('/api/export_history')
+        .then(response => response.json())
+        .then(data => {
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `whatsapp_history_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+            console.error('Ошибка экспорта:', error);
+            alert('Не удалось выполнить экспорт');
+        });
+}
+
+// Загрузка статистики и создание графика
+fetch('/api/stats')
+    .then(response => response.json())
+    .then(data => {
+        const ctx = document.getElementById('messagesChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.daily_stats.map(item => item[0]),
+                datasets: [{
+                    label: 'Сообщения по дням',
+                    data: data.daily_stats.map(item => item[1]),
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Отправленные сообщения за последнюю неделю'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    })
+    .catch(error => {
+        console.error('Ошибка загрузки статистики:', error);
+    });
+</script>
+{% endblock %}
