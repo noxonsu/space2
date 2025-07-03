@@ -14,12 +14,14 @@
             }
         },
         {
-            "name": "Flask App",
+            "name": "habab Flask App",
             "type": "python",
             "request": "launch",
             "module": "hababru.src.backend.main",
             "args": [],
-            "env": {},
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/hababru"
+            },
             "cwd": "${workspaceFolder}"
         },
         {
