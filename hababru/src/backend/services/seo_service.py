@@ -79,7 +79,21 @@ class SeoService:
             # Для анализа новостей используем демо-запросы
             if demo_content.get('demo_queries'):
                 sample_query = demo_content['demo_queries'][0]
-                demo_results = product.execute_demo({'query': sample_query})
+                
+                # Используем кеш для результатов демо-анализа новостей
+                cache_key = f"news_analysis_demo_{slug}"
+                demo_results = self.cache_service.get(cache_key)
+                
+                if not demo_results:
+                    if logger:
+                        logger.info(f"SeoService: Демо-результаты для '{slug}' не найдены в кеше, выполняем запрос.")
+                    demo_results = product.execute_demo({'query': sample_query})
+                    # Кешируем результат на 1 час
+                    self.cache_service.set(cache_key, demo_results, timeout=3600)
+                else:
+                    if logger:
+                        logger.info(f"SeoService: Демо-результаты для '{slug}' загружены из кеша.")
+
                 demo_data = {
                     "sample_query": sample_query,
                     "demo_results": demo_results
