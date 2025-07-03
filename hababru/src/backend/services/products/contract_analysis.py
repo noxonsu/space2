@@ -7,144 +7,55 @@ from ..products import BaseProduct
 from ..llm_service import LLMService
 from ..parsing_service import ParsingService
 from ..cache_service import CacheService
+from ..product_data_loader import ProductDataLoader
 import markdown
 
 class ContractAnalysisProduct(BaseProduct):
     """Продукт для анализа юридических договоров"""
     
     def __init__(self, llm_service: LLMService, parsing_service: ParsingService, cache_service: CacheService):
+        # Загружаем данные из YAML-файла
+        self.data_loader = ProductDataLoader()
+        self.product_data = self.data_loader.load_product_data("contract_analysis")
+        
         super().__init__(
-            product_id="contract_analysis",
-            name="Анализ договоров с ИИ",
-            description="Автоматизированный анализ юридических договоров с выявлением рисков и рекомендациями"
+            product_id=self.product_data["product_id"],
+            name=self.product_data["name"],
+            description=self.product_data["description"]
         )
         self.llm_service = llm_service
         self.parsing_service = parsing_service
         self.cache_service = cache_service
         
-        # Устанавливаем демо-данные
-        self.set_demo_data({
-            "demo_contract_types": [
-                "Договор аренды недвижимости",
-                "Договор поставки товаров", 
-                "Трудовой договор",
-                "Договор оказания IT-услуг",
-                "Договор подряда",
-                "Кредитный договор"
-            ],
-            "key_features": [
-                "Анализ рисков по каждому пункту",
-                "Рекомендации по улучшению формулировок",
-                "Проверка соответствия законодательству",
-                "Выявление противоречий между разделами",
-                "Оценка финансовых обязательств"
-            ],
-            "supported_formats": ["PDF", "DOC", "DOCX", "TXT"],
-            "analysis_time": "2-5 минут",
-            "accuracy": "95%"
-        })
+        # Устанавливаем демо-данные из файла
+        self.set_demo_data(self.product_data.get("demo_data", {}))
     
     def get_product_info(self) -> Dict[str, Any]:
         """Информация о продукте для SEO-страниц"""
+        product_info = self.product_data.get("product_info", {})
         return {
             "product_id": self.product_id,
             "name": self.name,
             "description": self.description,
-            "key_benefits": [
-                "Экономия времени юристов до 80%",
-                "Снижение рисков пропуска важных моментов",
-                "Стандартизация процесса анализа",
-                "Круглосуточная доступность",
-                "Детальные отчеты с рекомендациями"
-            ],
-            "target_audience": [
-                "Юридические фирмы",
-                "Корпоративные юристы", 
-                "Малый и средний бизнес",
-                "Индивидуальные предприниматели",
-                "Государственные организации"
-            ],
-            "use_cases": [
-                "Проверка договоров до подписания",
-                "Аудит существующих договоров",
-                "Обучение молодых юристов",
-                "Массовая обработка типовых договоров",
-                "Подготовка к судебным разбирательствам"
-            ],
-            "demo_available": True,
+            "key_benefits": product_info.get("key_benefits", []),
+            "target_audience": product_info.get("target_audience", []),
+            "use_cases": product_info.get("use_cases", []),
+            "demo_available": product_info.get("demo_available", True),
             "screenshots": self.get_screenshots(),
-            "pricing": {
-                "free_tier": "5 договоров в месяц",
-                "pro_tier": "Неограниченно",
-                "enterprise": "Корпоративные решения"
-            }
+            "pricing": product_info.get("pricing", {})
         }
 
     def get_input_interface_description(self) -> Dict[str, Any]:
         """
         Описывает ожидаемый формат входных данных для execute_demo.
         """
-        return {
-            "type": "object",
-            "properties": {
-                "contract_text": {
-                    "type": "string",
-                    "description": "Полный текст юридического договора для анализа.",
-                    "example": "Договор аренды нежилого помещения..."
-                }
-            },
-            "required": ["contract_text"]
-        }
+        return self.product_data.get("interfaces", {}).get("input", {})
 
     def get_output_interface_description(self) -> Dict[str, Any]:
         """
         Описывает формат выходных данных из execute_demo.
         """
-        return {
-            "type": "object",
-            "properties": {
-                "summary": {
-                    "type": "string",
-                    "description": "Краткое резюме результатов анализа договора.",
-                    "example": "Анализ договора завершен"
-                },
-                "paragraphs": {
-                    "type": "array",
-                    "description": "Список проанализированных абзацев договора.",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "original_paragraph": {
-                                "type": "string",
-                                "description": "Исходный текст абзаца."
-                            },
-                            "analysis": {
-                                "type": "string",
-                                "description": "HTML-представление анализа данного абзаца, включая выявленные риски и рекомендации."
-                            }
-                        }
-                    }
-                },
-                "stats": {
-                    "type": "object",
-                    "description": "Статистика по анализу.",
-                    "properties": {
-                        "total_paragraphs": {
-                            "type": "integer",
-                            "description": "Общее количество абзацев в договоре."
-                        },
-                        "analyzed_paragraphs": {
-                            "type": "integer",
-                            "description": "Количество проанализированных абзацев."
-                        },
-                        "cached_results": {
-                            "type": "integer",
-                            "description": "Количество результатов, взятых из кэша."
-                        }
-                    }
-                }
-            }
-        }
+        return self.product_data.get("interfaces", {}).get("output", {})
     
     def execute_demo(self, input_data: Any) -> Dict[str, Any]:
         """Выполняет демо-анализ договора"""

@@ -1,0 +1,37 @@
+product_id: crm_automation
+name: CRM Автоматизация
+description: Умный помощник для автоматизации CRM-процессов с ИИ
+version: '1.0'
+category: automation
+status: active
+demo_data:
+  key_features:
+  - Автоматическое заполнение карточек клиентов
+  - Предиктивная аналитика продаж
+  - Интеграция с мессенджерами
+  supported_formats:
+  - CSV
+  - XLSX
+  - API
+  processing_time: мгновенно
+  accuracy: 95%
+product_info:
+  key_benefits:
+  - Экономия времени до 80%
+  - Повышение конверсии на 25%
+  - Автоматизация рутинных задач
+  target_audience:
+  - Отделы продаж
+  - Малый и средний бизнес
+  - E-commerce компании
+  use_cases:
+  - Лидогенерация
+  - Сегментация клиентов
+  - Прогнозирование продаж
+seo:
+  keywords:
+  - CRM автоматизация
+  - автоматизация продаж
+  - CRM с ИИ
+  - управление клиентами
+  - автоматизация бизнеса

@@ -3,6 +3,8 @@ from flask import Flask, render_template, send_from_directory, abort, jsonify, r
 from dotenv import load_dotenv
 import subprocess
 import io
+import threading
+import time
 
 # Импорты сервисов
 from src.backend.api.v1.contract_analyzer import contract_analyzer_bp
@@ -12,12 +14,87 @@ from src.backend.services.seo_service import SeoService
 from src.backend.services.seo_prompt_service import SeoPromptService
 from src.backend.services.parsing_service import ParsingService
 from src.backend.services.cache_service import CacheService
+from src.backend.services.llms_txt_service import LlmsTxtService
+from src.backend.services.telegram_connector import TelegramConnector
+from src.backend.services.telegram_product_generator import TelegramProductGenerator
 
 # Загрузка переменных окружения из .env файла
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Настройка логирования для отладки
 import logging
+
+
+class TelegramMonitoringThread:
+    """Класс для управления мониторингом Telegram в отдельном потоке"""
+    
+    def __init__(self, telegram_connector, telegram_generator, check_interval=300):
+        self.telegram_connector = telegram_connector
+        self.telegram_generator = telegram_generator
+        self.check_interval = check_interval  # 5 минут по умолчанию
+        self.monitoring_thread = None
+        self.stop_monitoring = False
+        self.logger = logging.getLogger(__name__)
+    
+    def start_monitoring(self):
+        """Запуск мониторинга в отдельном потоке"""
+        if self.monitoring_thread is None or not self.monitoring_thread.is_alive():
+            self.stop_monitoring = False
+            self.monitoring_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+            self.monitoring_thread.start()
+            self.logger.info("Telegram мониторинг запущен")
+    
+    def stop_monitoring_process(self):
+        """Остановка мониторинга"""
+        self.stop_monitoring = True
+        if self.monitoring_thread:
+            self.monitoring_thread.join(timeout=5)
+        self.logger.info("Telegram мониторинг остановлен")
+    
+    def _monitor_loop(self):
+        """Основной цикл мониторинга"""
+        while not self.stop_monitoring:
+            try:
+                # Получаем новые сообщения
+                messages = self.telegram_connector.get_latest_messages(limit=10)
+                
+                for message in messages:
+                    try:
+                        # Генерируем продукт из сообщения
+                        product_yaml = self.telegram_generator.generate_product_from_message(message)
+                        
+                        if product_yaml:
+                            # Сохраняем в файл
+                            filename = self._save_product_yaml(product_yaml, message.get('id'))
+                            self.logger.info(f"Создан новый продукт из Telegram: {filename}")
+                    
+                    except Exception as e:
+                        self.logger.error(f"Ошибка обработки сообщения {message.get('id')}: {str(e)}")
+                
+            except Exception as e:
+                self.logger.error(f"Ошибка в цикле мониторинга Telegram: {str(e)}")
+            
+            # Ждем до следующей проверки
+            time.sleep(self.check_interval)
+    
+    def _save_product_yaml(self, product_yaml, message_id):
+        """Сохранение YAML файла продукта"""
+        import yaml
+        import datetime
+        
+        products_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'content', 'products')
+        
+        # Генерируем уникальное имя файла
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"telegram_product_{timestamp}_{message_id}.yaml"
+        filepath = os.path.join(products_dir, filename)
+        
+        # Сохраняем файл
+        with open(filepath, 'w', encoding='utf-8') as f:
+            yaml.dump(product_yaml, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        
+        return filename
+
 
 def create_app(
     llm_service_mock=None,
@@ -67,6 +144,36 @@ def create_app(
     product_registry.register_product(news_product)
     
     app.logger.info(f"Зарегистрированы продукты: {list(product_registry.get_all_products().keys())}")
+
+    # Инициализация Telegram мониторинга (опционально)
+    telegram_monitor = None
+    if os.getenv('TELEGRAM_API_ID') and os.getenv('TELEGRAM_API_HASH') and os.getenv('ENABLE_TELEGRAM_MONITORING', 'false').lower() == 'true':
+        try:
+            telegram_connector = TelegramConnector(
+                api_id=int(os.getenv('TELEGRAM_API_ID')),
+                api_hash=os.getenv('TELEGRAM_API_HASH'),
+                phone_number=os.getenv('TELEGRAM_PHONE_NUMBER'),
+                channel_username='@aideaxondemos'
+            )
+            telegram_generator = TelegramProductGenerator(llm_service=llm_service)
+            telegram_monitor = TelegramMonitoringThread(
+                telegram_connector=telegram_connector,
+                telegram_generator=telegram_generator,
+                check_interval=int(os.getenv('TELEGRAM_CHECK_INTERVAL', '300'))  # 5 минут по умолчанию
+            )
+            
+            # Запускаем мониторинг
+            telegram_monitor.start_monitoring()
+            app.logger.info("Telegram мониторинг инициализирован и запущен")
+            
+        except Exception as e:
+            app.logger.warning(f"Не удалось запустить Telegram мониторинг: {str(e)}")
+            telegram_monitor = None
+    else:
+        app.logger.info("Telegram мониторинг отключен (не настроены переменные окружения)")
+
+    # Сохраняем мониторинг в конфигурации для возможности управления
+    app.config['TELEGRAM_MONITOR'] = telegram_monitor
 
     # Сохраняем экземпляры сервисов в конфигурации приложения, чтобы они были доступны в Blueprint
     app.config['PARSING_SERVICE'] = parsing_service
@@ -125,6 +232,41 @@ def create_app(
     @app.route('/robots.txt')
     def serve_robots_txt():
         return send_from_directory(app.static_folder, 'robots.txt', mimetype='text/plain')
+
+    @app.route('/llms.txt')
+    def serve_llms_txt():
+        """Обслуживание llms.txt файла согласно спецификации llmstxt.org"""
+        try:
+            # Определяем базовый URL для генерации ссылок
+            base_url = request.url_root.rstrip('/')
+            
+            # Создаем сервис и генерируем содержимое
+            llms_service = LlmsTxtService(base_url=base_url)
+            content = llms_service.generate_llms_txt()
+            
+            # Возвращаем как plain text
+            from flask import Response
+            return Response(content, mimetype='text/plain; charset=utf-8')
+            
+        except Exception as e:
+            app.logger.error(f"Ошибка генерации llms.txt: {str(e)}")
+            # Возвращаем базовую версию в случае ошибки
+            fallback_content = """# HababRu - B2B Платформа для Кастомных Решений
+
+> B2B-сервис, специализирующийся на разработке кастомных решений для бизнеса с демонстрационными AI-сервисами.
+
+## Документация
+
+- [Главная страница]({base_url}): Основная информация о платформе
+
+## Продукты
+
+- [Анализ договоров]({base_url}/demo/contract_analysis): Демонстрация анализа юридических документов
+- [Мониторинг новостей]({base_url}/demo/news_analysis): Пример анализа отраслевых новостей
+""".format(base_url=request.url_root.rstrip('/'))
+            
+            from flask import Response
+            return Response(fallback_content, mimetype='text/plain; charset=utf-8')
 
     # Новый маршрут для обслуживания файлов из content/seo_prompts
     @app.route('/content/seo_prompts/<path:filename>')
@@ -286,6 +428,13 @@ def create_app(
                              product_id=product_id,
                              stats={'total_pages': len(seo_pages), 'total_keywords': 0, 'avg_keywords': 0},
                              screenshots=product.get_screenshots())
+
+    # Обработчик завершения приложения для корректной остановки мониторинга
+    @app.teardown_appcontext
+    def shutdown_telegram_monitor(error):
+        telegram_monitor = app.config.get('TELEGRAM_MONITOR')
+        if telegram_monitor:
+            telegram_monitor.stop_monitoring_process()
 
     return app
 

@@ -1,0 +1,24 @@
+product_id: test_ai_tool
+name: Тестовый AI Инструмент
+description: Демонстрационный AI инструмент для автоматизации
+version: '1.0'
+category: ai
+status: active
+demo_data:
+  key_features:
+  - Обработка текста
+  - Автоматизация процессов
+  - Интеграция с API
+product_info:
+  key_benefits:
+  - Экономия времени до 40%
+  - Повышение точности
+  - Масштабируемость
+  target_audience:
+  - IT компании
+  - Стартапы
+seo:
+  keywords:
+  - AI инструмент
+  - автоматизация
+  - машинное обучение
