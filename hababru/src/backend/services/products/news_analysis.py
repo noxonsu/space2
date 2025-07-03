@@ -83,6 +83,74 @@ class NewsAnalysisProduct(BaseProduct):
                 "enterprise": "Неограниченно + API"
             }
         }
+
+    def get_input_interface_description(self) -> Dict[str, Any]:
+        """
+        Описывает ожидаемый формат входных данных для execute_demo.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Ключевое слово или фраза для поиска и анализа новостей.",
+                    "example": "внешнеэкономическая деятельность"
+                }
+            },
+            "required": ["query"]
+        }
+
+    def get_output_interface_description(self) -> Dict[str, Any]:
+        """
+        Описывает формат выходных данных из execute_demo.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Исходный запрос, по которому проводился анализ."
+                },
+                "total_news": {
+                    "type": "integer",
+                    "description": "Общее количество проанализированных новостей."
+                },
+                "news_items": {
+                    "type": "array",
+                    "description": "Список проанализированных новостных статей.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "Заголовок новости."},
+                            "content": {"type": "string", "description": "Содержание новости."},
+                            "source": {"type": "string", "description": "Источник новости."},
+                            "published_at": {"type": "string", "description": "Дата публикации новости в формате ISO 8601."},
+                            "url": {"type": "string", "description": "URL новости."},
+                            "analysis": {"type": "string", "description": "Результат ИИ-анализа новости (тональность, влияние, ключевые моменты)."}
+                        }
+                    }
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Сводный анализ по всем новостям, включая общие тренды и рекомендации.",
+                    "example": "Общий тренд положительный..."
+                },
+                "trends": {
+                    "type": "array",
+                    "description": "Список выявленных трендов.",
+                    "items": {"type": "string"}
+                },
+                "sentiment": {
+                    "type": "object",
+                    "description": "Общая тональность новостей (позитивная, нейтральная, негативная).",
+                    "properties": {
+                        "positive": {"type": "number", "format": "float", "description": "Доля позитивных новостей."},
+                        "neutral": {"type": "number", "format": "float", "description": "Доля нейтральных новостей."},
+                        "negative": {"type": "number", "format": "float", "description": "Доля негативных новостей."}
+                    }
+                }
+            }
+        }
     
     def execute_demo(self, input_data: Any) -> Dict[str, Any]:
         """Выполняет демо-анализ новостей"""

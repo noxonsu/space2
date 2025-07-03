@@ -79,6 +79,72 @@ class ContractAnalysisProduct(BaseProduct):
                 "enterprise": "Корпоративные решения"
             }
         }
+
+    def get_input_interface_description(self) -> Dict[str, Any]:
+        """
+        Описывает ожидаемый формат входных данных для execute_demo.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "contract_text": {
+                    "type": "string",
+                    "description": "Полный текст юридического договора для анализа.",
+                    "example": "Договор аренды нежилого помещения..."
+                }
+            },
+            "required": ["contract_text"]
+        }
+
+    def get_output_interface_description(self) -> Dict[str, Any]:
+        """
+        Описывает формат выходных данных из execute_demo.
+        """
+        return {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "Краткое резюме результатов анализа договора.",
+                    "example": "Анализ договора завершен"
+                },
+                "paragraphs": {
+                    "type": "array",
+                    "description": "Список проанализированных абзацев договора.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "original_paragraph": {
+                                "type": "string",
+                                "description": "Исходный текст абзаца."
+                            },
+                            "analysis": {
+                                "type": "string",
+                                "description": "HTML-представление анализа данного абзаца, включая выявленные риски и рекомендации."
+                            }
+                        }
+                    }
+                },
+                "stats": {
+                    "type": "object",
+                    "description": "Статистика по анализу.",
+                    "properties": {
+                        "total_paragraphs": {
+                            "type": "integer",
+                            "description": "Общее количество абзацев в договоре."
+                        },
+                        "analyzed_paragraphs": {
+                            "type": "integer",
+                            "description": "Количество проанализированных абзацев."
+                        },
+                        "cached_results": {
+                            "type": "integer",
+                            "description": "Количество результатов, взятых из кэша."
+                        }
+                    }
+                }
+            }
+        }
     
     def execute_demo(self, input_data: Any) -> Dict[str, Any]:
         """Выполняет демо-анализ договора"""

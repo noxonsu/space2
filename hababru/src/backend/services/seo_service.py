@@ -82,14 +82,14 @@ class SeoService:
                 
                 # Используем кеш для результатов демо-анализа новостей
                 cache_key = f"news_analysis_demo_{slug}"
-                demo_results = self.cache_service.get(cache_key)
+                demo_results = self.cache_service.get_seo_cached_analysis(cache_key)
                 
                 if not demo_results:
                     if logger:
                         logger.info(f"SeoService: Демо-результаты для '{slug}' не найдены в кеше, выполняем запрос.")
                     demo_results = product.execute_demo({'query': sample_query})
                     # Кешируем результат на 1 час
-                    self.cache_service.set(cache_key, demo_results, timeout=3600)
+                    self.cache_service.save_seo_analysis_to_cache(cache_key, demo_results) # timeout is not supported by save_seo_analysis_to_cache
                 else:
                     if logger:
                         logger.info(f"SeoService: Демо-результаты для '{slug}' загружены из кеша.")
