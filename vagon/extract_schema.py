@@ -150,7 +150,7 @@ def get_database_schema(database_name):
 
 def main():
     """Главная функция для извлечения схем всех баз данных"""
-    databases = ['GRNG', 'GRMU', 'OperativeReport']
+    databases = ['GRNG/GRMU', 'OperativeReport']
     
     all_schemas = []
     all_schemas.append("-- =====================================")
@@ -170,7 +170,7 @@ def main():
         all_schemas.append(schema)
     
     # Записываем схему в файл
-    with open('/workspaces/aeroclub_repo/vagon/db_shema.sql', 'w', encoding='utf-8') as f:
+    with open('vagon/db_shema.sql', 'w', encoding='utf-8') as f:
         f.write("\n".join(all_schemas))
     
     print("Схема базы данных сохранена в файл db_shema.sql")

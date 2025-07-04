@@ -1,2 +1,3 @@
 *.sql
-.env 
+.env
+llm_prompt_template.txt
