@@ -5,6 +5,7 @@
 import os
 import re
 import yaml
+import json
 import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -351,23 +352,21 @@ demo_examples:
             product_id существующего продукта если найден дубль, иначе None
         """
         try:
-            # Получаем текст сообщения и нормализуем его
-            message_text = self._normalize_text(message.text)
-            
-            # Проверяем существующие продукты
+            # Получаем существующие продукты
             existing_products = self._get_existing_products_with_data()
             
+            if not existing_products:
+                return None
+
             for product_id, product_data in existing_products.items():
                 # Формируем полный текст продукта из всех текстовых полей YAML
                 product_full_text = self._extract_all_text_from_product(product_data)
-                product_normalized = self._normalize_text(product_full_text)
                 
-                # Рассчитываем семантическое сходство
-                similarity_score = self._calculate_text_similarity(message_text, product_normalized)
+                # Используем LLM для семантического сравнения
+                is_duplicate = self._llm_semantic_comparison(message.text, product_full_text, product_id)
                 
-                # Если сходство превышает порог, считаем дублем
-                if similarity_score >= 0.6:  # 60% сходства
-                    self.logger.info(f"Найден семантический дубль: {product_id} (сходство: {similarity_score:.2f})")
+                if is_duplicate:
+                    self.logger.info(f"LLM обнаружил семантический дубль: {product_id} для сообщения {message.message_id}")
                     return product_id
             
             return None
@@ -393,6 +392,78 @@ demo_examples:
                 self.logger.error(f"Ошибка чтения продукта {file_path}: {e}")
         
         return products
+
+    def _extract_all_text_from_product(self, data: Any) -> str:
+        """
+        Рекурсивно извлекает весь текст из данных продукта (dict, list, str).
+        """
+        texts = []
+        if isinstance(data, dict):
+            for key, value in data.items():
+                # Игнорируем заведомо нерелевантные для семантики поля
+                if key in ['product_id', 'version', 'status', 'demo_available', 'screenshots', 'type', 'required', 'processing_time', 'accuracy']:
+                    continue
+                texts.append(self._extract_all_text_from_product(value))
+        elif isinstance(data, list):
+            for item in data:
+                texts.append(self._extract_all_text_from_product(item))
+        elif isinstance(data, str):
+            texts.append(data)
+        
+        return " ".join(filter(None, texts))
+
+    def _llm_semantic_comparison(self, text1: str, text2: str, product_id_for_logging: str) -> bool:
+        """
+        Использует LLM для семантического сравнения двух текстов.
+        """
+        prompt = f"""
+ЗАДАЧА: Определи, являются ли два текста семантически эквивалентными.
+Оцени, описывают ли они один и тот же продукт или идею, даже если использованы разные слова.
+
+Текст 1 (из нового сообщения в Telegram):
+---
+{text1}
+---
+
+Текст 2 (из существующего продукта "{product_id_for_logging}"):
+---
+{text2}
+---
+
+Проанализируй оба текста и дай ответ в формате JSON.
+
+- Если тексты описывают один и тот же продукт или идею, верни:
+  {{"is_duplicate": true, "reason": "краткое объяснение, почему это дубликат"}}
+
+- Если тексты описывают разные продукты, верни:
+  {{"is_duplicate": false, "reason": "краткое объяснение, почему это не дубликат"}}
+"""
+        try:
+            response_text = self.llm_service.generate_text(prompt)
+            if not response_text:
+                self.logger.warning("LLM не вернул ответ для семантического сравнения.")
+                return False
+
+            # Извлекаем JSON из ответа
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if not json_match:
+                self.logger.warning(f"Не удалось найти JSON в ответе LLM для сравнения: {response_text}")
+                # В случае неясного ответа, считаем что не дубликат, чтобы не блокировать генерацию
+                return False
+            
+            result = json.loads(json_match.group(0))
+            is_duplicate = result.get("is_duplicate", False)
+            
+            self.logger.info(f"Результат сравнения для '{product_id_for_logging}': is_duplicate={is_duplicate}, причина: {result.get('reason')}")
+
+            return is_duplicate
+
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Ошибка декодирования JSON из ответа LLM: {e}. Ответ: {response_text}")
+            return False # Не дубликат, если не можем распарсить
+        except Exception as e:
+            self.logger.error(f"Ошибка при семантическом сравнении LLM: {e}")
+            return False # Не дубликат в случае ошибки
 
     def process_batch_messages(self, messages: List[TelegramMessage]) -> Dict[str, Any]:
         """
@@ -446,8 +517,23 @@ demo_examples:
         try:
             self.logger.info("Начинаем обработку всех исторических сообщений")
             
-            # Получаем все сообщения из канала (большой лимит)
-            all_messages = telegram_connector.fetch_recent_messages(limit=1000)
+            # Получаем все сообщения из канала (большой лимит) через асинхронный вызов
+            import asyncio
+            
+            async def fetch_messages_async():
+                return await telegram_connector.fetch_all_messages()
+            
+            # Проверяем, есть ли активный цикл событий
+            try:
+                loop = asyncio.get_running_loop()
+                # Если цикл уже запущен, создаем новый
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, fetch_messages_async())
+                    all_messages = future.result()
+            except RuntimeError:
+                # Если цикла нет, создаем новый
+                all_messages = asyncio.run(fetch_messages_async())
             
             if not all_messages:
                 return {
@@ -597,103 +683,88 @@ demo_examples:
         return text
     
     def _extract_all_text_from_product(self, product_data: Dict[str, Any]) -> str:
-        """Извлекает весь текстовый контент из данных продукта"""
-        text_parts = []
+        """
+        Извлекает весь текстовый контент из YAML-данных продукта
         
-        # Основные поля
-        text_parts.append(product_data.get("name", ""))
-        text_parts.append(product_data.get("description", ""))
-        text_parts.append(product_data.get("category", ""))
-        
-        # Демо-данные
-        demo_data = product_data.get("demo_data", {})
-        if isinstance(demo_data, dict):
-            for key, value in demo_data.items():
-                if isinstance(value, list):
-                    text_parts.extend([str(item) for item in value])
-                elif isinstance(value, str):
-                    text_parts.append(value)
-        
-        # Информация о продукте
-        product_info = product_data.get("product_info", {})
-        if isinstance(product_info, dict):
-            for key, value in product_info.items():
-                if isinstance(value, list):
-                    text_parts.extend([str(item) for item in value])
-                elif isinstance(value, str):
-                    text_parts.append(value)
-                elif isinstance(value, dict):
-                    # Для вложенных объектов типа pricing
-                    for nested_key, nested_value in value.items():
-                        if isinstance(nested_value, str):
-                            text_parts.append(nested_value)
-        
-        # SEO данные
-        seo_data = product_data.get("seo", {})
-        if isinstance(seo_data, dict):
-            # Keywords
-            keywords = seo_data.get("keywords", [])
-            if isinstance(keywords, list):
-                text_parts.extend([str(keyword) for keyword in keywords])
+        Args:
+            product_data: Словарь с данными продукта
             
-            # Demo content
-            demo_content = seo_data.get("demo_content", {})
-            if isinstance(demo_content, dict):
-                for key, value in demo_content.items():
-                    if isinstance(value, list):
-                        text_parts.extend([str(item) for item in value])
-                    elif isinstance(value, str):
-                        text_parts.append(value)
+        Returns:
+            Объединенный текст всех текстовых полей продукта
+        """
+        def extract_text_recursive(obj, texts):
+            """Рекурсивно извлекает все строковые значения"""
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    if key not in ['product_id', 'version', 'status']:  # Исключаем технические поля
+                        extract_text_recursive(value, texts)
+            elif isinstance(obj, list):
+                for item in obj:
+                    extract_text_recursive(item, texts)
+            elif isinstance(obj, str) and obj.strip():
+                texts.append(obj.strip())
         
-        # Интерфейсы
-        interfaces = product_data.get("interfaces", {})
-        if isinstance(interfaces, dict):
-            for interface_type, interface_data in interfaces.items():
-                if isinstance(interface_data, dict):
-                    # Извлекаем описания и примеры
-                    properties = interface_data.get("properties", {})
-                    if isinstance(properties, dict):
-                        for prop_name, prop_data in properties.items():
-                            if isinstance(prop_data, dict):
-                                text_parts.append(prop_data.get("description", ""))
-                                text_parts.append(prop_data.get("example", ""))
+        all_texts = []
+        extract_text_recursive(product_data, all_texts)
         
-        # Объединяем все части
-        full_text = " ".join(text_parts)
-        return full_text
+        # Объединяем все тексты с разделителями
+        combined_text = " | ".join(all_texts)
+        
+        return combined_text
     
-    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+    def _llm_semantic_comparison(self, new_text: str, existing_text: str, product_id: str) -> bool:
         """
-        Вычисляет семантическое сходство между двумя текстами
-        Используем простую метрику на основе общих слов (Jaccard similarity)
+        Использует LLM для семантического сравнения двух текстов
+        
+        Args:
+            new_text: Новый текст из Telegram сообщения
+            existing_text: Существующий текст продукта
+            product_id: ID существующего продукта для контекста
+            
+        Returns:
+            True если тексты семантически похожи, False иначе
         """
-        if not text1 or not text2:
-            return 0.0
-        
-        # Разбиваем тексты на слова
-        words1 = set(text1.split())
-        words2 = set(text2.split())
-        
-        # Удаляем стоп-слова
-        stop_words = {
-            "и", "в", "на", "с", "для", "от", "по", "до", "из", "к", "о", "об", "при", "про", 
-            "через", "над", "под", "между", "а", "но", "или", "что", "как", "это", "то", "если",
-            "так", "уже", "еще", "очень", "где", "когда", "потом", "здесь", "там", "все", "весь"
-        }
-        
-        # Фильтруем короткие слова и стоп-слова
-        words1 = {word for word in words1 if len(word) > 2 and word not in stop_words}
-        words2 = {word for word in words2 if len(word) > 2 and word not in stop_words}
-        
-        # Если один из наборов пустой, сходство равно 0
-        if not words1 or not words2:
-            return 0.0
-        
-        # Вычисляем пересечение и объединение
-        intersection = words1.intersection(words2)
-        union = words1.union(words2)
-        
-        # Jaccard similarity = |intersection| / |union|
-        similarity = len(intersection) / len(union)
-        
-        return similarity
+        try:
+            prompt = f"""
+Твоя задача - определить, описывают ли два текста один и тот же или очень похожий продукт/сервис.
+
+НОВЫЙ ТЕКСТ (из Telegram):
+"{new_text}"
+
+СУЩЕСТВУЮЩИЙ ПРОДУКТ (ID: {product_id}):
+"{existing_text}"
+
+Критерии для определения дубликата:
+1. Оба текста описывают продукты одной сферы деятельности
+2. Основные функции и возможности совпадают
+3. Целевая аудитория похожа
+4. Решаемые задачи идентичны
+
+ВАЖНО: Продукты считаются дублями, только если они решают ОДИНАКОВЫЕ задачи в ОДНОЙ сфере.
+Например:
+- "Анализ договоров" и "Проверка контрактов" = ДУБЛЬ
+- "Мониторинг новостей" и "Анализ медиа" = ДУБЛЬ  
+- "CRM автоматизация" и "Анализ договоров" = НЕ ДУБЛЬ (разные сферы)
+
+Ответь только "ДА" если это дубликат, или "НЕТ" если это разные продукты.
+"""
+            
+            response = self.llm_service.generate_text(prompt)
+            
+            if not response:
+                self.logger.warning(f"LLM не вернул ответ для сравнения с {product_id}")
+                return False
+            
+            # Нормализуем ответ
+            response_normalized = response.strip().upper()
+            
+            # Проверяем ответ
+            is_duplicate = "ДА" in response_normalized or "YES" in response_normalized
+            
+            self.logger.debug(f"LLM сравнение с {product_id}: '{response.strip()}' -> {is_duplicate}")
+            
+            return is_duplicate
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка LLM сравнения с {product_id}: {e}")
+            return False

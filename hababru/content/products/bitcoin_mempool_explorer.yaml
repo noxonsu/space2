@@ -1,0 +1,80 @@
+product_id: bitcoin_mempool_explorer
+name: Bitcoin Mempool Explorer
+description: Инструмент для мониторинга mempool Bitcoin с фул нодой и ElectrumX, обеспечивающий
+  работу в условиях файрвола.
+version: '1.0'
+category: analytics
+demo_data:
+  key_features:
+  - Мониторинг mempool Bitcoin в реальном времени
+  - Работа с фул нодой и ElectrumX
+  - Обеспечение работы через файрвол с настройками исходников
+  supported_formats:
+  - JSON
+  - CSV
+  processing_time: Несколько секунд для обновления данных
+  accuracy: Высокая точность данных о транзакциях
+product_info:
+  key_benefits:
+  - Обеспечивает прозрачность и контроль за транзакциями в mempool Bitcoin
+  - Позволяет управлять подключением к бэкенду через настройки исходников
+  - Гибко настраивается для работы в защищенной сети с файрволом
+  target_audience:
+  - Блокчейн-аналитики
+  - Разработчики криптовалютных сервисов
+  - Инженеры по обеспечению безопасности и инфраструктуре
+  use_cases:
+  - Мониторинг состояния транзакций в mempool Bitcoin
+  - Настройка explorer для работы за файрволом
+  - Интеграция с существующими криптоэксплорерами
+  demo_available: true
+  screenshots: []
+  pricing:
+    basic: Базовая версия с ограниченными функциями
+    professional: Расширенные возможности для профессиональных команд
+    enterprise: Полная интеграция и поддержка для корпоративных клиентов
+interfaces:
+  input:
+    type: object
+    properties:
+      command:
+        type: string
+        description: Команда или запрос для получения данных
+        example: Получить текущие транзакции из mempool
+    required:
+    - command
+  output:
+    type: object
+    properties:
+      data:
+        type: string
+        description: Результат выполнения запроса или данных
+        example: Список транзакций в mempool
+seo:
+  keywords:
+  - Bitcoin
+  - mempool
+  - Bitcoin explorer
+  - фул нода
+  - ElectrumX
+  - криптоанализ
+  - биткоин мониторинг
+  - Blockchain
+  - транзакции Bitcoin
+  - крипторазработка
+  - cryptocurrency
+  - blockchain analytics
+  - мемпул Bitcoin
+  - работа через файрвол
+  - криптоинфраструктура
+  demo_content:
+    demo_queries:
+    - Показать текущие транзакции в mempool
+    - Обновить данные с учетом новых транзакций
+    sample_results:
+      metric1: 'Количество транзакций: 150'
+      metric2: 'Объем транзакций: 2.3 MB'
+demo_examples:
+  sample_data:
+  - example: Запрос текущего состояния mempool
+    result: 'Транзакции: 150, Объем: 2.3 MB'

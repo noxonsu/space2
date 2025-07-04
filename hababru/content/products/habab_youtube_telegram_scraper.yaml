@@ -1,0 +1,81 @@
+product_id: habab_youtube_telegram_scraper
+name: YouTube-Тelegram Аккаунт Система
+description: Автоматизированная система поиска Telegram аккаунтов админов каналов
+  на основе данных с YouTube API для холодных продаж.
+version: '1.0'
+category: automation
+demo_data:
+  key_features:
+  - Автоматический поиск каналов по ключевым словам через YouTube API
+  - Отбор каналов по количеству подписчиков и длительности контента
+  - Извлечение ссылок Telegram из описаний каналов и запись в таблицу
+  supported_formats:
+  - CSV
+  - Excel
+  processing_time: До 1 минуты на запрос
+  accuracy: 85%
+product_info:
+  key_benefits:
+  - Обеспечивает автоматический сбор контактов для холодных продаж, сокращая ручной
+    труд на 80%
+  - Позволяет быстро находить актуальные Telegram аккаунты админов каналов, связанных
+    с популярными YouTube каналами
+  - Интегрируется с YouTube API для автоматического поиска и фильтрации каналов по
+    метрикам
+  target_audience:
+  - Маркетологи и продавцы B2B, работающие с каналами YouTube и Telegram
+  - Агентства по продаже рекламы и SMM-агенты
+  - Команды холодных продаж, ищущие автоматизированные инструменты поиска контактов
+  use_cases:
+  - Автоматический сбор контактов для холодных продаж каналов YouTube
+  - Аналитика каналов по подписчикам и контенту для целевой сегментации
+  - Оптимизация процесса поиска и контактирования админов каналов
+  demo_available: true
+  screenshots: []
+  pricing:
+    basic: Доступ к базовой функции поиска с лимитом запросов
+    professional: Расширенные возможности поиска и выгрузки данных
+    enterprise: Индивидуальные настройки и интеграции для крупных команд
+interfaces:
+  input:
+    type: object
+    properties:
+      keyword:
+        type: string
+        description: Ключевое слово для поиска каналов
+        example: техника обзоры
+    required:
+    - keyword
+  output:
+    type: object
+    properties:
+      telegram_links:
+        type: array
+        description: Массив ссылок Telegram аккаунтов, найденных по запросу
+        items:
+          type: string
+        example:
+        - https://t.me/examplechannel
+seo:
+  keywords:
+  - поиск Telegram каналов
+  - поиск админов каналов YouTube
+  - автоматический сбор контактов
+  - поиск по ключевым словам
+  - YouTube API интеграция
+  - поиск Telegram по YouTube
+  - автоматизация продаж
+  - холодные контакты
+  - автоматический сбор данных
+  - поиск Telegram аккаунтов
+  demo_content:
+    demo_queries:
+    - техника обзоры
+    - игровые каналы
+    sample_results:
+      metric1: 'Количество найденных каналов: 50'
+      metric2: 'Средняя релевантность: 88%'
+demo_examples:
+  sample_data:
+  - example: 'ключевое слово: ''техника обзоры'''
+    result: список Telegram ссылок каналов, соответствующих запросу

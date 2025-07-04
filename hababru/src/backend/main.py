@@ -349,6 +349,12 @@ def create_app(
         app.logger.info("Запрос к главной странице админки.")
         return render_template('admin/dashboard.html')
 
+    # Админка - генерация продуктов
+    @app.route('/admin/generate-products')
+    def admin_generate_products():
+        app.logger.info("Запрос к странице генерации продуктов.")
+        return render_template('admin/generate_products.html')
+
     # Админка - список SEO-страниц
     @app.route('/admin/seo-pages')
     def admin_seo_pages():
@@ -428,6 +434,133 @@ def create_app(
                              product_id=product_id,
                              stats={'total_pages': len(seo_pages), 'total_keywords': 0, 'avg_keywords': 0},
                              screenshots=product.get_screenshots())
+
+    # API для генерации тестовых продуктов
+    @app.route('/api/generate-test-products', methods=['POST'])
+    def generate_test_products():
+        """Генерация тестовых продуктов для демонстрации функциональности"""
+        try:
+            app.logger.info("Начинаем генерацию тестовых продуктов")
+            
+            # Создаем генератор продуктов
+            product_generator = TelegramProductGenerator(llm_service=llm_service)
+            
+            # Тестовые данные для генерации продуктов
+            test_products_data = [
+                {
+                    "name": "CRM Автоматизация",
+                    "description": "Умный помощник для автоматизации CRM-процессов с искусственным интеллектом",
+                    "category": "automation",
+                    "text": "Революционная CRM-автоматизация с ИИ для малого и среднего бизнеса. Автоматически обрабатывает клиентские запросы, ведет базу данных, создает отчеты и предлагает следующие шаги для увеличения продаж."
+                },
+                {
+                    "name": "Анализ финансовых отчетов",
+                    "description": "Автоматический анализ финансовых документов и отчетов с помощью ИИ",
+                    "category": "finance", 
+                    "text": "Мощный инструмент для анализа финансовых отчетов. Обрабатывает балансы, P&L, cash flow отчеты. Выявляет риски, тренды и дает рекомендации по улучшению финансового состояния компании."
+                },
+                {
+                    "name": "Маркетинговый ИИ-помощник",
+                    "description": "Генерация контента и анализ маркетинговых кампаний с помощью ИИ",
+                    "category": "marketing",
+                    "text": "Комплексное решение для маркетинга: генерация текстов для социальных сетей, анализ конкурентов, создание рекламных кампаний, A/B тестирование и оптимизация конверсий."
+                }
+            ]
+            
+            results = {
+                "success": True,
+                "generated_products": [],
+                "errors": []
+            }
+            
+            # Генерируем продукты
+            for product_data in test_products_data:
+                try:
+                    # Создаем фейковое сообщение для тестирования
+                    from src.backend.services.telegram_connector import TelegramMessage
+                    from datetime import datetime
+                    
+                    test_message = TelegramMessage(
+                        message_id=f"test_{product_data['name'].lower().replace(' ', '_')}",
+                        date=datetime.now(),
+                        text=product_data['text'],
+                        media_files=[]
+                    )
+                    
+                    # Генерируем продукт
+                    result = product_generator.generate_product_from_message(test_message)
+                    
+                    if result["success"]:
+                        results["generated_products"].append({
+                            "product_id": result["product_id"],
+                            "product_name": result["product_name"],
+                            "file_path": result["file_path"]
+                        })
+                        app.logger.info(f"Успешно создан продукт: {result['product_id']}")
+                    else:
+                        results["errors"].append({
+                            "product_name": product_data["name"],
+                            "error": result["error"]
+                        })
+                        app.logger.error(f"Ошибка создания продукта {product_data['name']}: {result['error']}")
+                        
+                except Exception as e:
+                    results["errors"].append({
+                        "product_name": product_data["name"],
+                        "error": str(e)
+                    })
+                    app.logger.error(f"Исключение при создании продукта {product_data['name']}: {e}")
+            
+            # Обновляем llms.txt после генерации
+            try:
+                base_url = request.url_root.rstrip('/')
+                llms_service = LlmsTxtService(base_url=base_url)
+                llms_content = llms_service.generate_llms_txt()
+                app.logger.info("llms.txt успешно обновлен")
+            except Exception as e:
+                app.logger.error(f"Ошибка обновления llms.txt: {e}")
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            app.logger.error(f"Общая ошибка генерации продуктов: {e}")
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+    # API для получения списка продуктов
+    @app.route('/api/products/list')
+    def get_products_list():
+        """Получение списка всех продуктов"""
+        try:
+            from src.backend.services.product_data_loader import ProductDataLoader
+            
+            loader = ProductDataLoader()
+            products = loader.get_all_products()
+            
+            products_list = []
+            for product_id, product_data in products.items():
+                products_list.append({
+                    "product_id": product_id,
+                    "name": product_data.get("name", "Без названия"),
+                    "description": product_data.get("description", "Без описания"),
+                    "category": product_data.get("category", "other"),
+                    "status": product_data.get("status", "active")
+                })
+            
+            return jsonify({
+                "success": True,
+                "products": products_list,
+                "total": len(products_list)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"Ошибка получения списка продуктов: {e}")
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
 
     # Обработчик завершения приложения для корректной остановки мониторинга
     @app.teardown_appcontext

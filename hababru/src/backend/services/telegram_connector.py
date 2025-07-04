@@ -2,172 +2,233 @@
 Коннектор для работы с Telegram API и получения сообщений из канала
 """
 
-import requests
 import logging
-import time
+import asyncio
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from pyrogram import Client, enums
+from pyrogram.errors import SessionPasswordNeeded, PhoneCodeExpired, FloodWait, AuthKeyUnregistered
+
 from .telegram_product_generator import TelegramMessage
 
 
 class TelegramConnector:
-    """Коннектор для работы с Telegram Bot API"""
-    
-    def __init__(self, bot_token: str, channel_username: str):
+    """Коннектор для работы с Telegram MTProto API (пользовательский аккаунт)"""
+
+    def __init__(self, api_id: str, api_hash: str, phone_number: str, session_string: Optional[str] = None, channel_username: str = '@aideaxondemos'):
         """
         Инициализация коннектора
         
         Args:
-            bot_token: Токен Telegram бота
+            api_id: Telegram API ID
+            api_hash: Telegram API Hash
+            phone_number: Номер телефона для авторизации (с кодом страны)
+            session_string: Строка сессии Pyrogram (для повторного использования)
             channel_username: Имя канала (например, @aideaxondemos)
         """
-        self.bot_token = bot_token
+        self.api_id = int(api_id)
+        self.api_hash = api_hash
+        self.phone_number = phone_number
+        self.session_string = session_string
         self.channel_username = channel_username.lstrip('@')
-        self.api_base_url = f"https://api.telegram.org/bot{bot_token}"
         self.logger = logging.getLogger(__name__)
-        
+        self.client: Optional[Client] = None
+        self.channel_id: Optional[int] = None
+
         # Для хранения последнего обработанного сообщения
         self.last_message_id = 0
-    
-    def fetch_recent_messages(self, limit: int = 10, offset: int = 0) -> List[TelegramMessage]:
+
+    async def _initialize_client(self):
+        """Инициализирует Pyrogram клиент"""
+        if self.client is None:
+            self.client = Client(
+                name="hababru_session",
+                api_id=self.api_id,
+                api_hash=self.api_hash,
+                phone_number=self.phone_number,
+                session_string=self.session_string,
+                workdir="." # Рабочая директория для файлов сессии
+            )
+            self.logger.info("Pyrogram Client initialized.")
+        else:
+            self.logger.info("Pyrogram Client already initialized.")
+
+    async def test_connection(self) -> bool:
+        """
+        Тестирует соединение с Telegram API и авторизуется при необходимости.
+        
+        Returns:
+            True если соединение работает и авторизация успешна
+        """
+        await self._initialize_client()
+        try:
+            self.logger.info("Попытка запуска Pyrogram клиента...")
+            await self.client.start()
+            self.logger.info("✓ Pyrogram клиент запущен.")
+
+            # Если сессия новая, получаем и сохраняем session_string
+            if not self.session_string:
+                new_session_string = await self.client.export_session_string()
+                self.session_string = new_session_string
+                self.logger.info(f"Новая строка сессии получена. Сохраните ее в .env: TELEGRAM_SESSION_STRING='{new_session_string}'")
+            
+            # Получаем информацию о себе
+            me = await self.client.get_me()
+            self.logger.info(f"Авторизован как: {me.first_name} (@{me.username})")
+
+            # Получаем ID канала
+            try:
+                chat = await self.client.get_chat(self.channel_username)
+                self.channel_id = chat.id
+                self.logger.info(f"ID канала '{self.channel_username}': {self.channel_id}")
+            except Exception as e:
+                self.logger.error(f"Не удалось получить информацию о канале '{self.channel_username}': {e}")
+                return False
+
+            return True
+        except SessionPasswordNeeded:
+            self.logger.error("Требуется двухфакторная аутентификация. Пожалуйста, введите пароль.")
+            # Здесь можно добавить логику для запроса пароля у пользователя
+            return False
+        except PhoneCodeExpired:
+            self.logger.error("Код подтверждения истек. Пожалуйста, перезапустите скрипт для получения нового кода.")
+            return False
+        except FloodWait as e:
+            self.logger.error(f"Слишком много запросов к Telegram API. Пожалуйста, подождите {e.value} секунд.")
+            await asyncio.sleep(e.value + 5) # Ждем немного дольше
+            return False
+        except AuthKeyUnregistered:
+            self.logger.error("Ключ авторизации недействителен. Возможно, сессия была отозвана или удалена. Пожалуйста, удалите TELEGRAM_SESSION_STRING из .env и перезапустите.")
+            return False
+        except Exception as e:
+            self.logger.error(f"Ошибка тестирования соединения: {e}")
+            return False
+        # НЕ закрываем клиент здесь
+
+    async def fetch_recent_messages(self, limit: int = 10, offset: int = 0) -> List[TelegramMessage]:
         """
         Получает последние сообщения из канала
         
         Args:
             limit: Максимальное количество сообщений
-            offset: Смещение для пагинации
+            offset: Смещение для пагинации (в Pyrogram это skip)
             
         Returns:
             Список объектов TelegramMessage
         """
-        try:
-            # Получаем информацию о канале
-            chat_info = self._get_chat_info()
-            if not chat_info:
-                self.logger.error("Не удалось получить информацию о канале")
+        if self.client is None or not self.client.is_connected:
+            await self._initialize_client()
+            await self.client.start()
+            self.logger.info("Pyrogram клиент запущен для получения сообщений.")
+
+        if self.channel_id is None:
+            try:
+                chat = await self.client.get_chat(self.channel_username)
+                self.channel_id = chat.id
+            except Exception as e:
+                self.logger.error(f"Не удалось получить ID канала '{self.channel_username}': {e}")
                 return []
+
+        telegram_messages = []
+        try:
+            # Pyrogram не имеет прямого "offset" для get_chat_history,
+            # но можно использовать offset_id или просто итерировать
+            # Для "всей истории" лучше использовать iter_messages
             
-            chat_id = chat_info['id']
+            # Если offset используется как количество пропущенных сообщений
+            # то нужно итерировать и пропускать
             
-            # Получаем сообщения из канала
-            messages = self._get_chat_history(chat_id, limit, offset)
+            # Для простоты, если нужен offset, будем использовать get_messages с offset
+            # Если offset не 0, то это не "последние N", а "N сообщений после offset"
+            # Для массовой генерации лучше использовать iter_messages без offset
             
-            # Конвертируем в объекты TelegramMessage
-            telegram_messages = []
-            for msg_data in messages:
-                message = self._convert_to_telegram_message(msg_data)
-                if message:
-                    telegram_messages.append(message)
+            if offset > 0:
+                # Если нужен конкретный offset, то это сложнее с iter_messages
+                # Проще получить все и обрезать, или использовать offset_id
+                # Для данной задачи, где нужно "всю историю", будем использовать iter_messages
+                self.logger.warning("Параметр 'offset' не поддерживается напрямую для 'fetch_recent_messages' в Pyrogram. Будут получены последние сообщения.")
             
-            self.logger.info(f"Получено {len(telegram_messages)} сообщений из канала")
+            count = 0
+            async for message in self.client.get_chat_history(self.channel_id, limit=limit):
+                if message.text or message.caption: # Только сообщения с текстом или подписью
+                    msg = self._convert_to_telegram_message(message)
+                    if msg:
+                        telegram_messages.append(msg)
+                        count += 1
+                        if count >= limit:
+                            break
+            
+            self.logger.info(f"Получено {len(telegram_messages)} сообщений из канала '{self.channel_username}'")
             return telegram_messages
             
+        except FloodWait as e:
+            self.logger.warning(f"Слишком много запросов к Telegram API. Ожидание {e.value} секунд.")
+            await asyncio.sleep(e.value + 5)
+            return await self.fetch_recent_messages(limit, offset) # Повторная попытка
         except Exception as e:
-            self.logger.error(f"Ошибка получения сообщений: {e}")
+            self.logger.error(f"Ошибка получения сообщений из канала '{self.channel_username}': {e}")
             return []
-    
-    def fetch_new_messages_since_last(self) -> List[TelegramMessage]:
+        finally:
+            if self.client and self.client.is_connected:
+                await self.client.stop()
+                self.logger.info("Pyrogram клиент остановлен после получения сообщений.")
+
+    async def fetch_all_messages(self) -> List[TelegramMessage]:
         """
-        Получает новые сообщения с момента последней проверки
-        
-        Returns:
-            Список новых TelegramMessage
+        Получает все сообщения из канала.
+        Используется для массовой генерации.
         """
-        messages = self.fetch_recent_messages(limit=50)
-        
-        # Фильтруем только новые сообщения
-        new_messages = []
-        for message in messages:
-            if message.message_id > self.last_message_id:
-                new_messages.append(message)
-        
-        # Обновляем ID последнего сообщения
-        if new_messages:
-            self.last_message_id = max(msg.message_id for msg in new_messages)
-        
-        return new_messages
-    
-    def _get_chat_info(self) -> Optional[Dict[str, Any]]:
-        """Получает информацию о канале"""
-        try:
-            url = f"{self.api_base_url}/getChat"
-            params = {"chat_id": f"@{self.channel_username}"}
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            if data.get("ok"):
-                return data["result"]
-            else:
-                self.logger.error(f"Ошибка API Telegram: {data}")
-                return None
-                
-        except requests.RequestException as e:
-            self.logger.error(f"Ошибка HTTP запроса к Telegram API: {e}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Ошибка получения информации о канале: {e}")
-            return None
-    
-    def _get_chat_history(self, chat_id: int, limit: int, offset: int) -> List[Dict[str, Any]]:
-        """
-        Получает историю сообщений канала
-        
-        Примечание: Для публичных каналов Telegram Bot API имеет ограничения.
-        В реальной ситуации может потребоваться использование MTProto API или webhook.
-        """
-        try:
-            # Для демонстрации используем getUpdates с offset
-            # В продакшене лучше использовать webhook или MTProto
-            url = f"{self.api_base_url}/getUpdates"
-            params = {
-                "offset": offset,
-                "limit": limit,
-                "timeout": 10
-            }
-            
-            response = requests.get(url, params=params, timeout=15)
-            response.raise_for_status()
-            
-            data = response.json()
-            if data.get("ok"):
-                # Фильтруем только сообщения из нужного канала
-                channel_messages = []
-                for update in data["result"]:
-                    if "channel_post" in update:
-                        msg = update["channel_post"]
-                        if msg.get("chat", {}).get("username") == self.channel_username:
-                            channel_messages.append(msg)
-                
-                return channel_messages
-            else:
-                self.logger.error(f"Ошибка API при получении истории: {data}")
+        if self.client is None or not self.client.is_connected:
+            await self._initialize_client()
+            await self.client.start()
+            self.logger.info("Pyrogram клиент запущен для получения всех сообщений.")
+
+        if self.channel_id is None:
+            try:
+                chat = await self.client.get_chat(self.channel_username)
+                self.channel_id = chat.id
+            except Exception as e:
+                self.logger.error(f"Не удалось получить ID канала '{self.channel_username}': {e}")
                 return []
-                
-        except requests.RequestException as e:
-            self.logger.error(f"Ошибка HTTP при получении истории: {e}")
-            return []
-        except Exception as e:
-            self.logger.error(f"Ошибка получения истории сообщений: {e}")
-            return []
-    
-    def _convert_to_telegram_message(self, msg_data: Dict[str, Any]) -> Optional[TelegramMessage]:
-        """Конвертирует данные Telegram API в объект TelegramMessage"""
+
+        all_messages = []
         try:
-            message_id = msg_data.get("message_id")
-            text = msg_data.get("text", msg_data.get("caption", ""))
-            date_timestamp = msg_data.get("date")
+            self.logger.info(f"Начинаем получать ВСЮ историю сообщений из канала '{self.channel_username}'...")
+            async for message in self.client.get_chat_history(self.channel_id):
+                if message.text or message.caption:
+                    msg = self._convert_to_telegram_message(message)
+                    if msg:
+                        all_messages.append(msg)
+            self.logger.info(f"Получено {len(all_messages)} сообщений из канала '{self.channel_username}'")
+            return all_messages
+        except FloodWait as e:
+            self.logger.warning(f"Слишком много запросов к Telegram API. Ожидание {e.value} секунд.")
+            await asyncio.sleep(e.value + 5)
+            return await self.fetch_all_messages() # Повторная попытка
+        except Exception as e:
+            self.logger.error(f"Ошибка получения всех сообщений из канала '{self.channel_username}': {e}")
+            return []
+        # НЕ закрываем клиент здесь, он будет закрыт в контексте CLI
+
+    def _convert_to_telegram_message(self, msg: Any) -> Optional[TelegramMessage]:
+        """Конвертирует объект сообщения Pyrogram в объект TelegramMessage"""
+        try:
+            message_id = msg.id
+            text = msg.text if msg.text else msg.caption if msg.caption else ""
+            date_str = msg.date.isoformat() if msg.date else datetime.now(timezone.utc).isoformat()
             
-            if not message_id or not text:
+            if not message_id:
                 return None
             
-            # Конвертируем timestamp в ISO format
-            date_str = datetime.fromtimestamp(date_timestamp, tz=timezone.utc).isoformat()
-            
-            # Извлекаем медиа файлы
-            media_files = self._extract_media_files(msg_data)
-            
+            media_files = []
+            if msg.photo:
+                media_files.append(f"photo_{msg.photo.file_id}")
+            elif msg.document:
+                media_files.append(f"document_{msg.document.file_id}")
+            elif msg.video:
+                media_files.append(f"video_{msg.video.file_id}")
+            # Добавьте другие типы медиа по необходимости
+
             return TelegramMessage(
                 message_id=message_id,
                 text=text,
@@ -176,104 +237,53 @@ class TelegramConnector:
             )
             
         except Exception as e:
-            self.logger.error(f"Ошибка конвертации сообщения: {e}")
+            self.logger.error(f"Ошибка конвертации сообщения Pyrogram: {e}")
             return None
     
-    def _extract_media_files(self, msg_data: Dict[str, Any]) -> List[str]:
-        """Извлекает информацию о медиа файлах из сообщения"""
-        media_files = []
-        
-        try:
-            # Проверяем фото
-            if "photo" in msg_data:
-                # Берем фото наибольшего размера
-                photos = msg_data["photo"]
-                if photos:
-                    largest_photo = max(photos, key=lambda p: p.get("width", 0) * p.get("height", 0))
-                    media_files.append(f"photo_{largest_photo['file_id']}")
-            
-            # Проверяем документы
-            if "document" in msg_data:
-                doc = msg_data["document"]
-                media_files.append(f"document_{doc['file_id']}")
-            
-            # Проверяем видео
-            if "video" in msg_data:
-                video = msg_data["video"]
-                media_files.append(f"video_{video['file_id']}")
-            
-            return media_files
-            
-        except Exception as e:
-            self.logger.error(f"Ошибка извлечения медиа файлов: {e}")
-            return []
-    
-    def download_media_file(self, file_id: str, save_path: str) -> bool:
+    async def download_media_file(self, file_id: str, save_path: str) -> bool:
         """
         Скачивает медиа файл по file_id
         
         Args:
-            file_id: ID файла в Telegram
+            file_id: ID файла в Telegram (например, photo_FILE_ID)
             save_path: Путь для сохранения файла
             
         Returns:
             True если файл успешно скачан
         """
+        if self.client is None or not self.client.is_connected:
+            self.logger.error("Pyrogram клиент не запущен для скачивания файла.")
+            return False
+
         try:
-            # Получаем информацию о файле
-            file_info_url = f"{self.api_base_url}/getFile"
-            params = {"file_id": file_id}
+            # Pyrogram download_media принимает объект Message или file_id
+            # Если file_id содержит префикс, извлекаем его
+            actual_file_id = file_id.split('_', 1)[-1]
             
-            response = requests.get(file_info_url, params=params, timeout=10)
-            response.raise_for_status()
+            # Для скачивания по file_id нужно получить объект File
+            # Это не всегда прямолинейно, проще, если у нас есть сам объект Message
+            # Для простоты, если у нас есть только file_id, мы можем попробовать
+            # найти сообщение, содержащее этот файл, или использовать get_file
             
-            data = response.json()
-            if not data.get("ok"):
-                self.logger.error(f"Ошибка получения информации о файле: {data}")
+            # Pyrogram download_media может принимать file_id напрямую
+            downloaded_file_path = await self.client.download_media(actual_file_id, file_name=save_path)
+            
+            if downloaded_file_path:
+                self.logger.info(f"Файл {file_id} успешно скачан в {downloaded_file_path}")
+                return True
+            else:
+                self.logger.error(f"Не удалось скачать файл {file_id}")
                 return False
-            
-            file_path = data["result"]["file_path"]
-            
-            # Скачиваем файл
-            download_url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
-            
-            response = requests.get(download_url, timeout=30)
-            response.raise_for_status()
-            
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
-            
-            self.logger.info(f"Файл {file_id} успешно скачан в {save_path}")
-            return True
             
         except Exception as e:
             self.logger.error(f"Ошибка скачивания файла {file_id}: {e}")
             return False
-    
-    def test_connection(self) -> bool:
-        """
-        Тестирует соединение с Telegram API
-        
-        Returns:
-            True если соединение работает
-        """
-        try:
-            url = f"{self.api_base_url}/getMe"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            if data.get("ok"):
-                bot_info = data["result"]
-                self.logger.info(f"Соединение с Telegram API успешно. Бот: {bot_info.get('username')}")
-                return True
-            else:
-                self.logger.error(f"Ошибка соединения с Telegram API: {data}")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Ошибка тестирования соединения: {e}")
-            return False
+
+    async def close(self):
+        """Закрывает соединение с Telegram"""
+        if self.client and self.client.is_connected:
+            await self.client.stop()
+            self.logger.info("Pyrogram клиент остановлен.")
 
 
 class TelegramMonitor:
@@ -293,22 +303,28 @@ class TelegramMonitor:
         self.check_interval = check_interval
         self.logger = logging.getLogger(__name__)
         self.is_running = False
-    
+        self.loop = asyncio.get_event_loop() # Получаем текущий цикл событий
+
     def start_monitoring(self):
         """Запускает мониторинг канала"""
         self.is_running = True
         self.logger.info("Запуск мониторинга Telegram канала")
         
+        # Запускаем асинхронную функцию в цикле событий
+        self.loop.run_until_complete(self._monitor_loop())
+    
+    async def _monitor_loop(self):
+        """Асинхронный цикл мониторинга"""
         while self.is_running:
             try:
                 # Получаем новые сообщения
-                new_messages = self.connector.fetch_new_messages_since_last()
+                new_messages = await self.connector.fetch_new_messages_since_last()
                 
                 if new_messages:
                     self.logger.info(f"Найдено {len(new_messages)} новых сообщений")
                     
                     # Обрабатываем новые сообщения
-                    results = self.product_generator.process_batch_messages(new_messages)
+                    results = await self.product_generator.process_batch_messages_async(new_messages)
                     
                     self.logger.info(f"Обработка завершена: {results['successful']} успешно, {results['failed']} ошибок")
                     
@@ -317,16 +333,19 @@ class TelegramMonitor:
                         self.logger.info(f"Создан продукт: {product['product_id']} - {product['product_name']}")
                 
                 # Ждем до следующей проверки
-                time.sleep(self.check_interval)
+                await asyncio.sleep(self.check_interval)
                 
-            except KeyboardInterrupt:
-                self.logger.info("Получен сигнал прерывания, останавливаем мониторинг")
+            except asyncio.CancelledError:
+                self.logger.info("Мониторинг отменен.")
                 break
             except Exception as e:
                 self.logger.error(f"Ошибка в цикле мониторинга: {e}")
-                time.sleep(60)  # Ждем минуту перед повторной попыткой
+                await asyncio.sleep(60)  # Ждем минуту перед повторной попыткой
     
     def stop_monitoring(self):
         """Останавливает мониторинг"""
         self.is_running = False
+        # Завершаем асинхронные задачи
+        for task in asyncio.all_tasks(self.loop):
+            task.cancel()
         self.logger.info("Мониторинг остановлен")
