@@ -11,7 +11,7 @@ matplotlib.use('Agg')  # Для работы без GUI
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 
 # Загружаем переменные окружения
@@ -289,7 +289,6 @@ class LLMQueryGenerator:
         if "<think>" in text:
             if "</think>" in text:
                 # Удаляем содержимое между <think> и </think>
-                import re
                 text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
             else:
                 # Удаляем все после <think> если нет закрывающего тега
@@ -319,7 +318,6 @@ class LLMQueryGenerator:
                 table_name = line.split('[dbo].[')[1].split(']')[0]
                 available_tables.append(table_name)
         
-        import re
         used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
         
         for used_table in used_tables:
@@ -569,15 +567,43 @@ class ChartGenerator:
 # --- Инициализация Flask и классов ---
 
 app = Flask(__name__)
+app.secret_key = os.getenv('ADMIN_PASS', 'default-secret-key')
 db_manager = DatabaseManager()
 llm_generator = LLMQueryGenerator()
 chart_generator = ChartGenerator()
 
 # --- Маршруты Flask ---
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Страница входа"""
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == os.getenv('ADMIN_PASS'):
+            session['authenticated'] = True
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='Неверный пароль')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    """Выход"""
+    session.pop('authenticated', None)
+    return redirect(url_for('login'))
+
+def require_auth():
+    """Проверка аутентификации"""
+    if not session.get('authenticated'):
+        return redirect(url_for('login'))
+    return None
+
 @app.route('/')
 def index():
     """Главная страница"""
+    auth_check = require_auth()
+    if auth_check:
+        return auth_check
     return render_template('index.html')
 
 @app.route('/api/stats')
@@ -701,7 +727,6 @@ def execute_sql():
             # Если это запрос COUNT(*), то добавляем пояснение
             if "COUNT(*)" in sql_query.upper():
                 # Находим имя таблицы
-                import re
                 table_match = re.search(r'FROM\s+\[dbo\]\.\[([^\]]+)\]', sql_query)
                 if table_match:
                     table_name = table_match.group(1)
