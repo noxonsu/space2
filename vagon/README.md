@@ -80,6 +80,7 @@ If you need to query by 'Род груза' (Cargo Type) in the context of wagon
 1.  **Install Dependencies**:
     Navigate to the `vagon` directory and install the required Python packages:
     ```bash
+    source venv/bin/activate
     pip install -r requirements.txt
     ```
 

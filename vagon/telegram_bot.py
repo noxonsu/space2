@@ -71,14 +71,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # Добавляем первые 3 примера запросов
     if QUERY_EXAMPLES:
+        examples_text = ""
         for i, example in enumerate(QUERY_EXAMPLES[:3]):
-            await update.message.reply_text(f"{i+1}. `{example['user_query']}`", parse_mode='Markdown')
+            examples_text += f"{i+1}. `{example['user_query']}`\n"
+        
+        await update.message.reply_text(examples_text, parse_mode='Markdown')
+        
         await update.message.reply_html(
             "\nИспользуйте /help для получения списка команд или /examples для полного списка."
         )
     else:
         await update.message.reply_html(
-            "\n\nИспользуйте /help для получения списка команд."
+            "\nПримеры запросов не найдены. Используйте /help для получения списка команд."
         )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
