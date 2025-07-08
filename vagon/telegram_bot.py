@@ -66,8 +66,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_html(
         f"Привет, {user.mention_html()}! Я бот для анализа данных портового терминала. "
         "Отправьте мне запрос на естественном языке, и я сгенерирую и выполню SQL-запрос, а также построю график, если это возможно."
-        "\n\nИспользуйте /help для получения списка команд."
+        "\n\nВот несколько примеров запросов, которые вы можете попробовать:\n"
     )
+    
+    # Добавляем первые 3 примера запросов
+    if QUERY_EXAMPLES:
+        for i, example in enumerate(QUERY_EXAMPLES[:3]):
+            await update.message.reply_text(f"{i+1}. `{example['user_query']}`", parse_mode='Markdown')
+        await update.message.reply_html(
+            "\nИспользуйте /help для получения списка команд или /examples для полного списка."
+        )
+    else:
+        await update.message.reply_html(
+            "\n\nИспользуйте /help для получения списка команд."
+        )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет сообщение с помощью при команде /help."""
@@ -283,8 +295,7 @@ def main() -> None:
     # Регистрируем обработчик колбэков
     application.add_handler(CallbackQueryHandler(show_full_prompt_callback, pattern="show_full_prompt"))
 
-    logger.info("Бот запущен. Ожидание сообщений...")
-    print("Telegram бот запущен. Ожидание сообщений...")
+    
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':

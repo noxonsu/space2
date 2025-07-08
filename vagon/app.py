@@ -22,9 +22,42 @@ load_dotenv()
 class DatabaseManager:
     def __init__(self):
         self.connections = {}  # Словарь для хранения подключений к разным базам данных
-        # Schema info and table_to_database are no longer parsed from a file
         self.schema_info = "" 
-        self.table_to_database = {} # This will remain empty as schema is now in prompt
+        self.table_to_database = {}
+        self._parse_schema_from_prompt_template() # Parse schema on init
+
+    def _parse_schema_from_prompt_template(self):
+        """Парсит llm_prompt_template.txt для извлечения информации о схеме и сопоставления таблиц с базами данных."""
+        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "llm_prompt_template.txt")
+        try:
+            with open(template_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            
+            # Регулярное выражение для поиска заголовков таблиц и их описаний
+            # Пример: ## Таблица: [GRNG/GRMU].[dbo].[FactLoading]
+            table_pattern = re.compile(r'## Таблица: \[([^\]]+?)\]\.\[dbo\]\.\[([^\]]+?)\]')
+            
+            matches = table_pattern.finditer(content)
+            
+            for match in matches:
+                db_name = match.group(1)
+                table_name = match.group(2)
+                self.table_to_database[table_name] = db_name
+                print(f"DEBUG: Mapped table {table_name} to database {db_name}") # For debugging
+            
+            print(f"DEBUG: Final table_to_database mapping: {self.table_to_database}") # For debugging
+            
+            # Извлекаем всю секцию "DATABASE SCHEMA" для schema_info
+            schema_start = content.find("DATABASE SCHEMA")
+            if schema_start != -1:
+                self.schema_info = content[schema_start:]
+            else:
+                self.schema_info = "Schema information not found in prompt template."
+
+        except Exception as e:
+            print(f"Ошибка при парсинге llm_prompt_template.txt: {e}")
+            self.schema_info = "Error loading schema info."
+            self.table_to_database = {}
 
     def _build_connection_string(self, db_name):
         """Строим строку подключения к указанной базе данных"""
@@ -117,11 +150,12 @@ class DatabaseManager:
         return self.schema_info
 
     def get_table_database(self, table_name):
-        """Возвращает базу данных для указанной таблицы (использует дефолт, так как нет парсинга схемы)"""
-        # Since table_to_database is no longer populated from a file,
-        # we'll rely on the LLM to generate correct database prefixes or use a default.
-        # For now, we'll assume GRNG/GRMU as a common default if not explicitly handled by LLM.
-        return 'GRNG/GRMU' # Default database name
+        """Возвращает базу данных для указанной таблицы, используя предзагруженную карту."""
+        db_name = self.table_to_database.get(table_name)
+        if not db_name:
+            print(f"ПРЕДУПРЕЖДЕНИЕ: База данных для таблицы '{table_name}' не найдена в карте. Используем 'GRNG/GRMU' по умолчанию.")
+            return 'GRNG/GRMU' # Fallback to default if not found
+        return db_name
 
 class LLMQueryGenerator:
     def __init__(self, model_name=None):
@@ -284,13 +318,13 @@ class ChartGenerator:
         plt.rcParams['font.family'] = 'DejaVu Sans'
         plt.rcParams['axes.unicode_minus'] = False
         
-    def create_chart(self, data, chart_type='line', title='График', x_label='X', y_label='Y'):
+    def create_chart(self, data, chart_type='bar', title='График', x_label='X', y_label='Y'):
         """
-        Создает график на основе данных
+        Создает гистограмму (столбчатый график) на основе данных
         
         Args:
             data: DataFrame с данными
-            chart_type: тип графика ('line', 'bar', 'pie')
+            chart_type: тип графика (всегда 'bar' - только гистограммы)
             title: заголовок графика
             x_label: подпись оси X
             y_label: подпись оси Y
@@ -305,16 +339,8 @@ class ChartGenerator:
             # Создаем фигуру
             fig, ax = plt.subplots(figsize=(12, 8))
             
-            # Определяем тип графика
-            if chart_type == 'line':
-                self._create_line_chart(ax, data, title, x_label, y_label)
-            elif chart_type == 'bar':
-                self._create_bar_chart(ax, data, title, x_label, y_label)
-            elif chart_type == 'pie':
-                self._create_pie_chart(ax, data, title)
-            else:
-                # По умолчанию линейный график
-                self._create_line_chart(ax, data, title, x_label, y_label)
+            # Создаем только гистограмму
+            self._create_bar_chart(ax, data, title, x_label, y_label)
             
             # Сохраняем в base64
             img_buffer = io.BytesIO()
@@ -333,157 +359,93 @@ class ChartGenerator:
             print(f"Ошибка при создании графика: {e}")
             return None
     
-    def _create_line_chart(self, ax, data, title, x_label, y_label):
-        """Создает линейный график"""
-        if len(data.columns) >= 2:
-            x_col = data.columns[0]
-            y_col = data.columns[1]
-
-            # Проверяем наличие колонок 'Year' и 'Month'
-            if 'Year' in data.columns and 'Month' in data.columns:
-                try:
-                    # Создаем временной индекс из Year и Month
-                    data['Date'] = pd.to_datetime(data['Year'].astype(str) + '-' + data['Month'].astype(str) + '-01')
-                    data = data.sort_values('Date')
-                    x_col_plot = 'Date'
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
-                except Exception as e:
-                    print(f"Ошибка при создании даты из Year/Month для линейного графика: {e}")
-                    x_col_plot = x_col # Fallback to original x_col
-            elif any(keyword in x_col.lower() for keyword in ['дата', 'месяц', 'год', 'время']):
-                try:
-                    # Пытаемся конвертировать в даты
-                    if data[x_col].dtype == 'object':
-                        data[x_col] = pd.to_datetime(data[x_col], errors='coerce')
-                    x_col_plot = x_col
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
-                except Exception as e:
-                    print(f"Ошибка при конвертации x_col в дату для линейного графика: {e}")
-                    x_col_plot = x_col # Fallback to original x_col
-            else:
-                x_col_plot = x_col
-
-            ax.plot(data[x_col_plot], data[y_col], marker='o', linewidth=2, markersize=6)
-
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
-            ax.set_title(title, fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3)
-
     def _create_bar_chart(self, ax, data, title, x_label, y_label):
         """Создает столбчатый график"""
-        if len(data.columns) >= 2:
-            x_col = data.columns[0]
-            y_col = data.columns[1]
+        if data.empty or len(data.columns) < 2:
+            return
 
-            # Проверяем наличие колонок 'Year' и 'Month'
-            if 'Year' in data.columns and 'Month' in data.columns:
-                try:
-                    # Создаем комбинированную метку для оси X
-                    data['YearMonth'] = data['Year'].astype(str) + '-' + data['Month'].astype(str).zfill(2)
-                    data = data.sort_values(['Year', 'Month'])
-                    x_col_plot = 'YearMonth'
-                except Exception as e:
-                    print(f"Ошибка при создании YearMonth для столбчатого графика: {e}")
-                    x_col_plot = x_col # Fallback to original x_col
-            else:
-                x_col_plot = x_col
+        # Проверяем наличие колонок 'Год' и 'Месяц'
+        if 'Год' in data.columns and 'Месяц' in data.columns:
+            try:
+                # Создаем комбинированную метку для оси X
+                data['Год-Месяц'] = data['Год'].astype(str) + '-' + data['Месяц'].astype(str).str.zfill(2)
+                data = data.sort_values(['Год', 'Месяц'])
+                x_col_plot = 'Год-Месяц'
+                
+                # Находим колонку со значениями (не 'Год', не 'Месяц', не 'Год-Месяц')
+                value_cols = [col for col in data.columns if col not in ['Год', 'Месяц', 'Год-Месяц']]
+                if value_cols:
+                    y_col = value_cols[0] # Берем первую найденную колонку как значение
+                else:
+                    # Fallback если не найдено других колонок
+                    y_col = data.columns[0] if len(data.columns) > 0 else None
+                    if y_col in ['Год', 'Месяц', 'Год-Месяц'] and len(data.columns) > 1:
+                        y_col = data.columns[1]
+                    elif y_col in ['Год', 'Месяц', 'Год-Месяц'] and len(data.columns) == 1:
+                        print("ПРЕДУПРЕЖДЕНИЕ: Недостаточно колонок для построения графика.")
+                        return # Не можем построить график без колонки значений
+            except Exception as e:
+                print(f"Ошибка при создании Год-Месяц для столбчатого графика: {e}")
+                # Fallback to original columns
+                x_col_plot = data.columns[0]
+                y_col = data.columns[1] if len(data.columns) > 1 else data.columns[0]
+        else:
+            x_col_plot = data.columns[0]
+            y_col = data.columns[1] if len(data.columns) > 1 else data.columns[0]
 
-            # Если слишком много уникальных значений на оси X, лучше использовать линейный график
-            if len(data[x_col_plot].unique()) > 15:
-                print(f"DEBUG: Too many unique X values ({len(data[x_col_plot].unique())}) for bar chart. Consider line chart.")
-                # Можно добавить логику для автоматического переключения на линейный график
-                # или просто предупредить и продолжить строить bar chart
-                # For now, we'll just proceed with bar chart, but log the warning.
+        if y_col is None: # Дополнительная проверка на случай, если y_col не был определен
+            return
 
-            bars = ax.bar(data[x_col_plot], data[y_col], color='skyblue', alpha=0.8)
+        # Если слишком много уникальных значений на оси X, лучше использовать линейный график
+        if len(data[x_col_plot].unique()) > 15:
+            print(f"DEBUG: Too many unique X values ({len(data[x_col_plot].unique())}) for bar chart. Consider line chart.")
+            # Можно добавить логику для автоматического переключения на линейный график
+            # или просто предупредить и продолжить строить bar chart
+            # For now, we'll just proceed with bar chart, but log the warning.
 
-            # Добавляем значения на столбцы
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height,
-                       f'{height:.0f}',
-                       ha='center', va='bottom')
+        bars = ax.bar(data[x_col_plot], data[y_col], color='skyblue', alpha=0.8)
 
-            ax.set_xlabel(x_label)
-            ax.set_ylabel(y_label)
-            ax.set_title(title, fontsize=14, fontweight='bold')
-            ax.grid(True, alpha=0.3, axis='y')
+        # Добавляем значения на столбцы
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height:.0f}',
+                    ha='center', va='bottom')
 
-            # Поворачиваем подписи на оси X если их много
-            if len(data[x_col_plot].unique()) > 5:
-                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
-    
-    def _create_pie_chart(self, ax, data, title):
-        """Создает круговую диаграмму"""
-        if len(data.columns) >= 2:
-            labels_col = data.columns[0]
-            values_col = data.columns[1]
-            
-            # Берем только топ-10 значений для читаемости
-            top_data = data.nlargest(10, values_col)
-            
-            colors = plt.cm.Set3(range(len(top_data)))
-            wedges, texts, autotexts = ax.pie(top_data[values_col], 
-                                            labels=top_data[labels_col],
-                                            autopct='%1.1f%%',
-                                            colors=colors,
-                                            startangle=90)
-            
-            ax.set_title(title, fontsize=14, fontweight='bold')
-            
-            # Улучшаем читаемость
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Поворачиваем подписи на оси X если их много
+        if len(data[x_col_plot].unique()) > 5:
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
     
     def detect_chart_type(self, data, user_query):
         """
         Определяет подходящий тип графика на основе данных и запроса пользователя
+        Всегда возвращает 'bar' так как поддерживаются только гистограммы
         """
-        query_lower = user_query.lower()
-        # Если явно запрошена гистограмма, то всегда возвращаем 'bar'
-        if 'гистограмма' in query_lower:
-            print(f"DEBUG User query contains 'гистограмма'. Forcing chart type to 'bar'. Original query: {user_query}")
-            return 'bar'
-
-        # Круговая диаграмма - для разбивки по категориям
-        if any(keyword in query_lower for keyword in ['разрез', 'доля', 'процент', 'распределение']):
-            print(f"DEBUG: Detected 'pie' chart type for query: {user_query}")
-            return 'pie'
-        
-        # Столбчатая диаграмма - для сравнения значений
-        elif any(keyword in query_lower for keyword in ['сравни', 'топ', 'больше', 'меньше']):
-            print(f"DEBUG: Detected 'bar' chart type for query: {user_query}")
-            return 'bar'
-        
-        # Линейный график - для временных рядов
-        elif any(keyword in query_lower for keyword in ['динамика', 'менял', 'тренд', 'время', 'год', 'месяц']):
-            print(f"DEBUG: Detected 'line' chart type for query: {user_query}")
-            return 'line'
-        
-        # По умолчанию - линейный график
-        print(f"DEBUG: Defaulting to 'line' chart type for query: {user_query}")
+        # Всегда возвращаем 'bar' для гистограмм
+        print(f"DEBUG: Using 'bar' chart type for query: {user_query}")
         return 'bar'
     
     def generate_chart_title(self, data, user_query):
-        """Генерирует заголовок для графика"""
+        """Генерирует заголовок для гистограммы"""
         query_lower = user_query.lower()
         
         if 'выгрузка' in query_lower:
-            return 'Динамика выгрузки вагонов'
+            return 'Гистограмма выгрузки вагонов'
         elif 'погрузка' in query_lower:
-            return 'Динамика погрузки'
+            return 'Гистограмма погрузки'
         elif 'род груза' in query_lower:
-            return 'Распределение по роду груза'
+            return 'Гистограмма по роду груза'
         elif 'грузоотправитель' in query_lower:
-            return 'Распределение по грузоотправителям'
+            return 'Гистограмма по грузоотправителям'
+        elif 'бригада' in query_lower:
+            return 'Гистограмма по бригадам'
         else:
-            return 'График данных'
+            return 'Гистограмма данных'
 
 # --- Инициализация Flask и классов ---
 
@@ -598,40 +560,24 @@ def execute_sql():
         # Инициализируем chart_type
         chart_type = None
         
-        # ВАЖНО: Удаляем неправильные префиксы базы данных из SQL запроса
-        # LLM может генерировать запросы вида [GRNG/GRMU].[dbo].[Table], но SQL Server ожидает только [dbo].[Table]
-        sql_query = re.sub(r'\[[\w\/\-]+\]\.\[dbo\]\.', '[dbo].', sql_query)
-        
-        # Проверяем и добавляем схему dbo, если она не указана
-        if "FROM " in sql_query and "[dbo]." not in sql_query and "dbo." not in sql_query:
-            # Находим имена таблиц после FROM и JOIN
-            tables = re.findall(r'FROM\s+([^\s,;()]+)|JOIN\s+([^\s,;()]+)', sql_query, re.IGNORECASE)
-            # Объединяем все найденные группы и удаляем пустые значения
-            tables = [t for group in tables for t in group if t]
-            
-            # Добавляем префикс [dbo]. к таблицам, если их еще нет
-            for table in tables:
-                if not table.startswith('[dbo].') and not table.startswith('dbo.'):
-                    # Заменяем, только если это не подзапрос
-                    sql_query = sql_query.replace(f"FROM {table}", f"FROM [dbo].[{table}]")
-                    sql_query = sql_query.replace(f"JOIN {table}", f"JOIN [dbo].[{table}]")
-        
         print(f"Выполняется запрос: {sql_query}")  # Добавляем логирование запроса
         
         # Определяем базу данных автоматически по таблицам в запросе
-        used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
+        # Извлекаем имя таблицы из запроса, предполагая формат [db].[dbo].[Table] или [dbo].[Table]
+        # Если LLM генерирует [OperativeReport].[dbo].[EnterpriseWagons], то table_name будет EnterpriseWagons
+        # Если LLM генерирует [dbo].[EnterpriseWagons], то table_name будет EnterpriseWagons
+        match = re.search(r'FROM\s+(?:\[[^\]]+\]\.)?\[dbo\]\.\[([^\]]+)\]', sql_query, re.IGNORECASE)
+        if not match:
+            # Если не удалось найти таблицу в формате [dbo].[Table], пробуем найти просто [Table]
+            match = re.search(r'FROM\s+\[([^\]]+)\]', sql_query, re.IGNORECASE)
+            if not match:
+                return jsonify({"error": "Не удалось определить таблицы в SQL запросе"}), 400
         
-        if not used_tables:
-            return jsonify({"error": "Не удалось определить таблицы в SQL запросе"}), 400
-        
-        # Берем первую таблицу для определения базы данных
-        first_table = used_tables[0]
+        first_table = match.group(1)
         db_name = db_manager.get_table_database(first_table)
         
         if not db_name:
-            # Если база данных не найдена, пробуем стандартные базы
-            db_name = 'GRNG/GRMU'  # База данных по умолчанию
-            print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {first_table}, используем {db_name}")
+            return jsonify({"error": f"Не удалось определить базу данных для таблицы {first_table}"}), 400
         
         print(f"Используется база данных: {db_name} для таблицы: {first_table}")
         
@@ -645,12 +591,14 @@ def execute_sql():
             
             for sub_q in sub_queries:
                 try:
-                    sub_used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sub_q)
-                    if not sub_used_tables:
-                        errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
-                        continue
+                    sub_match = re.search(r'FROM\s+(?:\[[^\]]+\]\.)?\[dbo\]\.\[([^\]]+)\]', sub_q, re.IGNORECASE)
+                    if not sub_match:
+                        sub_match = re.search(r'FROM\s+\[([^\]]+)\]', sub_q, re.IGNORECASE)
+                        if not sub_match:
+                            errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
+                            continue
                     
-                    sub_first_table = sub_used_tables[0]
+                    sub_first_table = sub_match.group(1)
                     sub_db_name = db_manager.get_table_database(sub_first_table)
                     
                     if not sub_db_name:
@@ -674,10 +622,12 @@ def execute_sql():
         else:
             # Оригинальная логика для запросов без UNION ALL
             # Проверяем, что все таблицы в запросе из одной базы данных
-            for table in used_tables:
-                table_db = db_manager.get_table_database(table)
-                if table_db and table_db != db_name:
-                    return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
+            # (Этот блок может быть упрощен, так как get_table_database теперь более точен)
+            # used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query) # Re-extract all tables for cross-db check
+            # for table in used_tables:
+            #     table_db = db_manager.get_table_database(table)
+            #     if table_db and table_db != db_name:
+            #         return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
             
             # Проверяем соединение с БД перед выполнением
             if not db_manager.connect(db_name):
@@ -699,19 +649,18 @@ def execute_sql():
         # Создаем график если запрошено
         chart_base64 = None
         if create_chart and len(result_df) > 0:
-            # Force chart type to 'bar' if 'гистограмма' is in user query
-            if 'гистограмма' in user_query.lower():
-                chart_type = 'bar'
-                print(f"DEBUG: User explicitly requested 'гистограмма'. Forcing chart_type to 'bar'.")
-            else:
-                chart_type = chart_generator.detect_chart_type(result_df, user_query)
+            # Всегда используем гистограмму (bar chart)
+            chart_type = 'bar'
+            print(f"DEBUG: Using 'bar' chart type for query: {user_query}")
             
             chart_title = chart_generator.generate_chart_title(result_df, user_query)
             
             # Определяем подписи осей
-            if 'Year' in result_df.columns and 'Month' in result_df.columns and len(result_df.columns) >= 3:
+            if 'Год' in result_df.columns and 'Месяц' in result_df.columns:
                 x_label = 'Отчетный период' # Reporting Period
-                y_label = result_df.columns[0] # The actual metric column (e.g., AverageMonthlyLoading)
+                # Находим колонку со значениями для y_label
+                value_cols = [col for col in result_df.columns if col not in ['Год', 'Месяц']]
+                y_label = value_cols[0] if value_cols else 'Y'
             else:
                 x_label = result_df.columns[0] if len(result_df.columns) > 0 else 'X'
                 y_label = result_df.columns[1] if len(result_df.columns) > 1 else 'Y'
@@ -727,6 +676,140 @@ def execute_sql():
             "chart_type": chart_type if create_chart else None
         })
         
+    except Exception as e:
+        error_msg = f"Ошибка при выполнении SQL запроса: {str(e)}"
+        print(error_msg)
+        return jsonify({"error": error_msg}), 500
+
+@app.route('/api/execute-sql-with-chart', methods=['POST'])
+def execute_sql_with_chart():
+    """API для выполнения SQL с автоматическим созданием графика"""
+    data = request.json
+    sql_query = data.get('query')
+    user_query = data.get('user_query', '')
+    
+    if not sql_query:
+        return jsonify({"error": "SQL query is required"}), 400
+    
+    # Автоматически включаем создание графика
+    data['create_chart'] = True
+    
+    # Вызываем основную функцию execute_sql
+    try:
+        # Инициализируем chart_type
+        chart_type = None
+        
+        print(f"Выполняется запрос: {sql_query}")  # Добавляем логирование запроса
+        
+        # Определяем базу данных автоматически по таблицам в запросе
+        match = re.search(r'FROM\s+(?:\[[^\]]+\]\.)?\[dbo\]\.\[([^\]]+)\]', sql_query, re.IGNORECASE)
+        if not match:
+            match = re.search(r'FROM\s+\[([^\]]+)\]', sql_query, re.IGNORECASE)
+            if not match:
+                return jsonify({"error": "Не удалось определить таблицы в SQL запросе"}), 400
+        
+        first_table = match.group(1)
+        db_name = db_manager.get_table_database(first_table)
+        
+        if not db_name:
+            return jsonify({"error": f"Не удалось определить базу данных для таблицы {first_table}"}), 400
+        
+        print(f"Используется база данных: {db_name} для таблицы: {first_table}")
+        
+        # Проверяем, есть ли UNION ALL в запросе
+        if 'UNION ALL' in sql_query.upper():
+            # Обрабатываем запрос с UNION ALL
+            sub_queries = [s.strip() for s in re.split(r'UNION ALL', sql_query, flags=re.IGNORECASE) if s.strip()]
+            
+            combined_df = pd.DataFrame()
+            errors = []
+            
+            for sub_q in sub_queries:
+                try:
+                    sub_match = re.search(r'FROM\s+(?:\[[^\]]+\]\.)?\[dbo\]\.\[([^\]]+)\]', sub_q, re.IGNORECASE)
+                    if not sub_match:
+                        sub_match = re.search(r'FROM\s+\[([^\]]+)\]', sub_q, re.IGNORECASE)
+                        if not sub_match:
+                            errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
+                            continue
+                    
+                    sub_first_table = sub_match.group(1)
+                    sub_db_name = db_manager.get_table_database(sub_first_table)
+                    
+                    if not sub_db_name:
+                        sub_db_name = 'GRNG/GRMU' # Fallback
+                        print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {sub_first_table} в подзапросе, используем {sub_db_name}")
+                    
+                    print(f"Выполнение подзапроса в {sub_db_name}: {sub_q}")
+                    sub_result_df = db_manager.execute_query(sub_q, sub_db_name)
+                    
+                    if not sub_result_df.empty:
+                        combined_df = pd.concat([combined_df, sub_result_df], ignore_index=True)
+                    
+                except Exception as sub_e:
+                    errors.append(f"Ошибка при выполнении подзапроса '{sub_q}': {str(sub_e)}")
+            
+            if errors:
+                return jsonify({"error": "Произошли ошибки при выполнении некоторых подзапросов: " + "; ".join(errors)}), 500
+            
+            result_df = combined_df
+            
+        else:
+            # Оригинальная логика для запросов без UNION ALL
+            # used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query) # Re-extract all tables for cross-db check
+            # for table in used_tables:
+            #     table_db = db_manager.get_table_database(table)
+            #     if table_db and table_db != db_name:
+            #         return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
+            
+            # Проверяем соединение с БД перед выполнением
+            if not db_manager.connect(db_name):
+                return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
+            
+            # Выполняем запрос
+            result_df = db_manager.execute_query(sql_query, db_name)
+        
+        if result_df.empty:
+            return jsonify({"data": [], "chart": None, "chart_type": None})
+        
+        # Преобразуем datetime в строку для JSON
+        for col in result_df.columns:
+            if pd.api.types.is_datetime64_any_dtype(result_df[col]):
+                result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        results = result_df.to_dict(orient='records')
+        
+        # Создаем график - всегда, так как это эндпоинт с графиком
+        chart_base64 = None
+        create_chart = True  # Принудительно включаем создание графика
+        
+        if create_chart and len(result_df) > 0:
+            # Всегда используем гистограмму (bar chart)
+            chart_type = 'bar'
+            print(f"DEBUG: Using 'bar' chart type for query: {user_query}")
+            
+            chart_title = chart_generator.generate_chart_title(result_df, user_query)
+            
+            # Определяем подписи осей
+            if 'Год' in result_df.columns and 'Месяц' in result_df.columns:
+                x_label = 'Отчетный период' # Reporting Period
+                # Находим колонку со значениями для y_label
+                value_cols = [col for col in result_df.columns if col not in ['Год', 'Месяц']]
+                y_label = value_cols[0] if value_cols else 'Y'
+            else:
+                x_label = result_df.columns[0] if len(result_df.columns) > 0 else 'X'
+                y_label = result_df.columns[1] if len(result_df.columns) > 1 else 'Y'
+            
+            chart_base64 = chart_generator.create_chart(
+                result_df, chart_type, chart_title, x_label, y_label
+            )
+        
+        print(f"DEBUG: Sending chart_type: {chart_type} in API response for query: {user_query}")
+        return jsonify({
+            "data": results,
+            "chart": chart_base64,
+            "chart_type": chart_type if create_chart else None
+        })
     except Exception as e:
         error_msg = f"Ошибка при выполнении SQL запроса: {str(e)}"
         print(error_msg)

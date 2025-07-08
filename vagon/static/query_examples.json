@@ -3,82 +3,47 @@
     {
       "id": "example_1",
       "title": "Выгрузка вагонов за 2 года",
-      "user_query": "Покажи, как менялась выгрузка вагонов в течение 2 последних лет, ежемесячно",
-      "expected_sql": "SELECT \n    YEAR([Дата и время выгрузки]) as year,\n    MONTH([Дата и время выгрузки]) as month,\n    COUNT(*) as vagon_count,\n    SUM([Вес нетто (т)]) as total_weight\nFROM [dbo].[VagonUnloading]\nWHERE [Дата и время выгрузки] >= DATEADD(year, -2, GETDATE())\nGROUP BY YEAR([Дата и время выгрузки]), MONTH([Дата и время выгрузки])\nORDER BY year, month",
-      "database": "GRNG/GRMU",
-      "table": "VagonUnloading"
+      "user_query": "(ок) Покажи, как менялась выгрузка вагонов в течение 2 последних лет, ежемесячно"
     },
     {
       "id": "example_2", 
       "title": "Погрузка на суда за 2 года",
-      "user_query": "Как менялся показатель среднемесячной погрузки на суда последние 2 года",
-      "expected_sql": "SELECT \n    YEAR([Начальная дата подхода]) as year,\n    MONTH([Начальная дата подхода]) as month,\n    AVG([Вес нетто (т)]) as avg_monthly_loading,\n    COUNT(*) as ship_count\nFROM [dbo].[ShipsImport]\nWHERE [Начальная дата подхода] >= DATEADD(year, -2, GETDATE())\n    AND [Тип операции] LIKE '%погрузка%'\nGROUP BY YEAR([Начальная дата подхода]), MONTH([Начальная дата подхода])\nORDER BY year, month",
-      "database": "OperativeReport",
-      "table": "ShipsImport"
+      "user_query": "(ок) Как менялся показатель среднемесячной погрузки на суда последние 2 года"
     },
     {
       "id": "example_3",
-      "title": "Время выгрузки по фронтам",
-      "user_query": "(не работает) Как менялся показатель времени выгрузки вагона в зависимости от фронтов выгрузки",
-      "expected_sql": "SELECT \n    [Фронт выгрузки],\n    COUNT(*) as vagon_count,\n    AVG(DATEDIFF(hour, [Дата и время подачи], [Дата и время выгрузки])) as avg_unloading_time_hours,\n    AVG([Вес нетто (т)]) as avg_weight\nFROM [dbo].[VagonUnloading]\nWHERE [Фронт выгрузки] IS NOT NULL\n    AND [Дата и время подачи] IS NOT NULL\n    AND [Дата и время выгрузки] IS NOT NULL\nGROUP BY [Фронт выгрузки]\nORDER BY avg_unloading_time_hours",
-      "database": "GRNG/GRMU",
-      "table": "VagonUnloading"
+      "title": "Выгрузка по фронтам",
+      "user_query": "(ок) Как распределяется выгрузка по фронтам выгрузки"
     },
     {
       "id": "example_4",
       "title": "Выгрузка по родам груза",
-      "user_query": "Как менялся показатель ежегодной выгрузки вагонов в разрезе родов груза",
-      "expected_sql": "SELECT \n    YEAR([Дата и время выгрузки]) as year,\n    [Род груза],\n    COUNT(*) as vagon_count,\n    SUM([Вес нетто (т)]) as total_weight\nFROM [dbo].[VagonUnloading]\nWHERE [Дата и время выгрузки] IS NOT NULL\n    AND [Род груза] IS NOT NULL\nGROUP BY YEAR([Дата и время выгрузки]), [Род груза]\nORDER BY year, total_weight DESC",
-      "database": "GRNG/GRMU",
-      "table": "VagonUnloading"
+      "user_query": "(нет поля род в таблице VagonUnloading) Как менялся показатель ежегодной выгрузки вагонов в разрезе родов груза"
     },
     {
       "id": "example_5",
       "title": "Выгрузка по грузоотправителям",
-      "user_query": "Как менялся показатель ежегодной выгрузки вагонов в разрезе грузоотправителей",
-      "expected_sql": "SELECT \n    YEAR([Дата и время выгрузки]) as year,\n    [Грузоотправитель],\n    COUNT(*) as vagon_count,\n    SUM([Вес нетто (т)]) as total_weight\nFROM [dbo].[VagonUnloading]\nWHERE [Дата и время выгрузки] IS NOT NULL\n    AND [Грузоотправитель] IS NOT NULL\nGROUP BY YEAR([Дата и время выгрузки]), [Грузоотправитель]\nORDER BY year, total_weight DESC",
-      "database": "GRNG/GRMU", 
-      "table": "VagonUnloading"
+      "user_query": "(ок, график не ок) Как менялся показатель ежегодной выгрузки вагонов в разрезе грузоотправителей"
     },
     {
       "id": "example_6",
       "title": "Отгрузки за месяц",
-      "user_query": "Предоставь данные по отгрузкам в адрес порта за предыдущий месяц",
-      "expected_sql": "SELECT \n    [Дата],\n    [Грузовладелец],\n    [Грузоотправитель],\n    [Груз],\n    [Вес груза отправленный(т)] as weight,\n    [Железная дорога],\n    [Станция дислокации],\n    [Род груза]\nFROM [dbo].[ShipmentsToThePort]\nWHERE [Дата] >= DATEADD(month, -1, GETDATE())\nORDER BY [Дата] DESC",
-      "database": "GRNG/GRMU",
-      "table": "ShipmentsToThePort"
+      "user_query": "(ок) Предоставь данные по отгрузкам в адрес порта за предыдущие поллгода"
     },
     {
       "id": "example_7",
-      "title": "Выгрузка вчера по родам",
-      "user_query": "Сколько выгрузили вчера вагонов в разрезе рода груза",
-      "expected_sql": "SELECT \n    [Род груза],\n    COUNT(DISTINCT [Номер вагона]) AS [Количество вагонов],\n    SUM([Вес нетто (т)]) AS [Общий вес]\nFROM [dbo].[VagonUnloading]\nWHERE CAST([Дата и время выгрузки] AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)\n    AND [Род груза] IS NOT NULL\nGROUP BY [Род груза]\nORDER BY [Количество вагонов] DESC",
-      "database": "GRNG/GRMU",
-      "table": "VagonUnloading"
+      "title": "Выгрузка за полгода по родам",
+      "user_query": "(не может понять какая табла) Сколько выгрузили за полгода вагонов в разрезе рода груза"
     },
     {
       "id": "example_8",
-      "title": "Статус вагонов за неделю",
-      "user_query": "Какой статус вагонов на предприятии за последнюю неделю",
-      "expected_sql": "SELECT \n    [Статус вагона],\n    COUNT(*) as vagon_count,\n    [Род груза],\n    AVG([Вес груза принятый (т)]) as avg_weight\nFROM [dbo].[EnterpriseWagons]\nWHERE [Дата] >= DATEADD(day, -7, GETDATE())\n    AND [Статус вагона] IS NOT NULL\nGROUP BY [Статус вагона], [Род груза]\nORDER BY vagon_count DESC",
-      "database": "GRNG/GRMU",
-      "table": "EnterpriseWagons"
+      "title": "Статус вагонов за 700 дней",
+      "user_query": "(ок)  Какой статус вагонов на предприятии за последние 700 дней с группировкой по статусас"
     },
     {
       "id": "example_9",
-      "title": "Заполненность складов",
-      "user_query": "Какая заполненность складов на вчерашний день",
-      "expected_sql": "SELECT \n    [Площадка],\n    [Род груза],\n    [Грузовладелец],\n    SUM([Вес (т)]) as current_weight,\n    SUM([Вместимость (т)]) as capacity,\n    CASE \n        WHEN SUM([Вместимость (т)]) > 0 \n        THEN (SUM([Вес (т)]) / SUM([Вместимость (т)])) * 100 \n        ELSE 0 \n    END as fullness_percent\nFROM [dbo].[StorageFullness]\nWHERE CAST([Дата] AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)\nGROUP BY [Площадка], [Род груза], [Грузовладелец]\nORDER BY fullness_percent DESC",
-      "database": "GRNG/GRMU",
-      "table": "StorageFullness"
-    },
-    {
-      "id": "example_10",
       "title": "Погрузка бригады за год",
-      "user_query": "Сколько по весу погрузила бригада 1 за 2024 год",
-      "expected_sql": "SELECT \n    SUM([Вес нетто (т)]) AS [Общий вес погрузки],\n    COUNT(*) AS [Количество операций]\nFROM [dbo].[FactLoading]\nWHERE YEAR([Дата (8:00-7:59)]) = 2024\n    AND [Бригада] = '1'",
-      "database": "GRNG/GRMU",
-      "table": "FactLoading"
+      "user_query": "(не работает, но запрос правильный) Сколько по весу погрузила бригада 1 за 2024 год"
     }
   ]
 }

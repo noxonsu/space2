@@ -39,12 +39,7 @@
                 <h5 class="mb-0">Конструктор SQL-запросов с помощью LLM</h5>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label for="model-select" class="form-label">Выберите модель LLM:</label>
-                    <select class="form-select" id="model-select">
-                        <option value="">Загрузка моделей...</option>
-                    </select>
-                </div>
+                
                 <div class="mb-3">
                     <label for="user-query" class="form-label">Введите ваш запрос на естественном языке:</label>
                     <textarea class="form-control" id="user-query" rows="3" placeholder="Пример: 'Покажи 5 самых тяжелых грузов, принятых в этом месяце'"></textarea>
@@ -111,16 +106,44 @@
             const thead = $('<thead><tr></tr></thead>');
             const tbody = $('<tbody></tbody>');
 
-            // Заголовки
-            Object.keys(data[0]).forEach(key => {
+            const originalHeaders = Object.keys(data[0]);
+            const hasYear = originalHeaders.includes('Год');
+            const hasMonth = originalHeaders.includes('Месяц');
+
+            let displayHeaders = [];
+            if (hasYear && hasMonth) {
+                // Создаем новый массив заголовков, заменяя 'Год' и 'Месяц' на 'Год-Месяц'
+                let yearMonthAdded = false;
+                originalHeaders.forEach(key => {
+                    if (key === 'Год' || key === 'Месяц') {
+                        if (!yearMonthAdded) {
+                            displayHeaders.push('Год-Месяц');
+                            yearMonthAdded = true;
+                        }
+                    } else {
+                        displayHeaders.push(key);
+                    }
+                });
+            } else {
+                displayHeaders = originalHeaders;
+            }
+
+            // Заголовки таблицы
+            displayHeaders.forEach(key => {
                 thead.find('tr').append(`<th>${key}</th>`);
             });
 
-            // Строки
+            // Строки таблицы
             data.forEach(row => {
                 const tr = $('<tr></tr>');
-                Object.values(row).forEach(val => {
-                    tr.append(`<td>${val}</td>`);
+                displayHeaders.forEach(displayKey => {
+                    if (displayKey === 'Год-Месяц') {
+                        const year = row['Год'];
+                        const month = String(row['Месяц']).padStart(2, '0');
+                        tr.append(`<td>${year}-${month}</td>`);
+                    } else {
+                        tr.append(`<td>${row[displayKey]}</td>`);
+                    }
                 });
                 tbody.append(tr);
             });
