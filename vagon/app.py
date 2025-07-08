@@ -536,7 +536,7 @@ class ChartGenerator:
         Определяет подходящий тип графика на основе данных и запроса пользователя
         """
         query_lower = user_query.lower()
-       
+        return 'bar'
         # Если явно запрошена гистограмма, то всегда возвращаем 'bar'
         if 'гистограмма' in query_lower:
             print(f"DEBUG: User query contains 'гистограмма'. Forcing chart type to 'bar'. Original query: {user_query}")
