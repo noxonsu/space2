@@ -646,10 +646,13 @@ def execute_sql():
         return jsonify({"error": "SQL query is required"}), 400
 
     try:
+        # ВАЖНО: Удаляем неправильные префиксы базы данных из SQL запроса
+        # LLM может генерировать запросы вида [GRNG/GRMU].[dbo].[Table], но SQL Server ожидает только [dbo].[Table]
+        sql_query = re.sub(r'\[[\w\/\-]+\]\.\[dbo\]\.', '[dbo].', sql_query)
+        
         # Проверяем и добавляем схему dbo, если она не указана
         if "FROM " in sql_query and "[dbo]." not in sql_query and "dbo." not in sql_query:
             # Находим имена таблиц после FROM и JOIN
-            import re
             tables = re.findall(r'FROM\s+([^\s,;()]+)|JOIN\s+([^\s,;()]+)', sql_query, re.IGNORECASE)
             # Объединяем все найденные группы и удаляем пустые значения
             tables = [t for group in tables for t in group if t]
@@ -664,7 +667,6 @@ def execute_sql():
         print(f"Выполняется запрос: {sql_query}")  # Добавляем логирование запроса
         
         # Определяем базу данных автоматически по таблицам в запросе
-        import re
         used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
         
         if not used_tables:
@@ -778,6 +780,10 @@ def execute_sql_with_chart():
         return jsonify({"error": "SQL query is required"}), 400
 
     try:
+        # ВАЖНО: Удаляем неправильные префиксы базы данных из SQL запроса
+        # LLM может генерировать запросы вида [GRNG/GRMU].[dbo].[Table], но SQL Server ожидает только [dbo].[Table]
+        sql_query = re.sub(r'\[[\w\/\-]+\]\.\[dbo\]\.', '[dbo].', sql_query)
+        
         # Проверяем и добавляем схему dbo, если она не указана
         if "FROM " in sql_query and "[dbo]." not in sql_query and "dbo." not in sql_query:
             # Находим имена таблиц после FROM и JOIN
@@ -861,5 +867,5 @@ def execute_sql_with_chart():
 
 if __name__ == '__main__':
     print("Запуск Flask приложения...")
-    print(f"Доступно по адресу: http://127.0.0.1:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print(f"Доступно по адресу: http://127.0.0.1:8080")
+    app.run(debug=True, host='0.0.0.0', port=8080)

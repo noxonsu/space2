@@ -2,12 +2,12 @@
 .env.*
 .env*
 node
-
+Griff
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
-
+.vscode/
 # C extensions
 *.so
 
