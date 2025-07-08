@@ -109,9 +109,9 @@ class DatabaseManager:
         return all_stats
 
     def _parse_schema_file(self):
-        """Загружает и обрабатывает файл схемы базы данных"""
+        """Загружает и обрабатывает файл схемы базы данных из markdown."""
         try:
-            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db_shema.sql")
+            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "customer_schema.txt")
             if not os.path.exists(schema_path):
                 print(f"ПРЕДУПРЕЖДЕНИЕ: Файл схемы не найден: {schema_path}")
                 return "", {}
@@ -119,46 +119,49 @@ class DatabaseManager:
             with open(schema_path, 'r', encoding='utf-8') as file:
                 schema_content = file.read()
                 
-            # Извлекаем информацию о таблицах из схемы с указанием базы данных
             table_info = {}
-            table_to_database = {}  # Маппинг таблица -> база данных
-            current_table = None
-            current_database = None
+            table_to_database = {}
+            current_table_full_name = None # e.g., [GRNG/GRMU].[dbo].[FactLoading]
+            current_table_short_name = None # e.g., FactLoading
             
-            for line in schema_content.split('\n'):
-                line = line.strip()
+            lines = schema_content.split('\n')
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
                 
-                # Ищем определения баз данных
-                if line.startswith('-- БАЗА ДАННЫХ:'):
-                    current_database = line.split('-- БАЗА ДАННЫХ:')[1].strip()
-                    continue
+                # Ищем заголовки таблиц: "## Таблица: [DATABASE].[dbo].[TABLE_NAME]"
+                table_match = re.match(r'## Таблица: (\[[^\]]+\]\.\[dbo\]\.\[[^\]]+\])', line)
+                if table_match:
+                    current_table_full_name = table_match.group(1)
+                    # Extract short name and database name
+                    db_match = re.match(r'\[([^\]]+)\]\.\[dbo\]\.\[([^\]]+)\]', current_table_full_name)
+                    if db_match:
+                        current_database = db_match.group(1)
+                        current_table_short_name = db_match.group(2)
+                        table_info[current_table_short_name] = []
+                        table_to_database[current_table_short_name] = current_database
+                    
+                    # Пропускаем описание и заголовок таблицы markdown
+                    i += 1
+                    while i < len(lines) and not lines[i].strip().startswith('| Имя столбца'):
+                        i += 1
+                    
+                    # Пропускаем разделитель таблицы markdown
+                    if i < len(lines) and lines[i].strip().startswith('| Имя столбца'):
+                        i += 2 # Skip header and separator line
+                    
+                    # Читаем столбцы таблицы
+                    while i < len(lines) and lines[i].strip().startswith('|'):
+                        parts = [p.strip() for p in lines[i].split('|')]
+                        if len(parts) > 1: # Ensure it's a valid row
+                            column_name = parts[1]
+                            if column_name and current_table_short_name:
+                                table_info[current_table_short_name].append(column_name)
+                        i += 1
+                    continue # Continue to next line after processing table
                 
-                # Ищем определения таблиц
-                if line.startswith('CREATE TABLE') or line.startswith('-- Таблица:'):
-                    # Из строки вида "CREATE TABLE [dbo].[TableName]" извлекаем TableName
-                    if 'CREATE TABLE' in line:
-                        match = line.split('[dbo].[')[1].split(']')[0] if '[dbo].[' in line else None
-                        if match:
-                            current_table = match
-                            table_info[current_table] = []
-                            if current_database:
-                                table_to_database[current_table] = current_database
-                    elif '-- Таблица:' in line:
-                        # Из строки вида "-- Таблица: dbo.TableName" извлекаем TableName
-                        parts = line.split('-- Таблица: dbo.')[1] if '-- Таблица: dbo.' in line else line.split('-- Таблица: ')[1]
-                        current_table = parts.strip()
-                        table_info[current_table] = []
-                        if current_database:
-                            table_to_database[current_table] = current_database
-                
-                # Если мы внутри определения таблицы и нашли столбец
-                elif current_table and ('[' in line or 'nvarchar' in line or 'int' in line or 'float' in line or 'date' in line):
-                    if '[' in line:
-                        # Извлекаем имя столбца в квадратных скобках
-                        column = line.split('[')[1].split(']')[0] if '[' in line else None
-                        if column:
-                            table_info[current_table].append(column)
-            
+                i += 1 # Move to next line if not a table header
+
             # Форматируем информацию для использования в промпте LLM
             formatted_schema = "ДОСТУПНЫЕ ТАБЛИЦЫ И СТОЛБЦЫ (используйте ТОЛЬКО эти названия):\n\n"
             
@@ -203,7 +206,7 @@ class DatabaseManager:
         except Exception as e:
             print(f"Ошибка при загрузке файла схемы: {str(e)}")
             return """
-Пример схемы (используется, т.к. файл db_shema.sql не найден или содержит ошибку):
+Пример схемы (используется, т.к. файл customer_schema.txt не найден или содержит ошибку):
 Таблица [dbo].[TableName1]:
    Столбцы: [Column1], [Column2], [Column3]
 
@@ -534,6 +537,10 @@ class ChartGenerator:
         """
         query_lower = user_query.lower()
         
+        # Если явно запрошена гистограмма, то всегда возвращаем 'bar'
+        if 'гистограмма' in query_lower:
+            return 'bar'
+
         # Круговая диаграмма - для разбивки по категориям
         if any(keyword in query_lower for keyword in ['разрез', 'доля', 'процент', 'распределение']):
             return 'pie'
@@ -709,17 +716,55 @@ def execute_sql():
         
         print(f"Используется база данных: {db_name} для таблицы: {first_table}")
         
-        # Проверяем, что все таблицы в запросе из одной базы данных
-        for table in used_tables:
-            table_db = db_manager.get_table_database(table)
-            if table_db and table_db != db_name:
-                return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
-        
-        # Проверяем соединение с БД перед выполнением
-        if not db_manager.connect(db_name):
-            return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
-        
-        result_df = db_manager.execute_query(sql_query, db_name)
+        # Проверяем, содержит ли запрос UNION ALL
+        if "UNION ALL" in sql_query.upper():
+            print("Обнаружен UNION ALL запрос. Разделяем и выполняем по частям.")
+            sub_queries = [s.strip() for s in re.split(r'UNION ALL', sql_query, flags=re.IGNORECASE) if s.strip()]
+            
+            combined_df = pd.DataFrame()
+            errors = []
+            
+            for sub_q in sub_queries:
+                try:
+                    sub_used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sub_q)
+                    if not sub_used_tables:
+                        errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
+                        continue
+                    
+                    sub_first_table = sub_used_tables[0]
+                    sub_db_name = db_manager.get_table_database(sub_first_table)
+                    
+                    if not sub_db_name:
+                        sub_db_name = 'GRNG/GRMU' # Fallback
+                        print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {sub_first_table} в подзапросе, используем {sub_db_name}")
+                    
+                    print(f"Выполнение подзапроса в {sub_db_name}: {sub_q}")
+                    sub_result_df = db_manager.execute_query(sub_q, sub_db_name)
+                    
+                    if not sub_result_df.empty:
+                        combined_df = pd.concat([combined_df, sub_result_df], ignore_index=True)
+                    
+                except Exception as sub_e:
+                    errors.append(f"Ошибка при выполнении подзапроса '{sub_q}': {str(sub_e)}")
+            
+            if errors:
+                return jsonify({"error": "Произошли ошибки при выполнении некоторых подзапросов: " + "; ".join(errors)}), 500
+            
+            result_df = combined_df
+            
+        else:
+            # Оригинальная логика для запросов без UNION ALL
+            # Проверяем, что все таблицы в запросе из одной базы данных
+            for table in used_tables:
+                table_db = db_manager.get_table_database(table)
+                if table_db and table_db != db_name:
+                    return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
+            
+            # Проверяем соединение с БД перед выполнением
+            if not db_manager.connect(db_name):
+                return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
+            
+            result_df = db_manager.execute_query(sql_query, db_name)
         
         if result_df is None or result_df.empty:
             print("Запрос вернул пустой результат")
@@ -842,17 +887,55 @@ def execute_sql_with_chart():
         
         print(f"Используется база данных: {db_name} для таблицы: {first_table}")
         
-        # Проверяем, что все таблицы в запросе из одной базы данных
-        for table in used_tables:
-            table_db = db_manager.get_table_database(table)
-            if table_db and table_db != db_name:
-                return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
-        
-        # Проверяем соединение с БД перед выполнением
-        if not db_manager.connect(db_name):
-            return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
-        
-        result_df = db_manager.execute_query(sql_query, db_name)
+        # Проверяем, содержит ли запрос UNION ALL
+        if "UNION ALL" in sql_query.upper():
+            print("Обнаружен UNION ALL запрос. Разделяем и выполняем по частям.")
+            sub_queries = [s.strip() for s in re.split(r'UNION ALL', sql_query, flags=re.IGNORECASE) if s.strip()]
+            
+            combined_df = pd.DataFrame()
+            errors = []
+            
+            for sub_q in sub_queries:
+                try:
+                    sub_used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sub_q)
+                    if not sub_used_tables:
+                        errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
+                        continue
+                    
+                    sub_first_table = sub_used_tables[0]
+                    sub_db_name = db_manager.get_table_database(sub_first_table)
+                    
+                    if not sub_db_name:
+                        sub_db_name = 'GRNG/GRMU' # Fallback
+                        print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {sub_first_table} в подзапросе, используем {sub_db_name}")
+                    
+                    print(f"Выполнение подзапроса в {sub_db_name}: {sub_q}")
+                    sub_result_df = db_manager.execute_query(sub_q, sub_db_name)
+                    
+                    if not sub_result_df.empty:
+                        combined_df = pd.concat([combined_df, sub_result_df], ignore_index=True)
+                    
+                except Exception as sub_e:
+                    errors.append(f"Ошибка при выполнении подзапроса '{sub_q}': {str(sub_e)}")
+            
+            if errors:
+                return jsonify({"error": "Произошли ошибки при выполнении некоторых подзапросов: " + "; ".join(errors)}), 500
+            
+            result_df = combined_df
+            
+        else:
+            # Оригинальная логика для запросов без UNION ALL
+            # Проверяем, что все таблицы в запросе из одной базы данных
+            for table in used_tables:
+                table_db = db_manager.get_table_database(table)
+                if table_db and table_db != db_name:
+                    return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
+            
+            # Проверяем соединение с БД перед выполнением
+            if not db_manager.connect(db_name):
+                return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
+            
+            result_df = db_manager.execute_query(sql_query, db_name)
         
         if result_df is None or result_df.empty:
             print("Запрос вернул пустой результат")
