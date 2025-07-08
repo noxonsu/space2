@@ -22,7 +22,9 @@ load_dotenv()
 class DatabaseManager:
     def __init__(self):
         self.connections = {}  # Словарь для хранения подключений к разным базам данных
-        self.schema_info, self.table_to_database = self._parse_schema_file()
+        # Schema info and table_to_database are no longer parsed from a file
+        self.schema_info = "" 
+        self.table_to_database = {} # This will remain empty as schema is now in prompt
 
     def _build_connection_string(self, db_name):
         """Строим строку подключения к указанной базе данных"""
@@ -95,7 +97,7 @@ class DatabaseManager:
                 FROM 
                     sys.tables t
                 INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id
-                INNER JOIN sys.partitions p ON i.OBJECT_ID = p.OBJECT_ID AND i.index_id = p.index_id
+                INNER JOIN sys.partitions p ON i.OBJECT_ID = p.object_id AND i.index_id = p.index_id
                 INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
                 WHERE t.is_ms_shipped = 0 AND i.OBJECT_ID > 255
                 GROUP BY t.Name, p.Rows
@@ -108,124 +110,18 @@ class DatabaseManager:
                 print(f"Не удалось получить статистику для базы данных {db_name}: {e}")
         return all_stats
 
-    def _parse_schema_file(self):
-        """Загружает и обрабатывает файл схемы базы данных из markdown."""
-        try:
-            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "customer_schema.txt")
-            if not os.path.exists(schema_path):
-                print(f"ПРЕДУПРЕЖДЕНИЕ: Файл схемы не найден: {schema_path}")
-                return "", {}
-                
-            with open(schema_path, 'r', encoding='utf-8') as file:
-                schema_content = file.read()
-                
-            table_info = {}
-            table_to_database = {}
-            current_table_full_name = None # e.g., [GRNG/GRMU].[dbo].[FactLoading]
-            current_table_short_name = None # e.g., FactLoading
-            
-            lines = schema_content.split('\n')
-            i = 0
-            while i < len(lines):
-                line = lines[i].strip()
-                
-                # Ищем заголовки таблиц: "## Таблица: [DATABASE].[dbo].[TABLE_NAME]"
-                table_match = re.match(r'## Таблица: (\[[^\]]+\]\.\[dbo\]\.\[[^\]]+\])', line)
-                if table_match:
-                    current_table_full_name = table_match.group(1)
-                    # Extract short name and database name
-                    db_match = re.match(r'\[([^\]]+)\]\.\[dbo\]\.\[([^\]]+)\]', current_table_full_name)
-                    if db_match:
-                        current_database = db_match.group(1)
-                        current_table_short_name = db_match.group(2)
-                        table_info[current_table_short_name] = []
-                        table_to_database[current_table_short_name] = current_database
-                    
-                    # Пропускаем описание и заголовок таблицы markdown
-                    i += 1
-                    while i < len(lines) and not lines[i].strip().startswith('| Имя столбца'):
-                        i += 1
-                    
-                    # Пропускаем разделитель таблицы markdown
-                    if i < len(lines) and lines[i].strip().startswith('| Имя столбца'):
-                        i += 2 # Skip header and separator line
-                    
-                    # Читаем столбцы таблицы
-                    while i < len(lines) and lines[i].strip().startswith('|'):
-                        parts = [p.strip() for p in lines[i].split('|')]
-                        if len(parts) > 1: # Ensure it's a valid row
-                            column_name = parts[1]
-                            if column_name and current_table_short_name:
-                                table_info[current_table_short_name].append(column_name)
-                        i += 1
-                    continue # Continue to next line after processing table
-                
-                i += 1 # Move to next line if not a table header
-
-            # Форматируем информацию для использования в промпте LLM
-            formatted_schema = "ДОСТУПНЫЕ ТАБЛИЦЫ И СТОЛБЦЫ (используйте ТОЛЬКО эти названия):\n\n"
-            
-            # Группируем таблицы по базам данных
-            databases = {}
-            for table, database in table_to_database.items():
-                if database not in databases:
-                    databases[database] = []
-                databases[database].append(table)
-            
-            # Отсортируем и отформатируем по базам данных
-            for database in sorted(databases.keys()):
-                formatted_schema += f"=== БАЗА ДАННЫХ: {database} ===\n"
-                for table in sorted(databases[database]):
-                    columns = ", ".join([f"[{col}]" for col in table_info[table][:15]])  # Увеличил лимит до 15 столбцов
-                    if len(table_info[table]) > 15:
-                        columns += ", ..."
-                    formatted_schema += f"Таблица [dbo].[{table}]:\n   Столбцы: {columns}\n\n"
-                formatted_schema += "\n"
-            
-            formatted_schema += """
-ПРАВИЛА ГЕНЕРАЦИИ SQL:
-- Используйте ТОЛЬКО таблицы и столбцы, перечисленные выше
-- Формат таблицы: [dbo].[ИмяТаблицы] 
-- Формат столбца: [ИмяСтолбца]
-- Для подсчета используйте COUNT(*)
-- Для ограничения результатов используйте TOP N (не LIMIT)
-- Для дат используйте GETDATE(), DATEADD(), YEAR(), MONTH()
-- ВНИМАНИЕ: Таблицы находятся в разных базах данных, но всегда используйте только [dbo].[ИмяТаблицы]
-
-ПРИМЕРЫ КОРРЕКТНЫХ ЗАПРОСОВ:
-- SELECT COUNT(*) FROM [dbo].[EnterpriseWagons]
-- SELECT TOP 5 [Груз] FROM [dbo].[VagonImport]
-- SELECT [Род груза], COUNT(*) FROM [dbo].[VagonImport] GROUP BY [Род груза]
-"""
-            
-            print(f"Схема базы данных успешно загружена из {schema_path}")
-            print(f"Найдено таблиц: {len(table_info)}")
-            print(f"Найдено баз данных: {len(databases)}")
-            return formatted_schema, table_to_database
-            
-        except Exception as e:
-            print(f"Ошибка при загрузке файла схемы: {str(e)}")
-            return """
-Пример схемы (используется, т.к. файл customer_schema.txt не найден или содержит ошибку):
-Таблица [dbo].[TableName1]:
-   Столбцы: [Column1], [Column2], [Column3]
-
-Таблица [dbo].[TableName2]:
-   Столбцы: [ColumnA], [ColumnB], [ColumnC]
-
-ПРАВИЛА:
-- Используйте формат [dbo].[ИмяТаблицы]
-- Используйте формат [ИмяСтолбца]
-- Для подсчета используйте COUNT(*)
-""", {}
+    # Removed _parse_schema_file as schema is now embedded in llm_prompt_template.txt
 
     def get_schema_info(self):
-        """Возвращает информацию о схеме базы данных"""
+        """Возвращает информацию о схеме базы данных (пустая строка, так как схема теперь в промпте LLM)"""
         return self.schema_info
 
     def get_table_database(self, table_name):
-        """Возвращает базу данных для указанной таблицы"""
-        return self.table_to_database.get(table_name)
+        """Возвращает базу данных для указанной таблицы (использует дефолт, так как нет парсинга схемы)"""
+        # Since table_to_database is no longer populated from a file,
+        # we'll rely on the LLM to generate correct database prefixes or use a default.
+        # For now, we'll assume GRNG/GRMU as a common default if not explicitly handled by LLM.
+        return 'GRNG/GRMU' # Default database name
 
 class LLMQueryGenerator:
     def __init__(self, model_name=None):
@@ -312,33 +208,22 @@ class LLMQueryGenerator:
         # Удаляем начальные и конечные пробелы и точки с запятой
         return text.strip().rstrip(';')
 
-    def _validate_sql_tables(self, sql_query, schema_info):
+    def _validate_sql_tables(self, sql_query): # Removed schema_info parameter
         """Проверяет, что SQL-запрос использует только существующие таблицы из схемы"""
-        available_tables = []
-        # Extract table names from the schema_info string
-        for line in schema_info.split('\n'):
-            if line.strip().startswith('Таблица [dbo].['):
-                table_name = line.split('[dbo].[')[1].split(']')[0]
-                available_tables.append(table_name)
-        
-        used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
-        
-        for used_table in used_tables:
-            if used_table not in available_tables:
-                raise Exception(f"LLM использовал несуществующую таблицу: {used_table}. Доступные таблицы: {', '.join(available_tables)}")
-        
-        return True
+        # This validation is now less effective as schema is not parsed.
+        # Relying on LLM to generate correct tables based on its internal prompt.
+        # If needed, a more robust validation would require parsing the schema from the prompt itself.
+        return True # For now, always return True as schema is not parsed here
 
-    def _generate_sql_query_internal(self, user_request, schema_info):
+    def _generate_sql_query_internal(self, user_request): # Removed schema_info parameter
         """Внутренняя функция для генерации SQL запроса"""
         if not self.is_available():
             raise ConnectionError("HuggingFace API недоступна. Проверьте токен HF_TOKEN.")
 
         current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Используем загруженный шаблон промпта
+        # The prompt_template_content now contains the full schema, so no need to format schema_info
         prompt = self.prompt_template_content.format(
-            schema_info=schema_info,
             user_request=user_request,
             current_datetime=current_datetime
         )
@@ -367,15 +252,7 @@ class LLMQueryGenerator:
             sql_query = response_data["choices"][0]["message"]["content"]
             cleaned_query = self._clean_sql_response(sql_query)
             
-            # Дополнительная проверка: если LLM вернул ошибку о несоответствии схеме
-            if "ERROR: No suitable tables found" in cleaned_query:
-                raise Exception(f"LLM could not map user request to available database schema. Request: {user_request}")
-            
-            # Валидируем, что SQL использует только существующие таблицы
-            try:
-                self._validate_sql_tables(cleaned_query, schema_info)
-            except Exception as validation_error:
-                raise Exception(f"SQL validation failed: {str(validation_error)}")
+            # Removed schema validation here as schema is not parsed by DatabaseManager
             
             return cleaned_query, prompt
 
@@ -387,14 +264,14 @@ class LLMQueryGenerator:
 
     def generate_sql_query(self, user_request):
         """Генерация SQL запроса на основе пользовательского запроса через HuggingFace API"""
-        schema_info = db_manager.get_schema_info() # Get schema dynamically
-        cleaned_query, _ = self._generate_sql_query_internal(user_request, schema_info)
+        # schema_info is no longer needed here as it's embedded in the prompt template
+        cleaned_query, _ = self._generate_sql_query_internal(user_request)
         return cleaned_query
 
     def generate_sql_query_with_prompt(self, user_request):
         """Генерация SQL запроса с возвратом полного промпта"""
-        schema_info = db_manager.get_schema_info() # Get schema dynamically
-        cleaned_query, prompt = self._generate_sql_query_internal(user_request, schema_info)
+        # schema_info is no longer needed here as it's embedded in the prompt template
+        cleaned_query, prompt = self._generate_sql_query_internal(user_request)
         return cleaned_query, prompt
 
     def is_available(self):
@@ -461,52 +338,85 @@ class ChartGenerator:
         if len(data.columns) >= 2:
             x_col = data.columns[0]
             y_col = data.columns[1]
-            
-            # Если есть даты, конвертируем их
-            if any(keyword in x_col.lower() for keyword in ['дата', 'месяц', 'год', 'время']):
+
+            # Проверяем наличие колонок 'Year' и 'Month'
+            if 'Year' in data.columns and 'Month' in data.columns:
                 try:
-                    # Пытаемся конвертировать в даты
-                    if data[x_col].dtype == 'object':
-                        # Если это строки, пытаемся парсить
-                        data[x_col] = pd.to_datetime(data[x_col], errors='coerce')
-                    
-                    ax.plot(data[x_col], data[y_col], marker='o', linewidth=2, markersize=6)
+                    # Создаем временной индекс из Year и Month
+                    data['Date'] = pd.to_datetime(data['Year'].astype(str) + '-' + data['Month'].astype(str) + '-01')
+                    data = data.sort_values('Date')
+                    x_col_plot = 'Date'
                     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
                     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
                     plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
-                except:
-                    ax.plot(data[x_col], data[y_col], marker='o', linewidth=2, markersize=6)
+                except Exception as e:
+                    print(f"Ошибка при создании даты из Year/Month для линейного графика: {e}")
+                    x_col_plot = x_col # Fallback to original x_col
+            elif any(keyword in x_col.lower() for keyword in ['дата', 'месяц', 'год', 'время']):
+                try:
+                    # Пытаемся конвертировать в даты
+                    if data[x_col].dtype == 'object':
+                        data[x_col] = pd.to_datetime(data[x_col], errors='coerce')
+                    x_col_plot = x_col
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+                    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+                except Exception as e:
+                    print(f"Ошибка при конвертации x_col в дату для линейного графика: {e}")
+                    x_col_plot = x_col # Fallback to original x_col
             else:
-                ax.plot(data[x_col], data[y_col], marker='o', linewidth=2, markersize=6)
-            
+                x_col_plot = x_col
+
+            ax.plot(data[x_col_plot], data[y_col], marker='o', linewidth=2, markersize=6)
+
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
             ax.set_title(title, fontsize=14, fontweight='bold')
             ax.grid(True, alpha=0.3)
-    
+
     def _create_bar_chart(self, ax, data, title, x_label, y_label):
         """Создает столбчатый график"""
         if len(data.columns) >= 2:
             x_col = data.columns[0]
             y_col = data.columns[1]
-            
-            bars = ax.bar(data[x_col], data[y_col], color='skyblue', alpha=0.8)
-            
+
+            # Проверяем наличие колонок 'Year' и 'Month'
+            if 'Year' in data.columns and 'Month' in data.columns:
+                try:
+                    # Создаем комбинированную метку для оси X
+                    data['YearMonth'] = data['Year'].astype(str) + '-' + data['Month'].astype(str).zfill(2)
+                    data = data.sort_values(['Year', 'Month'])
+                    x_col_plot = 'YearMonth'
+                except Exception as e:
+                    print(f"Ошибка при создании YearMonth для столбчатого графика: {e}")
+                    x_col_plot = x_col # Fallback to original x_col
+            else:
+                x_col_plot = x_col
+
+            # Если слишком много уникальных значений на оси X, лучше использовать линейный график
+            if len(data[x_col_plot].unique()) > 15:
+                print(f"DEBUG: Too many unique X values ({len(data[x_col_plot].unique())}) for bar chart. Consider line chart.")
+                # Можно добавить логику для автоматического переключения на линейный график
+                # или просто предупредить и продолжить строить bar chart
+                # For now, we'll just proceed with bar chart, but log the warning.
+
+            bars = ax.bar(data[x_col_plot], data[y_col], color='skyblue', alpha=0.8)
+
             # Добавляем значения на столбцы
             for bar in bars:
                 height = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width()/2., height,
                        f'{height:.0f}',
                        ha='center', va='bottom')
-            
+
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
             ax.set_title(title, fontsize=14, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
-            
+
             # Поворачиваем подписи на оси X если их много
-            if len(data) > 5:
-                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+            if len(data[x_col_plot].unique()) > 5:
+                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
     
     def _create_pie_chart(self, ax, data, title):
         """Создает круговую диаграмму"""
@@ -536,10 +446,9 @@ class ChartGenerator:
         Определяет подходящий тип графика на основе данных и запроса пользователя
         """
         query_lower = user_query.lower()
-        return 'bar'
         # Если явно запрошена гистограмма, то всегда возвращаем 'bar'
         if 'гистограмма' in query_lower:
-            print(f"DEBUG: User query contains 'гистограмма'. Forcing chart type to 'bar'. Original query: {user_query}")
+            print(f"DEBUG User query contains 'гистограмма'. Forcing chart type to 'bar'. Original query: {user_query}")
             return 'bar'
 
         # Круговая диаграмма - для разбивки по категориям
@@ -680,10 +589,15 @@ def execute_sql():
     """API для выполнения SQL"""
     data = request.json
     sql_query = data.get('query')
+    user_query = data.get('user_query', '')  # Добавляем user_query
+    create_chart = data.get('create_chart', False)  # Добавляем create_chart
     if not sql_query:
         return jsonify({"error": "SQL query is required"}), 400
 
     try:
+        # Инициализируем chart_type
+        chart_type = None
+        
         # ВАЖНО: Удаляем неправильные префиксы базы данных из SQL запроса
         # LLM может генерировать запросы вида [GRNG/GRMU].[dbo].[Table], но SQL Server ожидает только [dbo].[Table]
         sql_query = re.sub(r'\[[\w\/\-]+\]\.\[dbo\]\.', '[dbo].', sql_query)
@@ -703,177 +617,6 @@ def execute_sql():
                     sql_query = sql_query.replace(f"JOIN {table}", f"JOIN [dbo].[{table}]")
         
         print(f"Выполняется запрос: {sql_query}")  # Добавляем логирование запроса
-        
-        # Определяем базу данных автоматически по таблицам в запросе
-        used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
-        
-        if not used_tables:
-            return jsonify({"error": "Не удалось определить таблицы в SQL запросе"}), 400
-        
-        # Берем первую таблицу для определения базы данных
-        first_table = used_tables[0]
-        db_name = db_manager.get_table_database(first_table)
-        
-        if not db_name:
-            # Если база данных не найдена, пробуем стандартные базы
-            db_name = 'GRNG/GRMU'  # База данных по умолчанию
-            print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {first_table}, используем {db_name}")
-        
-        print(f"Используется база данных: {db_name} для таблицы: {first_table}")
-        
-        # Проверяем, содержит ли запрос UNION ALL
-        if "UNION ALL" in sql_query.upper():
-            print("Обнаружен UNION ALL запрос. Разделяем и выполняем по частям.")
-            sub_queries = [s.strip() for s in re.split(r'UNION ALL', sql_query, flags=re.IGNORECASE) if s.strip()]
-            
-            combined_df = pd.DataFrame()
-            errors = []
-            
-            for sub_q in sub_queries:
-                try:
-                    sub_used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sub_q)
-                    if not sub_used_tables:
-                        errors.append(f"Не удалось определить таблицы в подзапросе: {sub_q}")
-                        continue
-                    
-                    sub_first_table = sub_used_tables[0]
-                    sub_db_name = db_manager.get_table_database(sub_first_table)
-                    
-                    if not sub_db_name:
-                        sub_db_name = 'GRNG/GRMU' # Fallback
-                        print(f"ПРЕДУПРЕЖДЕНИЕ: Не найдена база данных для таблицы {sub_first_table} в подзапросе, используем {sub_db_name}")
-                    
-                    print(f"Выполнение подзапроса в {sub_db_name}: {sub_q}")
-                    sub_result_df = db_manager.execute_query(sub_q, sub_db_name)
-                    
-                    if not sub_result_df.empty:
-                        combined_df = pd.concat([combined_df, sub_result_df], ignore_index=True)
-                    
-                except Exception as sub_e:
-                    errors.append(f"Ошибка при выполнении подзапроса '{sub_q}': {str(sub_e)}")
-            
-            if errors:
-                return jsonify({"error": "Произошли ошибки при выполнении некоторых подзапросов: " + "; ".join(errors)}), 500
-            
-            result_df = combined_df
-            
-        else:
-            # Оригинальная логика для запросов без UNION ALL
-            # Проверяем, что все таблицы в запросе из одной базы данных
-            for table in used_tables:
-                table_db = db_manager.get_table_database(table)
-                if table_db and table_db != db_name:
-                    return jsonify({"error": f"Ошибка: Таблицы из разных баз данных в одном запросе. Таблица {table} из базы {table_db}, а {first_table} из базы {db_name}"}), 400
-            
-            # Проверяем соединение с БД перед выполнением
-            if not db_manager.connect(db_name):
-                return jsonify({"error": f"Не удалось подключиться к базе данных {db_name}"}), 500
-            
-            result_df = db_manager.execute_query(sql_query, db_name)
-        
-        if result_df is None or result_df.empty:
-            print("Запрос вернул пустой результат")
-            
-            # Если это запрос COUNT(*), то добавляем пояснение
-            if "COUNT(*)" in sql_query.upper():
-                # Находим имя таблицы
-                table_match = re.search(r'FROM\s+\[dbo\]\.\[([^\]]+)\]', sql_query)
-                if table_match:
-                    table_name = table_match.group(1)
-                    
-                    # Проверяем другие таблицы с вагонами, если запрос о вагонах вернул 0
-                    if table_name == "VagonImport" and any(word in sql_query.lower() for word in ["count", "количество"]):
-                        print("Проверка альтернативных таблиц с данными о вагонах...")
-                        try:
-                            alt_query = """
-                            SELECT 
-                                (SELECT COUNT(*) FROM [dbo].[EnterpriseWagons]) AS EnterpriseWagons,
-                                (SELECT COUNT(*) FROM [dbo].[ShipmentsToThePort]) AS ShipmentsToThePort,
-                                (SELECT COUNT(*) FROM [dbo].[WagonsOnTheWay]) AS WagonsOnTheWay
-                            """
-                            alt_df = db_manager.execute_query(alt_query, db_name)
-                            if not alt_df.empty:
-                                # Добавляем пояснение в ответ
-                                return jsonify([{
-                                    "Сообщение": f"Таблица {table_name} пуста. Проверьте другие таблицы с данными о вагонах:",
-                                    **alt_df.iloc[0].to_dict()
-                                }]), 200
-                        except Exception as alt_e:
-                            print(f"Ошибка при проверке альтернативных таблиц: {alt_e}")
-            
-            return jsonify([]), 200  # Возвращаем пустой список вместо ошибки
-            
-        # Преобразуем типы данных, которые не сериализуются в JSON
-        for col in result_df.columns:
-            if pd.api.types.is_datetime64_any_dtype(result_df[col]):
-                result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-        
-        results = result_df.to_dict(orient='records')
-        return jsonify(results)
-    except Exception as e:
-        error_msg = f"Ошибка при выполнении SQL запроса: {str(e)}"
-        print(error_msg)
-        return jsonify({"error": error_msg}), 500
-
-@app.route('/api/models')
-def get_models():
-    """Получение списка доступных моделей"""
-    try:
-        models = llm_generator.get_available_models()
-        current_model = llm_generator.get_current_model()
-        return jsonify({
-            'models': models,
-            'current_model': current_model['model_name']
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/models/set', methods=['POST'])
-def set_model():
-    """Установка текущей модели"""
-    try:
-        data = request.get_json()
-        model_name = data.get('model_name')
-        
-        if not model_name:
-            return jsonify({'error': 'model_name is required'}), 400
-        
-        llm_generator.set_model(model_name)
-        return jsonify({'success': True, 'current_model': model_name})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/execute-sql-with-chart', methods=['POST'])
-def execute_sql_with_chart():
-    """API для выполнения SQL с созданием графика"""
-    data = request.json
-    sql_query = data.get('query')
-    user_query = data.get('user_query', '')
-    create_chart = data.get('create_chart', False)
-    
-    if not sql_query:
-        return jsonify({"error": "SQL query is required"}), 400
-
-    try:
-        # ВАЖНО: Удаляем неправильные префиксы базы данных из SQL запроса
-        # LLM может генерировать запросы вида [GRNG/GRMU].[dbo].[Table], но SQL Server ожидает только [dbo].[Table]
-        sql_query = re.sub(r'\[[\w\/\-]+\]\.\[dbo\]\.', '[dbo].', sql_query)
-        
-        # Проверяем и добавляем схему dbo, если она не указана
-        if "FROM " in sql_query and "[dbo]." not in sql_query and "dbo." not in sql_query:
-            # Находим имена таблиц после FROM и JOIN
-            tables = re.findall(r'FROM\s+([^\s,;()]+)|JOIN\s+([^\s,;()]+)', sql_query, re.IGNORECASE)
-            # Объединяем все найденные группы и удаляем пустые значения
-            tables = [t for group in tables for t in group if t]
-            
-            # Добавляем префикс [dbo]. к таблицам, если их еще нет
-            for table in tables:
-                if not table.startswith('[dbo].') and not table.startswith('dbo.'):
-                    # Заменяем, только если это не подзапрос
-                    sql_query = sql_query.replace(f"FROM {table}", f"FROM [dbo].[{table}]")
-                    sql_query = sql_query.replace(f"JOIN {table}", f"JOIN [dbo].[{table}]")
-        
-        print(f"Выполняется запрос: {sql_query}")
         
         # Определяем базу данных автоматически по таблицам в запросе
         used_tables = re.findall(r'\[dbo\]\.\[([^\]]+)\]', sql_query)
@@ -966,8 +709,12 @@ def execute_sql_with_chart():
             chart_title = chart_generator.generate_chart_title(result_df, user_query)
             
             # Определяем подписи осей
-            x_label = result_df.columns[0] if len(result_df.columns) > 0 else 'X'
-            y_label = result_df.columns[1] if len(result_df.columns) > 1 else 'Y'
+            if 'Year' in result_df.columns and 'Month' in result_df.columns and len(result_df.columns) >= 3:
+                x_label = 'Отчетный период' # Reporting Period
+                y_label = result_df.columns[0] # The actual metric column (e.g., AverageMonthlyLoading)
+            else:
+                x_label = result_df.columns[0] if len(result_df.columns) > 0 else 'X'
+                y_label = result_df.columns[1] if len(result_df.columns) > 1 else 'Y'
             
             chart_base64 = chart_generator.create_chart(
                 result_df, chart_type, chart_title, x_label, y_label

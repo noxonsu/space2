@@ -2,6 +2,7 @@ import os
 import logging
 import pandas as pd
 import re
+import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 from dotenv import load_dotenv
@@ -21,6 +22,20 @@ logger = logging.getLogger(__name__)
 # URL вашего локального Flask API
 # В Codespaces используем локальный адрес, так как бот работает в том же контейнере
 API_URL = "http://127.0.0.1:8080"
+
+# Загружаем примеры запросов из JSON файла
+def load_query_examples():
+    """Загружает примеры запросов из JSON файла"""
+    try:
+        with open('/workspaces/space2/vagon/static/query_examples.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data['examples']
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке примеров запросов: {e}")
+        return []
+
+# Глобальная переменная для хранения примеров
+QUERY_EXAMPLES = load_query_examples()
 
 # --- Вспомогательные функции для взаимодействия с API ---
 
@@ -60,14 +75,31 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Доступные команды:\n"
         "/start - Начать взаимодействие с ботом\n"
         "/help - Показать это сообщение\n"
+        "/examples - Показать примеры запросов\n"
         "/models - Показать доступные LLM модели\n"
         "/set_model <model_name> - Установить LLM модель (например, /set_model Qwen/Qwen2.5-Coder-7B)\n"
         "/stats - Получить статистику по таблицам базы данных\n"
         "\nПросто отправьте мне ваш запрос на естественном языке, например:\n"
         "'Покажи 5 самых тяжелых грузов, принятых в этом месяце.'\n"
-        "'Сделай график выгрузки вагонов по месяцам за последний год.'"
+        "'Сделай график выгрузки вагонов по месяцам за последний год.'\n"
+        "\nИспользуйте /examples для получения полного списка примеров запросов."
     )
     await update.message.reply_text(help_text)
+
+async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отправляет примеры запросов."""
+    if not QUERY_EXAMPLES:
+        await update.message.reply_text("❌ Примеры запросов не загружены. Обратитесь к администратору.")
+        return
+        
+    examples_text = "📝 **Примеры запросов:**\n\n"
+    
+    for i, example in enumerate(QUERY_EXAMPLES, 1):
+        examples_text += f"{i}. `{example['user_query']}`\n\n"
+    
+    examples_text += "Просто скопируйте любой пример и отправьте мне!"
+    
+    await update.message.reply_text(examples_text, parse_mode='Markdown')
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Получает и отправляет статистику по таблицам."""
@@ -240,6 +272,7 @@ def main() -> None:
     # Регистрируем обработчики команд
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("examples", examples_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("models", models_command))
     application.add_handler(CommandHandler("set_model", set_model_command))

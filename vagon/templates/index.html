@@ -50,14 +50,10 @@
                     <textarea class="form-control" id="user-query" rows="3" placeholder="Пример: 'Покажи 5 самых тяжелых грузов, принятых в этом месяце'"></textarea>
                 </div>
                 <div class="mb-3">
-                    <small class="form-text text-muted">Или выберите пример:</small><br>
-                    <a href="#" class="query-example small">Покажи, как менялась выгрузка вагонов в течение 2 последних лет, ежемесячно</a><br>
-                    <a href="#" class="query-example small">Как менялся показатель среднемесячной погрузки на суда последние 2 года</a><br>
-                    <a href="#" class="query-example small">Как менялся показатель времени выгрузки вагона в зависимости от фронтов выгрузки</a><br>
-                    <a href="#" class="query-example small">Как менялся показатель ежегодной выгрузки вагонов в разрезе родов груза</a><br>
-                    <a href="#" class="query-example small">Как менялся показатель ежегодной выгрузки вагонов в разрезе грузоотправителей</a><br>
-                    <a href="#" class="query-example small">Предоставь данные по отгрузкам в адрес порта за предыдущий месяц</a><br>
-                    <a href="#" class="query-example small">Сколько выгрузили вчера вагонов в разрезе рода груза</a>
+                    <label for="query-examples" class="form-label">Или выберите пример:</label>
+                    <select class="form-select" id="query-examples">
+                        <option selected>Выберите пример запроса...</option>
+                    </select>
                 </div>
                 <button id="generate-sql-btn" class="btn btn-success">Сгенерировать SQL</button>
                 <div class="spinner-border spinner-border-sm ms-2" role="status" id="generate-spinner"></div>
@@ -134,6 +130,49 @@
         }
 
         $(document).ready(function() {
+            let queryExamples = [];
+            
+            // Загрузка примеров запросов из JSON файла
+            function loadQueryExamples() {
+                $.ajax({
+                    url: '/static/query_examples.json',
+                    method: 'GET',
+                    success: function(data) {
+                        queryExamples = data.examples;
+                        populateExampleSelect();
+                    },
+                    error: function(jqXHR) {
+                        console.error('Ошибка загрузки примеров:', jqXHR);
+                        // Fallback к статическим примерам
+                        queryExamples = [
+                        ];
+                        populateExampleSelect();
+                    }
+                });
+            }
+            
+            // Заполнение выпадающего списка примерами
+            function populateExampleSelect() {
+                const exampleSelect = $('#query-examples');
+                exampleSelect.empty();
+                exampleSelect.append('<option selected>Выберите пример запроса...</option>');
+                
+                queryExamples.forEach(function(example) {
+                    const option = $('<option></option>');
+                    option.val(example.user_query);
+                    option.text(example.user_query);
+                    exampleSelect.append(option);
+                });
+            }
+            
+            // Обработчик выбора примера
+            $('#query-examples').on('change', function() {
+                const selectedExample = $(this).val();
+                if (selectedExample && selectedExample !== 'Выберите пример запроса...') {
+                    $('#user-query').val(selectedExample);
+                }
+            });
+            
             // Загрузка доступных моделей
             function loadModels() {
                 $.ajax({
@@ -160,8 +199,9 @@
                 });
             }
             
-            // Загружаем модели при загрузке страницы
+            // Загружаем модели и примеры при загрузке страницы
             loadModels();
+            loadQueryExamples();
             
             // Обработчик изменения модели
             $('#model-select').on('change', function() {
@@ -207,50 +247,18 @@
                 });
             });
 
-            // Глобальная переменная для хранения схемы
-            let cachedSchema = null;
+            // Глобальная переменная для хранения схемы (больше не нужна)
+            // let cachedSchema = null;
 
-            // Функция для получения схемы с сервера
-            function getSchemaFromServer() {
-                return $.ajax({
-                    url: '/api/get-schema',
-                    method: 'GET',
-                    async: false
-                }).responseJSON;
-            }
+            // Функция для получения схемы с сервера (больше не нужна)
+            // function getSchemaFromServer() {
+            //     // Удалено, так как схема теперь в промпте
+            // }
 
-            // Функция для формирования полного промпта (точная копия из Python)
-            function buildFullPrompt(userQuery, schemaInfo) {
-                return `You are an expert SQL Server database analyst. Your task is to generate ONLY valid SQL queries based on the provided database schema.
-
-CRITICAL RULES - FOLLOW EXACTLY OR RETURN ERROR:
-1. Use ONLY table names and column names from the provided schema below
-2. NEVER invent or guess table names - only use what is explicitly listed
-3. Always use [dbo].[TableName] format for tables
-4. Always use [ColumnName] format for columns
-5. Use SQL Server syntax (not MySQL LIMIT - use TOP instead)
-6. For date operations use SQL Server functions: GETDATE(), DATEADD(), YEAR(), MONTH()
-7. Return ONLY the SQL query without explanations or markdown
-
-DATABASE SCHEMA (USE ONLY THESE TABLES AND COLUMNS):
-${schemaInfo}
-
-VALIDATION STEPS - FOLLOW BEFORE GENERATING SQL:
-1. Read the user request carefully
-2. Scan the schema above for relevant tables
-3. Verify the table name exists in the schema
-4. Verify the column names exist in the chosen table
-5. If ANY table or column name is not found in the schema above, return: "ERROR: No suitable tables found in schema for this request"
-
-EXAMPLES OF CORRECT MAPPING:
-- "страны назначения" → Look for [Страна назначения] column → Found in [dbo].[ShipsPlan] table
-- "типы судов" → Look for [Судно] column → Found in [dbo].[ShipsImport], [dbo].[ShipsPlan] tables
-- "операции импорта вагонов" → Look for import/wagon tables → Found in [dbo].[VagonImport], [dbo].[UploadWagonsImport]
-
-USER REQUEST: ${userQuery}
-
-First, verify that appropriate tables exist in the schema. Then generate SQL query using ONLY the tables and columns from the schema above:`;
-            }
+            // Функция для формирования полного промпта (больше не нужна - промпт формируется на сервере)
+            // function buildFullPrompt(userQuery, schemaInfo) {
+            //     // Удалено, так как промпт формируется на сервере из llm_prompt_template.txt
+            // }
 
             // Генерация SQL
             $('#generate-sql-btn').on('click', function() {
@@ -260,41 +268,30 @@ First, verify that appropriate tables exist in the schema. Then generate SQL que
                     return;
                 }
 
-                // Получаем схему с сервера, если еще не получили
-                if (!cachedSchema) {
-                    try {
-                        cachedSchema = getSchemaFromServer();
-                    } catch (e) {
-                        cachedSchema = "Не удалось загрузить схему с сервера";
-                    }
-                }
-
-                // СРАЗУ показываем полный промпт перед отправкой
-                const fullPrompt = buildFullPrompt(userQuery, cachedSchema.schema || cachedSchema);
-                $('#llm-prompt').val(fullPrompt);
-
                 $('#generate-spinner').show();
                 $('#generate-error').hide();
                 $('#sql-query').val('');
+                $('#llm-prompt').val('');
                 $('#execute-sql-btn').prop('disabled', true);
 
                 $.ajax({
-                    url: '/api/generate-sql',
+                    url: '/api/generate-sql-with-prompt',
                     method: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({ query: userQuery }),
                     success: function(data) {
-                        console.log('Ответ от API:', data); // Добавляем логирование
+                        console.log('Ответ от API:', data);
                         if (data.error) {
                             showError('generate-error', `Ошибка генерации: ${data.error}`);
                         } else {
-                            console.log('Полученный SQL:', data.sql_query); // Добавляем логирование
+                            console.log('Полученный SQL:', data.sql_query);
                             $('#sql-query').val(data.sql_query);
+                            $('#llm-prompt').val(data.full_prompt);
                             $('#execute-sql-btn').prop('disabled', false);
                         }
                     },
                     error: function(jqXHR) {
-                        console.error('Ошибка AJAX:', jqXHR); // Добавляем логирование
+                        console.error('Ошибка AJAX:', jqXHR);
                         showError('generate-error', `Ошибка сервера: ${jqXHR.responseJSON?.error || jqXHR.statusText}`);
                     },
                     complete: function() {
