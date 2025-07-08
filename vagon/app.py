@@ -536,25 +536,30 @@ class ChartGenerator:
         Определяет подходящий тип графика на основе данных и запроса пользователя
         """
         query_lower = user_query.lower()
-        
+       
         # Если явно запрошена гистограмма, то всегда возвращаем 'bar'
         if 'гистограмма' in query_lower:
+            print(f"DEBUG: User query contains 'гистограмма'. Forcing chart type to 'bar'. Original query: {user_query}")
             return 'bar'
 
         # Круговая диаграмма - для разбивки по категориям
         if any(keyword in query_lower for keyword in ['разрез', 'доля', 'процент', 'распределение']):
+            print(f"DEBUG: Detected 'pie' chart type for query: {user_query}")
             return 'pie'
         
         # Столбчатая диаграмма - для сравнения значений
         elif any(keyword in query_lower for keyword in ['сравни', 'топ', 'больше', 'меньше']):
+            print(f"DEBUG: Detected 'bar' chart type for query: {user_query}")
             return 'bar'
         
         # Линейный график - для временных рядов
         elif any(keyword in query_lower for keyword in ['динамика', 'менял', 'тренд', 'время', 'год', 'месяц']):
+            print(f"DEBUG: Detected 'line' chart type for query: {user_query}")
             return 'line'
         
         # По умолчанию - линейный график
-        return 'line'
+        print(f"DEBUG: Defaulting to 'line' chart type for query: {user_query}")
+        return 'bar'
     
     def generate_chart_title(self, data, user_query):
         """Генерирует заголовок для графика"""
@@ -951,7 +956,13 @@ def execute_sql_with_chart():
         # Создаем график если запрошено
         chart_base64 = None
         if create_chart and len(result_df) > 0:
-            chart_type = chart_generator.detect_chart_type(result_df, user_query)
+            # Force chart type to 'bar' if 'гистограмма' is in user query
+            if 'гистограмма' in user_query.lower():
+                chart_type = 'bar'
+                print(f"DEBUG: User explicitly requested 'гистограмма'. Forcing chart_type to 'bar'.")
+            else:
+                chart_type = chart_generator.detect_chart_type(result_df, user_query)
+            
             chart_title = chart_generator.generate_chart_title(result_df, user_query)
             
             # Определяем подписи осей
@@ -962,6 +973,7 @@ def execute_sql_with_chart():
                 result_df, chart_type, chart_title, x_label, y_label
             )
         
+        print(f"DEBUG: Sending chart_type: {chart_type} in API response for query: {user_query}")
         return jsonify({
             "data": results,
             "chart": chart_base64,
