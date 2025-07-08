@@ -27,7 +27,11 @@ API_URL = "http://127.0.0.1:8080"
 def load_query_examples():
     """Загружает примеры запросов из JSON файла"""
     try:
-        with open('/workspaces/space2/vagon/static/query_examples.json', 'r', encoding='utf-8') as f:
+        # Получаем директорию, где находится текущий файл
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        json_path = os.path.join(current_dir, 'static', 'query_examples.json')
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return data['examples']
     except Exception as e:
