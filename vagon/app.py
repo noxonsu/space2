@@ -642,7 +642,11 @@ def execute_sql():
         # Преобразуем типы данных, которые не сериализуются в JSON
         for col in result_df.columns:
             if pd.api.types.is_datetime64_any_dtype(result_df[col]):
-                result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Проверяем, есть ли в колонке время, отличное от полуночи
+                if not result_df[col].dt.time.eq(datetime.min.time()).all():
+                    result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    result_df[col] = result_df[col].dt.strftime('%Y-%m-%d')
         
         results = result_df.to_dict(orient='records')
         
@@ -775,7 +779,11 @@ def execute_sql_with_chart():
         # Преобразуем datetime в строку для JSON
         for col in result_df.columns:
             if pd.api.types.is_datetime64_any_dtype(result_df[col]):
-                result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Проверяем, есть ли в колонке время, отличное от полуночи
+                if not result_df[col].dt.time.eq(datetime.min.time()).all():
+                    result_df[col] = result_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    result_df[col] = result_df[col].dt.strftime('%Y-%m-%d')
         
         results = result_df.to_dict(orient='records')
         
