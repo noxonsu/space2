@@ -350,6 +350,62 @@ if (process.env.NODE_ENV !== 'test') {
 }
 // --- End Admin Panel Code ---
 
+/**
+ * Triggers parsing for a specific project and updates its lastParsedAt timestamp.
+ * @param {string} projectId The ID of the project to parse.
+ */
+async function triggerProjectParsing(projectId) {
+    try {
+        const projects = await loadProjects();
+        const projectIndex = projects.findIndex(p => p.id === projectId);
+
+        if (projectIndex === -1) {
+            console.error(`Project with ID "${projectId}" not found.`);
+            return { success: false, message: 'Project not found' };
+        }
+
+        const project = projects[projectIndex];
+        const { name, telegramChatId, keywords, prompt, openaiApiKey, telegramBotToken } = project;
+        const scrapingDogApiKey = project.scrapingDogApiKey || project.scrapingDogKey || process.env.SCRAPINGDOG_API_KEY;
+        const projectOpenaiApiKey = openaiApiKey || process.env.OPENAI_API_KEY;
+
+        if (!keywords || keywords.length === 0) {
+            console.warn(`Project "${name}" has no keywords. Skipping news fetch.`);
+            return { success: false, message: 'Project has no keywords' };
+        }
+        if (!prompt) {
+            console.warn(`Project "${name}" has no prompt. Skipping AI processing.`);
+            return { success: false, message: 'Project has no prompt' };
+        }
+
+        console.log(`\n--- Manually triggering parsing for project: "${name}" (ID: ${projectId}) ---`);
+
+        let allProcessedNewsCount = 0;
+        for (const keyword of keywords) {
+            const newsItems = await fetchNewsForKeyword(keyword, scrapingDogApiKey);
+            if (newsItems.length > 0) {
+                const result = await processAndSendNews(projectId, keyword, newsItems, telegramChatId, telegramBotToken, prompt, projectOpenaiApiKey);
+                // Assuming processAndSendNews returns some info about processed items, though it doesn't currently.
+                // For now, we just ensure it runs.
+                allProcessedNewsCount += newsItems.length; // This is a rough count, not actual processed items.
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Delay between keywords
+        }
+
+        // Update lastParsedAt
+        project.lastParsedAt = new Date().toISOString();
+        projects[projectIndex] = project;
+        await saveProjects(projects);
+
+        console.log(`Successfully triggered parsing for project "${name}". Last parsed at: ${project.lastParsedAt}`);
+        return { success: true, message: `Parsing triggered for ${name}. Processed ${allProcessedNewsCount} items.` };
+
+    } catch (error) {
+        console.error(`Error triggering parsing for project ${projectId}:`, error.message);
+        return { success: false, message: `Error triggering parsing: ${error.message}` };
+    }
+}
+
 
 async function sendTelegramMessage(chatId, text, telegramBotToken) {
     const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
