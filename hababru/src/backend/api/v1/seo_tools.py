@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, render_template
 import os
 import yaml
 import markdown
@@ -6,15 +6,35 @@ from flask import current_app
 import logging
 from src.backend.services.llm_service import LLMService # Импортируем LLMService
 from src.backend.services.products import product_registry
+from src.backend.services.telegram_connector import TelegramConnector
+from src.backend.services.telegram_product_generator import TelegramProductGenerator, TelegramMessage
 
-def create_seo_tools_blueprint(llm_service: LLMService):
-    seo_tools_bp = Blueprint('seo_tools', __name__)
-
+def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> Blueprint:
+    """Создает Blueprint для SEO и Telegram инструментов"""
+    
+    blueprint = Blueprint('seo_tools', __name__)
+    
+    # Инициализируем Telegram сервисы
+    telegram_connector = None
+    product_generator = TelegramProductGenerator(llm_service=llm_service)
+    
+    def get_telegram_connector():
+        """Ленивая инициализация Telegram коннектора"""
+        nonlocal telegram_connector
+        if telegram_connector is None:
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if bot_token:
+                telegram_connector = TelegramConnector(
+                    bot_token=bot_token,
+                    channel_username='aideaxondemos'
+                )
+        return telegram_connector
+    
     # Путь к директории с SEO-страницами
     # Используем current_app.root_path, который указывает на корень проекта hababru
     CONTENT_BASE_PATH = None # Будет инициализирован в функции, чтобы получить доступ к current_app
 
-    @seo_tools_bp.route('/seo_pages_list', methods=['GET'])
+    @blueprint.route('/seo_pages_list', methods=['GET'])
     def get_seo_pages_list():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
         pages_data = []
@@ -75,7 +95,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
         app_logger.info(f"Загружено {len(pages_data)} SEO-страниц.")
         return jsonify(pages_data)
 
-    @seo_tools_bp.route('/run_openai_prompt', methods=['POST'])
+    @blueprint.route('/run_openai_prompt', methods=['POST'])
     def run_openai_prompt():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
         app_logger.info("Получен запрос на /api/v1/run_openai_prompt")
@@ -125,7 +145,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при выполнении промпта OpenAI для {slug}: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/get_prompt_result', methods=['GET'])
+    @blueprint.route('/get_prompt_result', methods=['GET'])
     def get_prompt_result():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
         slug = request.args.get('slug')
@@ -161,7 +181,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.info(f"Существующий результат промпта для {slug} с префиксом {output_filename_prefix} не найден.")
             return jsonify({"status": "not_found", "message": "Результат не найден"}), 404
 
-    @seo_tools_bp.route('/get_page_prompt_results', methods=['GET'])
+    @blueprint.route('/get_page_prompt_results', methods=['GET'])
     def get_page_prompt_results():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
         slug = request.args.get('slug')
@@ -183,7 +203,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при получении всех результатов промптов для страницы {slug}: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
     
-    @seo_tools_bp.route('/get_llm_models', methods=['GET'])
+    @blueprint.route('/get_llm_models', methods=['GET'])
     def get_llm_models():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
         # Используем llm_service, переданный в create_seo_tools_blueprint
@@ -199,7 +219,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при получении списка LLM моделей: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/generate_page', methods=['POST'])
+    @blueprint.route('/generate_page', methods=['POST'])
     def generate_page():
         """API для создания одной SEO-страницы"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -249,7 +269,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при создании страницы: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/delete_page/<slug>', methods=['DELETE'])
+    @blueprint.route('/delete_page/<slug>', methods=['DELETE'])
     def delete_page(slug):
         """API для удаления SEO-страницы"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -278,7 +298,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при удалении страницы {slug}: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/bulk_generate_pages', methods=['POST'])
+    @blueprint.route('/bulk_generate_pages', methods=['POST'])
     def bulk_generate_pages():
         """API для массовой генерации SEO-страниц"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -353,7 +373,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при массовой генерации: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/generate_cluster', methods=['POST'])
+    @blueprint.route('/generate_cluster', methods=['POST'])
     def generate_cluster():
         """API для генерации семантического кластера"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -399,7 +419,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка при генерации кластера: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/products', methods=['GET'])
+    @blueprint.route('/products', methods=['GET'])
     def get_products():
         """API для получения списка всех продуктов"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -428,7 +448,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка получения списка продуктов: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/products/stats', methods=['GET'])
+    @blueprint.route('/products/stats', methods=['GET'])
     def get_products_stats():
         """API для получения статистики по продуктам"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -484,7 +504,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка получения статистики продуктов: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/products', methods=['POST'])
+    @blueprint.route('/products', methods=['POST'])
     def create_product():
         """API для создания нового продукта"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -515,7 +535,7 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка создания продукта: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    @seo_tools_bp.route('/products/<product_id>/seo_pages', methods=['POST'])
+    @blueprint.route('/products/<product_id>/seo_pages', methods=['POST'])
     def create_seo_pages_for_product():
         """API для создания SEO-страниц для конкретного продукта"""
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
@@ -569,4 +589,407 @@ def create_seo_tools_blueprint(llm_service: LLMService):
             app_logger.error(f"Ошибка создания SEO-страниц для продукта: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
-    return seo_tools_bp
+    @blueprint.route('/admin/seo')
+    def seo_admin():
+        """Страница администрирования SEO и Telegram"""
+        return render_template('seo_admin_template.html', 
+                             seo_pages=seo_service.get_all_seo_pages(),
+                             telegram_enabled=bool(os.getenv('TELEGRAM_BOT_TOKEN')))
+    
+    @blueprint.route('/admin/telegram/messages', methods=['GET'])
+    def get_telegram_messages():
+        """Получение последних сообщений из Telegram канала"""
+        try:
+            connector = get_telegram_connector()
+            if not connector:
+                return jsonify({
+                    'success': False,
+                    'error': 'Telegram не настроен. Добавьте TELEGRAM_BOT_TOKEN в .env'
+                }), 400
+            
+            limit = request.args.get('limit', 10, type=int)
+            
+            # Получаем сообщения
+            messages = connector.fetch_recent_messages(limit=limit)
+            
+            # Фильтруем подходящие для генерации продуктов
+            suitable_messages = []
+            for msg in messages:
+                is_suitable = product_generator._is_suitable_for_product_generation(msg)
+                
+                suitable_messages.append({
+                    'message_id': msg.message_id,
+                    'text': msg.text,
+                    'date': msg.date,
+                    'media_files': msg.media_files,
+                    'is_suitable': is_suitable,
+                    'text_preview': msg.text[:200] + '...' if len(msg.text) > 200 else msg.text
+                })
+            
+            return jsonify({
+                'success': True,
+                'messages': suitable_messages,
+                'total_count': len(messages)
+            })
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения Telegram сообщений: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка получения сообщений: {str(e)}'
+            }), 500
+    
+    @blueprint.route('/admin/telegram/generate', methods=['POST'])
+    def generate_product_from_telegram():
+        """Генерация продукта из Telegram сообщения"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'message_id' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Не указан message_id'
+                }), 400
+            
+            # Получаем сообщение
+            connector = get_telegram_connector()
+            if not connector:
+                return jsonify({
+                    'success': False,
+                    'error': 'Telegram не настроен'
+                }), 400
+            
+            messages = connector.fetch_recent_messages(limit=50)
+            target_message = None
+            
+            for msg in messages:
+                if msg.message_id == data['message_id']:
+                    target_message = msg
+                    break
+            
+            if not target_message:
+                return jsonify({
+                    'success': False,
+                    'error': 'Сообщение не найдено'
+                }), 404
+            
+            # Генерируем продукт
+            result = product_generator.generate_product_from_message(target_message)
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации продукта: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка генерации: {str(e)}'
+            }), 500
+    
+    @blueprint.route('/admin/telegram/check-duplicates', methods=['POST'])
+    def check_telegram_duplicates():
+        """Проверка на дубли перед генерацией"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'message_id' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Не указан message_id'
+                }), 400
+            
+            # Получаем сообщение
+            connector = get_telegram_connector()
+            if not connector:
+                return jsonify({
+                    'success': False,
+                    'error': 'Telegram не настроен'
+                }), 400
+            
+            messages = connector.fetch_recent_messages(limit=50)
+            target_message = None
+            
+            for msg in messages:
+                if msg.message_id == data['message_id']:
+                    target_message = msg
+                    break
+            
+            if not target_message:
+                return jsonify({
+                    'success': False,
+                    'error': 'Сообщение не найдено'
+                }), 404
+            
+            # Проверяем на дубли
+            duplicate_id = product_generator._check_semantic_duplicate(target_message)
+            
+            if duplicate_id:
+                # Получаем информацию о дубликате
+                existing_products = product_generator._get_existing_products_with_data()
+                duplicate_product = existing_products.get(duplicate_id, {})
+                
+                return jsonify({
+                    'success': True,
+                    'has_duplicate': True,
+                    'duplicate_product_id': duplicate_id,
+                    'duplicate_product_name': duplicate_product.get('name', 'Неизвестно'),
+                    'duplicate_product_description': duplicate_product.get('description', '')
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'has_duplicate': False
+                })
+                
+        except Exception as e:
+            logger.error(f"Ошибка проверки дублей: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка проверки: {str(e)}'
+            }), 500
+    
+    @blueprint.route('/admin/telegram/products', methods=['GET'])
+    def get_existing_products():
+        """Получение списка существующих продуктов"""
+        try:
+            existing_products = product_generator._get_existing_products_with_data()
+            
+            products_list = []
+            for product_id, product_data in existing_products.items():
+                products_list.append({
+                    'product_id': product_id,
+                    'name': product_data.get('name', 'Без названия'),
+                    'description': product_data.get('description', ''),
+                    'category': product_data.get('category', 'other'),
+                    'status': product_data.get('status', 'active')
+                })
+            
+            return jsonify({
+                'success': True,
+                'products': products_list,
+                'total_count': len(products_list)
+            })
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения продуктов: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка получения продуктов: {str(e)}'
+            }), 500
+    
+    @blueprint.route('/admin/telegram/regenerate', methods=['POST'])
+    def regenerate_product_with_model():
+        """Перегенерация продукта из Telegram сообщения с выбором модели"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'message_id' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Не указан message_id'
+                }), 400
+            
+            # Получаем параметры
+            message_id = data['message_id']
+            selected_model = data.get('model', 'deepseek-chat')
+            force_regenerate = data.get('force_regenerate', False)
+            
+            # Получаем сообщение
+            connector = get_telegram_connector()
+            if not connector:
+                return jsonify({
+                    'success': False,
+                    'error': 'Telegram не настроен'
+                }), 400
+            
+            messages = connector.fetch_recent_messages(limit=50)
+            target_message = None
+            
+            for msg in messages:
+                if msg.message_id == message_id:
+                    target_message = msg
+                    break
+            
+            if not target_message:
+                return jsonify({
+                    'success': False,
+                    'error': 'Сообщение не найдено'
+                }), 404
+            
+            # Устанавливаем выбранную модель
+            if selected_model:
+                try:
+                    llm_service.set_current_model(selected_model)
+                    logger.info(f"Установлена модель для регенерации: {selected_model}")
+                except ValueError as e:
+                    logger.error(f"Ошибка установки модели: {e}")
+                    return jsonify({
+                        'success': False,
+                        'error': f'Некорректная модель: {str(e)}'
+                    }), 400
+            
+            # Проверяем на дубли только если не принудительная регенерация
+            if not force_regenerate:
+                duplicate_id = product_generator._check_semantic_duplicate(target_message)
+                if duplicate_id:
+                    existing_products = product_generator._get_existing_products_with_data()
+                    duplicate_product = existing_products.get(duplicate_id, {})
+                    
+                    return jsonify({
+                        'success': False,
+                        'error': f'Продукт с похожим смыслом уже существует: {duplicate_id}',
+                        'duplicate_product_id': duplicate_id,
+                        'duplicate_product_name': duplicate_product.get('name', 'Неизвестно'),
+                        'duplicate_product_description': duplicate_product.get('description', '')
+                    })
+            
+            # Генерируем продукт с выбранной моделью
+            result = product_generator.generate_product_from_message(target_message)
+            
+            # Добавляем информацию о модели в результат
+            if result.get('success'):
+                result['model_used'] = selected_model
+                result['regenerated'] = True
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Ошибка регенерации продукта: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка регенерации: {str(e)}'
+            }), 500
+
+    @blueprint.route('/admin/telegram/models', methods=['GET'])
+    def get_available_models():
+        """Получение списка доступных моделей для генерации"""
+        try:
+            models = llm_service.get_available_models()
+            current_model = llm_service.get_current_model()
+            
+            # Добавляем информацию о каждой модели
+            models_info = []
+            for model in models:
+                model_info = llm_service.get_model_info(model)
+                models_info.append({
+                    'id': model,
+                    'name': model,
+                    'provider': model_info.get('provider', 'Unknown'),
+                    'description': model_info.get('description', ''),
+                    'context_length': model_info.get('context_length', 'Unknown')
+                })
+            
+            return jsonify({
+                'success': True,
+                'models': models,
+                'models_info': models_info,
+                'current_model': current_model
+            })
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения моделей: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка получения моделей: {str(e)}'
+            }), 500
+
+    @blueprint.route('/admin/telegram/batch-regenerate', methods=['POST'])
+    def batch_regenerate_products():
+        """Массовая перегенерация существующих продуктов с новой моделью"""
+        try:
+            data = request.get_json()
+            
+            selected_model = data.get('model', 'deepseek-chat')
+            product_ids = data.get('product_ids', [])
+            
+            if not product_ids:
+                return jsonify({
+                    'success': False,
+                    'error': 'Не указаны product_ids для перегенерации'
+                }), 400
+            
+            # Устанавливаем выбранную модель
+            try:
+                llm_service.set_current_model(selected_model)
+                logger.info(f"Установлена модель для массовой регенерации: {selected_model}")
+            except ValueError as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'Некорректная модель: {str(e)}'
+                }), 400
+            
+            # Получаем существующие продукты
+            existing_products = product_generator._get_existing_products_with_data()
+            
+            results = {
+                'success': True,
+                'model_used': selected_model,
+                'total_requested': len(product_ids),
+                'regenerated': 0,
+                'failed': 0,
+                'results': []
+            }
+            
+            for product_id in product_ids:
+                try:
+                    if product_id not in existing_products:
+                        results['results'].append({
+                            'product_id': product_id,
+                            'success': False,
+                            'error': 'Продукт не найден'
+                        })
+                        results['failed'] += 1
+                        continue
+                    
+                    # Создаем временное сообщение из существующего продукта
+                    product_data = existing_products[product_id]
+                    temp_message = TelegramMessage(
+                        message_id=999999,  # Временный ID
+                        text=f"{product_data.get('name', '')} - {product_data.get('description', '')}",
+                        date="2025-01-03T00:00:00Z",
+                        media_files=[]
+                    )
+                    
+                    # Удаляем старый файл продукта
+                    import os
+                    old_file_path = product_generator.products_dir / f"{product_id}.yaml"
+                    if old_file_path.exists():
+                        os.remove(old_file_path)
+                    
+                    # Перегенерируем продукт
+                    result = product_generator.generate_product_from_message(temp_message)
+                    
+                    if result.get('success'):
+                        results['regenerated'] += 1
+                        results['results'].append({
+                            'product_id': product_id,
+                            'success': True,
+                            'new_product_id': result.get('product_id'),
+                            'new_product_name': result.get('product_name')
+                        })
+                    else:
+                        results['failed'] += 1
+                        results['results'].append({
+                            'product_id': product_id,
+                            'success': False,
+                            'error': result.get('error', 'Неизвестная ошибка')
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Ошибка регенерации продукта {product_id}: {e}")
+                    results['failed'] += 1
+                    results['results'].append({
+                        'product_id': product_id,
+                        'success': False,
+                        'error': str(e)
+                    })
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            logger.error(f"Ошибка массовой регенерации: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка массовой регенерации: {str(e)}'
+            }), 500
+
+    return blueprint

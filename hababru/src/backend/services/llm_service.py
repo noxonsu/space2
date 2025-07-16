@@ -306,37 +306,136 @@ class LLMService:
 
 
     def get_available_models(self) -> List[str]:
-        """
-        Возвращает список доступных LLM моделей, включая конкретные модели для каждого провайдера.
-        Формат: ['openai:gpt-4o', 'deepseek:deepseek-chat']
-        """
-        models = []
-        logger = self._get_logger()
-
-        if self.openai_api_key:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {self.openai_api_key}"
-                }
-                response = requests.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
-                response.raise_for_status()
-                openai_models = response.json().get('data', [])
-                for model_info in openai_models:
-                    model_id = model_info.get('id')
-                    # Фильтруем только chat-совместимые модели
-                    if model_id and ("gpt" in model_id or "davinci" in model_id or "babbage" in model_id or "curie" in model_id or "ada" in model_id): # Простая фильтрация
-                        models.append(f"openai:{model_id}")
-                logger.info(f"LLMService: Загружены модели OpenAI: {len(openai_models)} штук.")
-            except Exception as e:
-                logger.error(f"LLMService: Ошибка при получении списка моделей OpenAI: {e}", exc_info=True)
-
-        if self.deepseek_api_key:
-            # Для DeepSeek используем предопределенный список, так как нет публичного API для перечисления
-            deepseek_specific_models = ["deepseek-chat", "deepseek-coder"]
-            for model_id in deepseek_specific_models:
-                models.append(f"deepseek:{model_id}")
-            logger.info(f"LLMService: Добавлены предопределенные модели DeepSeek: {deepseek_specific_models}")
+        """Получает список доступных моделей от всех провайдеров"""
+        unique_models = set()
         
-        # Удаляем дубликаты и сортируем
-        unique_models = sorted(list(set(models)))
-        return unique_models
+        # Добавляем модели DeepSeek
+        if self.deepseek_api_key:
+            deepseek_models = self._get_deepseek_models()
+            unique_models.update(deepseek_models)
+        
+        # Добавляем модели OpenAI
+        if self.openai_api_key:
+            openai_models = self._get_openai_models()
+            unique_models.update(openai_models)
+        
+        # Возвращаем отсортированный список
+        return sorted(list(unique_models))
+    
+    def _get_deepseek_models(self) -> List[str]:
+        """Получает список доступных моделей DeepSeek"""
+        try:
+            url = "https://api.deepseek.com/v1/models"
+            headers = {
+                "Authorization": f"Bearer {self.deepseek_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                
+                for model in data.get('data', []):
+                    model_id = model.get('id')
+                    if model_id:
+                        models.append(model_id)
+                
+                self.logger.info(f"Получены DeepSeek модели: {models}")
+                return models
+            else:
+                self.logger.warning(f"Ошибка получения DeepSeek моделей: {response.status_code}")
+                # Возвращаем дефолтные модели
+                return ["deepseek-chat", "deepseek-coder"]
+                
+        except Exception as e:
+            self.logger.error(f"Ошибка запроса к DeepSeek API: {e}")
+            return ["deepseek-chat", "deepseek-coder"]
+    
+    def _get_openai_models(self) -> List[str]:
+        """Получает список доступных моделей OpenAI"""
+        try:
+            url = "https://api.openai.com/v1/models"
+            headers = {
+                "Authorization": f"Bearer {self.openai_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                
+                # Фильтруем только текстовые модели
+                allowed_models = [
+                    'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4',
+                    'gpt-3.5-turbo', 'gpt-3.5-turbo-16k'
+                ]
+                
+                for model in data.get('data', []):
+                    model_id = model.get('id')
+                    if model_id and model_id in allowed_models:
+                        models.append(model_id)
+                
+                self.logger.info(f"Получены OpenAI модели: {models}")
+                return models
+            else:
+                self.logger.warning(f"Ошибка получения OpenAI моделей: {response.status_code}")
+                # Возвращаем дефолтные модели
+                return ["gpt-4o", "gpt-3.5-turbo"]
+                
+        except Exception as e:
+            self.logger.error(f"Ошибка запроса к OpenAI API: {e}")
+            return ["gpt-4o", "gpt-3.5-turbo"]
+    
+    def get_current_model(self) -> str:
+        """Возвращает текущую выбранную модель"""
+        return self.current_model
+    
+    def set_current_model(self, model: str) -> None:
+        """Устанавливает текущую модель"""
+        available_models = self.get_available_models()
+        
+        if model not in available_models:
+            raise ValueError(f"Модель '{model}' недоступна. Доступные модели: {available_models}")
+        
+        self.current_model = model
+        self.logger.info(f"Установлена текущая модель: {model}")
+    
+    def get_model_info(self, model: str) -> Dict[str, str]:
+        """Возвращает информацию о модели"""
+        model_info = {
+            "deepseek-chat": {
+                "provider": "DeepSeek",
+                "description": "Универсальная модель для диалогов",
+                "context_length": "32k"
+            },
+            "deepseek-coder": {
+                "provider": "DeepSeek", 
+                "description": "Модель для программирования",
+                "context_length": "16k"
+            },
+            "gpt-4o": {
+                "provider": "OpenAI",
+                "description": "Новейшая модель GPT-4 Omni",
+                "context_length": "128k"
+            },
+            "gpt-4": {
+                "provider": "OpenAI",
+                "description": "Продвинутая модель GPT-4",
+                "context_length": "8k"
+            },
+            "gpt-3.5-turbo": {
+                "provider": "OpenAI",
+                "description": "Быстрая модель GPT-3.5",
+                "context_length": "16k"
+            }
+        }
+        
+        return model_info.get(model, {
+            "provider": "Unknown",
+            "description": "Неизвестная модель",
+            "context_length": "Unknown"
+        })

@@ -75,6 +75,51 @@ The `Invalid column name 'Род груза'` error, which occurred when queryin
 **Important Note for 'Род груза' Queries**:
 If you need to query by 'Род груза' (Cargo Type) in the context of wagon data, the most suitable table is **`[OperativeReport].[dbo].[EnterpriseWagons]`**. This table contains both `[Дата]` and `[Род груза]`, allowing for analysis of annual wagon unloading by cargo type. Other tables that contain `[Род груза]` include `Cargo`, `FactLoading`, `VagonImport`, `ShipmentsToThePort`, `ShipsImport`, `WagonsOnTheWay`, and `WagonsPresence`.
 
+## Architecture Diagram
+
+```mermaid
+graph TD
+    User -->|Web Browser| Frontend(Flask App - templates/index.html, login.html)
+    User -->|Telegram| TelegramBot(telegram_bot.py)
+
+    Frontend -->|HTTP/API Calls| Backend(app.py)
+    TelegramBot -->|API Calls| Backend
+
+    Backend -->|SQL Queries| Database(SQL Server - db_shema.sql)
+    Backend -->|LLM API| LLM(HuggingFace/Qwen)
+
+    Backend -->|Analytics Logic| VagonAnalytics(vagon_analytics.py)
+    Backend -->|Admin Functions| Admin(admin.py)
+    Backend -->|Schema Extraction| ExtractSchema(extract_schema.py)
+
+    Database -->|Data| VagonAnalytics
+    LLM -->|Generated SQL| Backend
+
+    subgraph Data Flow
+        Database --> Backend
+        Backend --> Frontend
+    end
+
+    subgraph Components
+        Frontend --> StaticFiles(static/query_examples.json)
+    end
+```
+
+## Architecture Overview
+
+The Vagon project is a web application built with Flask, designed for wagon analytics. It integrates with a database for data storage and an LLM (Large Language Model) for generating SQL queries based on natural language input.
+
+*   **Frontend**: Served by Flask, primarily consisting of `index.html` for the main application interface and `login.html` for user authentication. It interacts with the backend via HTTP/API calls.
+*   **Backend (`app.py`)**: The core Flask application that handles web requests, processes user input, interacts with the database, and communicates with the LLM. It orchestrates the data flow and business logic.
+*   **Telegram Bot (`telegram_bot.py`)**: Provides an alternative interface for users to interact with the system via Telegram, sending requests to the backend.
+*   **Database**: Stores operational data related to wagons. The schema is defined in `db_shema.sql`. The backend executes SQL queries against this database.
+*   **LLM Integration**: The application uses an LLM (e.g., Qwen from HuggingFace) to translate natural language queries into SQL. The `llm_prompt_template.txt` file defines the system prompt used to guide the LLM's SQL generation.
+*   **Analytics Logic (`vagon_analytics.py`)**: Contains the specific business logic and functions for performing various analytics on the wagon data.
+*   **Admin Functions (`admin.py`)**: Likely handles administrative tasks and user management.
+*   **Schema Extraction (`extract_schema.py`)**: A utility script possibly used to extract or manage database schema information.
+*   **Static Files (`static/`)**: Contains static assets like `query_examples.json`.
+*   **Tests (`tests/`)**: Includes unit and integration tests to ensure the correctness and reliability of the application components.
+
 ## How to Run and Verify Changes
 
 1.  **Install Dependencies**:

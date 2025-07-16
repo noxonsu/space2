@@ -184,7 +184,7 @@ def create_app(
 
     # Регистрация Blueprint для API
     app.register_blueprint(contract_analyzer_bp, url_prefix='/api/v1')
-    app.register_blueprint(create_seo_tools_blueprint(llm_service), url_prefix='/api/v1')
+    app.register_blueprint(create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service), url_prefix='/admin')
 
     @app.before_request
     def log_request_info():

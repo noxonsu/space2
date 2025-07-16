@@ -367,16 +367,105 @@
         .progress-bar {
             width: 100%;
             height: 20px;
-            background-color: #f3f3f3;
+            background-color: #f0f0f0;
             border-radius: 10px;
-            overflow: hidden;
-            margin: 1rem 0;
+            margin: 10px 0;
         }
 
         .progress-fill {
             height: 100%;
-            background-color: var(--success-color);
+            background-color: #4CAF50;
+            border-radius: 10px;
             transition: width 0.3s ease;
+        }
+
+        .admin-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .telegram-message {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .message-suitable {
+            border-color: #4CAF50;
+            background-color: #f8fff8;
+        }
+        .message-unsuitable {
+            border-color: #ccc;
+            background-color: #f9f9f9;
+        }
+        .message-duplicate {
+            border-color: #ff9800;
+            background-color: #fff8f0;
+        }
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-primary { background-color: #2196F3; color: white; }
+        .btn-success { background-color: #4CAF50; color: white; }
+        .btn-warning { background-color: #ff9800; color: white; }
+        .btn-danger { background-color: #f44336; color: white; }
+        .loading { opacity: 0.5; pointer-events: none; }
+        .duplicate-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffecb5;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .model-selector {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .model-selector select {
+            padding: 5px;
+            margin-left: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .regenerate-section {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 4px;
+        }
+        .batch-actions {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #fffacd;
+            border-radius: 4px;
+        }
+
+        .model-info {
+            font-size: 0.9em;
+            color: #666;
+            margin-left: 10px;
+        }
+        .model-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        .model-details {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
         }
 
         @media (max-width: 768px) {
@@ -504,6 +593,60 @@
                 <!-- Страницы будут загружены динамически -->
             </div>
         </div>
+
+        <!-- Telegram Section -->
+        {% if telegram_enabled %}
+        <div class="admin-section">
+            <h2>🔗 Telegram Генерация Продуктов</h2>
+            <p>Генерируйте новые продукты из сообщений Telegram-канала @aideaxondemos</p>
+            
+            <!-- Model Selector -->
+            <div class="model-selector">
+                <label>
+                    <strong>Выберите модель для генерации:</strong>
+                    <select id="model-selector" onchange="showModelDetails()">
+                        <option value="">Загрузка моделей...</option>
+                    </select>
+                </label>
+                <button class="btn btn-primary" onclick="loadAvailableModels()">
+                    Обновить список моделей
+                </button>
+                <div id="model-details" class="model-details"></div>
+            </div>
+            
+            <div>
+                <button class="btn btn-primary" onclick="loadTelegramMessages()">
+                    Загрузить сообщения из Telegram
+                </button>
+                <button class="btn btn-success" onclick="showExistingProducts()">
+                    Показать существующие продукты
+                </button>
+            </div>
+            
+            <!-- Batch Actions -->
+            <div class="batch-actions" id="batch-actions" style="display: none;">
+                <h3>Массовые действия</h3>
+                <div>
+                    <button class="btn btn-warning" onclick="batchRegenerateProducts()">
+                        Перегенерировать выбранные продукты
+                    </button>
+                    <span id="selected-count">0</span> выбрано
+                </div>
+                <div class="progress-bar" id="batch-progress" style="display: none;">
+                    <div class="progress-fill" id="batch-progress-fill"></div>
+                </div>
+                <div id="batch-results"></div>
+            </div>
+            
+            <div id="telegram-messages" style="margin-top: 20px;"></div>
+            <div id="existing-products" style="margin-top: 20px;"></div>
+        </div>
+        {% else %}
+        <div class="admin-section">
+            <h2>🔗 Telegram (Отключен)</h2>
+            <p>Для работы с Telegram добавьте TELEGRAM_BOT_TOKEN в .env файл</p>
+        </div>
+        {% endif %}
     </main>
 
     <!-- Модальные окна -->
@@ -600,5 +743,452 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/seo_admin_new.js') }}"></script>
+    <script>
+        // Telegram функционал
+        let telegramMessages = [];
+        let existingProducts = [];
+        
+        async function loadTelegramMessages() {
+            const button = event.target;
+            button.classList.add('loading');
+            button.textContent = 'Загрузка...';
+            
+            try {
+                const response = await fetch('/admin/telegram/messages?limit=20');
+                const data = await response.json();
+                
+                if (data.success) {
+                    telegramMessages = data.messages;
+                    displayTelegramMessages(data.messages);
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки сообщений:', error);
+                alert('Ошибка загрузки сообщений');
+            } finally {
+                button.classList.remove('loading');
+                button.textContent = 'Загрузить сообщения из Telegram';
+            }
+        }
+        
+        function displayTelegramMessages(messages) {
+            const container = document.getElementById('telegram-messages');
+            
+            if (!messages.length) {
+                container.innerHTML = '<p>Сообщения не найдены</p>';
+                return;
+            }
+            
+            let html = '<h3>Последние сообщения из канала:</h3>';
+            
+            messages.forEach(msg => {
+                const suitableClass = msg.is_suitable ? 'message-suitable' : 'message-unsuitable';
+                const suitableText = msg.is_suitable ? '✅ Подходит' : '❌ Не подходит';
+                
+                html += `
+                    <div class="telegram-message ${suitableClass}" data-message-id="${msg.message_id}">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong>Сообщение #${msg.message_id}</strong>
+                            <span>${suitableText}</span>
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Дата:</strong> ${new Date(msg.date).toLocaleString()}
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Текст:</strong><br>
+                            ${msg.text_preview}
+                        </div>
+                        ${msg.media_files.length ? `<div><strong>Медиа:</strong> ${msg.media_files.length} файлов</div>` : ''}
+                        
+                        ${msg.is_suitable ? `
+                            <div style="margin-top: 10px;">
+                                <button class="btn btn-warning" onclick="checkDuplicates(${msg.message_id})">
+                                    Проверить на дубли
+                                </button>
+                                <button class="btn btn-success" onclick="generateProduct(${msg.message_id})">
+                                    Генерировать продукт
+                                </button>
+                            </div>
+                            <div id="duplicate-info-${msg.message_id}"></div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        async function checkDuplicates(messageId) {
+            const infoDiv = document.getElementById(`duplicate-info-${messageId}`);
+            infoDiv.innerHTML = '<p>Проверка на дубли...</p>';
+            
+            try {
+                const response = await fetch('/admin/telegram/check-duplicates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message_id: messageId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.has_duplicate) {
+                        infoDiv.innerHTML = `
+                            <div class="duplicate-info">
+                                <strong>⚠️ Найден дубликат!</strong><br>
+                                <strong>Продукт:</strong> ${data.duplicate_product_name} (${data.duplicate_product_id})<br>
+                                <strong>Описание:</strong> ${data.duplicate_product_description}
+                            </div>
+                        `;
+                        
+                        // Помечаем сообщение как дубликат
+                        const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+                        messageDiv.classList.add('message-duplicate');
+                    } else {
+                        infoDiv.innerHTML = `
+                            <div style="color: green;">
+                                <strong>✅ Дубликатов не найдено</strong> - можно генерировать продукт
+                            </div>
+                        `;
+                    }
+                } else {
+                    infoDiv.innerHTML = `<div style="color: red;">Ошибка: ${data.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Ошибка проверки дублей:', error);
+                infoDiv.innerHTML = '<div style="color: red;">Ошибка проверки</div>';
+            }
+        }
+        
+        async function generateProduct(messageId) {
+            await generateProductWithModel(messageId, false);
+        }
+        
+        async function generateProductWithModel(messageId, forceRegenerate = false) {
+            const selectedModel = getSelectedModel();
+            const action = forceRegenerate ? 'Перегенерация' : 'Генерация';
+            
+            if (!confirm(`${action} продукта из сообщения ${messageId} с моделью ${selectedModel}?`)) return;
+            
+            const infoDiv = document.getElementById(`duplicate-info-${messageId}`);
+            infoDiv.innerHTML = `<p>${action} продукта с моделью ${selectedModel}...</p>`;
+            
+            try {
+                const endpoint = forceRegenerate ? '/admin/telegram/regenerate' : '/admin/telegram/generate';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        message_id: messageId,
+                        model: selectedModel,
+                        force_regenerate: forceRegenerate
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const regeneratedText = data.regenerated ? ' (перегенерирован)' : '';
+                    infoDiv.innerHTML = `
+                        <div style="color: green;">
+                            <strong>✅ Продукт успешно создан${regeneratedText}!</strong><br>
+                            <strong>ID:</strong> ${data.product_id}<br>
+                            <strong>Название:</strong> ${data.product_name}<br>
+                            <strong>Модель:</strong> ${data.model_used || selectedModel}<br>
+                            <strong>Файл:</strong> ${data.file_path}
+                        </div>
+                    `;
+                    
+                    // Обновляем список существующих продуктов
+                    if (document.getElementById('existing-products').innerHTML) {
+                        showExistingProducts();
+                    }
+                } else {
+                    if (data.duplicate_product_id) {
+                        infoDiv.innerHTML = `
+                            <div style="color: orange;">
+                                <strong>⚠️ Найден дубликат!</strong><br>
+                                <strong>Похожий продукт:</strong> ${data.duplicate_product_id}<br>
+                                <strong>Название:</strong> ${data.duplicate_product_name}<br>
+                                <strong>Ошибка:</strong> ${data.error}<br>
+                                <button class="btn btn-danger" onclick="generateProductWithModel(${messageId}, true)">
+                                    Принудительно перегенерировать
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        infoDiv.innerHTML = `<div style="color: red;">Ошибка: ${data.error}</div>`;
+                    }
+                }
+            } catch (error) {
+                console.error(`Ошибка ${action.toLowerCase()} продукта:`, error);
+                infoDiv.innerHTML = `<div style="color: red;">Ошибка ${action.toLowerCase()}</div>`;
+            }
+        }
+        
+        let selectedProductIds = new Set();
+        let availableModels = ['deepseek-chat', 'deepseek-coder', 'gpt-3.5-turbo', 'gpt-4'];
+        let modelsInfo = [];
+        
+        async function loadAvailableModels() {
+            try {
+                const response = await fetch('/admin/telegram/models');
+                const data = await response.json();
+                
+                if (data.success) {
+                    availableModels = data.models;
+                    modelsInfo = data.models_info || [];
+                    updateModelSelector(data.models, data.current_model);
+                } else {
+                    console.error('Ошибка получения моделей:', data.error);
+                    // Fallback к дефолтным моделям
+                    availableModels = ['deepseek-chat', 'deepseek-coder', 'gpt-3.5-turbo', 'gpt-4o'];
+                    updateModelSelector(availableModels, 'deepseek-chat');
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки моделей:', error);
+                // Fallback к дефолтным моделям
+                availableModels = ['deepseek-chat', 'deepseek-coder', 'gpt-3.5-turbo', 'gpt-4o'];
+                updateModelSelector(availableModels, 'deepseek-chat');
+            }
+        }
+        
+        function updateModelSelector(models, currentModel) {
+            const selector = document.getElementById('model-selector');
+            selector.innerHTML = '';
+            
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                
+                // Добавляем провайдер в название
+                const modelInfo = modelsInfo.find(info => info.id === model);
+                if (modelInfo) {
+                    option.textContent = `${model} (${modelInfo.provider})`;
+                } else {
+                    option.textContent = model;
+                }
+                
+                if (model === currentModel) {
+                    option.selected = true;
+                }
+                selector.appendChild(option);
+            });
+            
+            // Показываем детали текущей модели
+            showModelDetails();
+        }
+        
+        function showModelDetails() {
+            const selectedModel = document.getElementById('model-selector').value;
+            const detailsDiv = document.getElementById('model-details');
+            
+            if (!selectedModel) {
+                detailsDiv.style.display = 'none';
+                return;
+            }
+            
+            const modelInfo = modelsInfo.find(info => info.id === selectedModel);
+            
+            if (modelInfo) {
+                detailsDiv.innerHTML = `
+                    <strong>Провайдер:</strong> ${modelInfo.provider}<br>
+                    <strong>Описание:</strong> ${modelInfo.description}<br>
+                    <strong>Контекст:</strong> ${modelInfo.context_length}
+                `;
+                detailsDiv.style.display = 'block';
+            } else {
+                detailsDiv.style.display = 'none';
+            }
+        }
+        
+        async function showExistingProducts() {
+            const container = document.getElementById('existing-products');
+            container.innerHTML = '<p>Загрузка существующих продуктов...</p>';
+            
+            try {
+                const response = await fetch('/admin/telegram/products');
+                const data = await response.json();
+                
+                if (data.success) {
+                    existingProducts = data.products;
+                    displayExistingProducts(data.products);
+                } else {
+                    container.innerHTML = `<p style="color: red;">Ошибка: ${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки продуктов:', error);
+                container.innerHTML = '<p style="color: red;">Ошибка загрузки</p>';
+            }
+        }
+        
+        function displayExistingProducts(products) {
+            const container = document.getElementById('existing-products');
+            
+            if (!products.length) {
+                container.innerHTML = '<p>Продукты не найдены</p>';
+                return;
+            }
+            
+            let html = `
+                <h3>Существующие продукты (${products.length}):</h3>
+                <div class="batch-actions">
+                    <button class="btn btn-primary" onclick="selectAllProducts()">Выбрать все</button>
+                    <button class="btn btn-primary" onclick="deselectAllProducts()">Снять выделение</button>
+                </div>
+            `;
+            
+            // Группируем по категориям
+            const categories = {};
+            products.forEach(product => {
+                const category = product.category || 'other';
+                if (!categories[category]) categories[category] = [];
+                categories[category].push(product);
+            });
+            
+            Object.keys(categories).forEach(category => {
+                html += `<h4>Категория: ${category}</h4>`;
+                categories[category].forEach(product => {
+                    const isSelected = selectedProductIds.has(product.product_id);
+                    html += `
+                        <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                            <label style="display: flex; align-items: center;">
+                                <input type="checkbox" 
+                                       value="${product.product_id}" 
+                                       onchange="toggleProductSelection('${product.product_id}')"
+                                       ${isSelected ? 'checked' : ''}>
+                                <div style="margin-left: 10px;">
+                                    <strong>${product.name}</strong> (${product.product_id})<br>
+                                    <small>${product.description}</small>
+                                </div>
+                            </label>
+                        </div>
+                    `;
+                });
+            });
+            
+            container.innerHTML = html;
+            updateBatchActionsVisibility();
+        }
+        
+        function toggleProductSelection(productId) {
+            if (selectedProductIds.has(productId)) {
+                selectedProductIds.delete(productId);
+            } else {
+                selectedProductIds.add(productId);
+            }
+            updateBatchActionsVisibility();
+        }
+        
+        function selectAllProducts() {
+            const checkboxes = document.querySelectorAll('#existing-products input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                selectedProductIds.add(checkbox.value);
+            });
+            updateBatchActionsVisibility();
+        }
+        
+        function deselectAllProducts() {
+            const checkboxes = document.querySelectorAll('#existing-products input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                selectedProductIds.delete(checkbox.value);
+            });
+            updateBatchActionsVisibility();
+        }
+        
+        function updateBatchActionsVisibility() {
+            const batchActions = document.getElementById('batch-actions');
+            const selectedCount = document.getElementById('selected-count');
+            
+            if (selectedProductIds.size > 0) {
+                batchActions.style.display = 'block';
+                selectedCount.textContent = selectedProductIds.size;
+            } else {
+                batchActions.style.display = 'none';
+            }
+        }
+        
+        async function batchRegenerateProducts() {
+            const selectedModel = getSelectedModel();
+            const productIds = Array.from(selectedProductIds);
+            
+            if (productIds.length === 0) {
+                alert('Выберите продукты для перегенерации');
+                return;
+            }
+            
+            if (!confirm(`Перегенерировать ${productIds.length} продуктов с моделью ${selectedModel}?`)) {
+                return;
+            }
+            
+            const progressBar = document.getElementById('batch-progress');
+            const progressFill = document.getElementById('batch-progress-fill');
+            const resultsDiv = document.getElementById('batch-results');
+            
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            resultsDiv.innerHTML = '<p>Начинаем массовую перегенерацию...</p>';
+            
+            try {
+                const response = await fetch('/admin/telegram/batch-regenerate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        product_ids: productIds
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    progressFill.style.width = '100%';
+                    
+                    let html = `
+                        <h4>Результаты массовой перегенерации</h4>
+                        <p><strong>Модель:</strong> ${data.model_used}</p>
+                        <p><strong>Запрошено:</strong> ${data.total_requested}</p>
+                        <p><strong>Успешно:</strong> ${data.regenerated}</p>
+                        <p><strong>Ошибок:</strong> ${data.failed}</p>
+                    `;
+                    
+                    if (data.results.length > 0) {
+                        html += '<h5>Детали:</h5>';
+                        data.results.forEach(result => {
+                            if (result.success) {
+                                html += `<p style="color: green;">✅ ${result.product_id} → ${result.new_product_id}</p>`;
+                            } else {
+                                html += `<p style="color: red;">❌ ${result.product_id}: ${result.error}</p>`;
+                            }
+                        });
+                    }
+                    
+                    resultsDiv.innerHTML = html;
+                    
+                    // Обновляем список продуктов
+                    showExistingProducts();
+                } else {
+                    resultsDiv.innerHTML = `<p style="color: red;">Ошибка: ${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Ошибка массовой перегенерации:', error);
+                resultsDiv.innerHTML = '<p style="color: red;">Ошибка массовой перегенерации</p>';
+            }
+        }
+        
+        // Инициализация
+        window.addEventListener('load', function() {
+            loadAvailableModels();
+        });
+    </script>
 </body>
 </html>
