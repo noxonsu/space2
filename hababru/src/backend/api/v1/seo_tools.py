@@ -4,6 +4,7 @@ import yaml
 import markdown
 from flask import current_app
 import logging
+from datetime import datetime # Добавляем импорт datetime
 from src.backend.services.llm_service import LLMService # Импортируем LLMService
 from src.backend.services.products import product_registry
 from src.backend.services.telegram_connector import TelegramConnector

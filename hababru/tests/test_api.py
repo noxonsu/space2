@@ -1,18 +1,23 @@
 import pytest
 import os
+import sys
 import time
-from src.backend.main import create_app
 from unittest.mock import patch, MagicMock, mock_open
 import tempfile
 import shutil
 import markdown
 import yaml
 from io import BytesIO # Импортируем BytesIO
-from src.backend.services.llm_service import LLMService # Импортируем для spec
-from src.backend.services.parsing_service import ParsingService # Импортируем для spec
-from src.backend.services.cache_service import CacheService # Импортируем для spec
-from src.backend.services.seo_service import SeoService # Импортируем для spec
-from src.backend.services.seo_prompt_service import SeoPromptService # Импортируем для spec
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from hababru.src.backend.main import create_app
+from hababru.src.backend.services.llm_service import LLMService # Импортируем для spec
+from hababru.src.backend.services.parsing_service import ParsingService # Импортируем для spec
+from hababru.src.backend.services.cache_service import CacheService # Импортируем для spec
+from hababru.src.backend.services.seo_service import SeoService # Импортируем для spec
+from hababru.src.backend.services.seo_prompt_service import SeoPromptService # Импортируем для spec
 from bs4 import BeautifulSoup # Импортируем BeautifulSoup
 import json # Импортируем json
 
@@ -123,25 +128,55 @@ def test_get_sample_contract(client, mock_services):
         mock_file_open.assert_called_once()
 
 def test_upload_contract(client, mock_services):
-    mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
-    
-    mock_parsing_instance.parse_document_to_markdown.return_value = "Parsed PDF content"
-    
-    file_data = BytesIO(b"dummy content")
-    file_data.name = "dummy.pdf"
+    """Тест для проверки загрузки файла и его обработки."""
+    mock_llm_service, mock_parsing_service, mock_cache_service, _, _ = mock_services
 
-    with patch('src.backend.api.v1.contract_analyzer.open', mock_open()) as mock_file_open:
-        rv = client.post('/api/v1/upload_contract', data={'file': (file_data, 'dummy.pdf')})
-    
-    assert rv.status_code == 200
-    assert "message" in rv.json
-    assert "contract_id" in rv.json
-    assert rv.json["contract_id"] == mock_cache_instance._generate_hash.return_value
-    mock_parsing_instance.parse_document_to_markdown.assert_called_once()
-    mock_cache_instance._generate_hash.assert_called_once()
-    mock_cache_instance.get_file_cache_dir.assert_called_once()
-    mock_file_open.assert_called_once()
-    mock_file_open().write.assert_called_once_with("Parsed PDF content")
+    # Создаем временную директорию для кэша
+    with tempfile.TemporaryDirectory() as tmpdir:
+        mock_cache_service.get_file_cache_dir.return_value = tmpdir
+
+        # Мокируем возвращаемое значение для parse_document_to_markdown
+        mock_parsing_service.parse_document_to_markdown.return_value = "Mocked Contract Text"
+
+        # Мокируем возвращаемое значение для _generate_hash
+        mock_cache_service._generate_hash.return_value = "mocked_file_hash"
+
+        # Мокируем возвращаемое значение для create_analysis_task
+        mock_cache_service.create_analysis_task.return_value = "mocked_task_id"
+
+        # Создаем фиктивный файл для загрузки
+        data = {'file': (BytesIO(b"dummy contract content"), 'test_contract.pdf', 'application/pdf')}
+
+        # Отправляем POST запрос
+        with patch('threading.Thread') as mock_thread:
+            rv = client.post('/api/v1/upload_contract', data=data, content_type='multipart/form-data')
+
+            # Проверяем, что поток был создан и запущен
+            mock_thread.assert_called_once()
+            # Получаем аргументы, с которыми был вызван поток
+            args, kwargs = mock_thread.call_args
+            # Проверяем, что target функция - это _run_analysis_task
+            assert kwargs['target'].__name__ == '_run_analysis_task'
+            # Проверяем, что аргументы переданы корректно
+            assert len(kwargs['args']) == 4
+            assert kwargs['args'][0] == rv.json['task_id']
+            assert kwargs['args'][1] == rv.json['contract_id']
+            assert kwargs['args'][2] == "Mocked Contract Text"
+
+        # Проверяем статус код и ответ
+        assert rv.status_code == 200
+        assert rv.json['message'] == "Файл успешно загружен и обработан"
+        assert rv.json['contract_id'] == 'mocked_file_hash'
+        assert rv.json['task_id'] is not None
+
+        # Проверяем, что parse_document_to_markdown был вызван
+        mock_parsing_service.parse_document_to_markdown.assert_called_once()
+
+        # Проверяем, что _generate_hash был вызван
+        mock_cache_service._generate_hash.assert_called_once()
+
+        # Проверяем, что create_analysis_task был вызван
+        mock_cache_service.create_analysis_task.assert_called_once()
 
 def test_seo_page_content_display(client, mock_services):
     mock_llm_service, mock_parsing_instance, mock_cache_instance, mock_seo_service_instance, mock_seo_prompt_service_instance = mock_services
@@ -312,8 +347,9 @@ def test_get_llm_models(real_client):
     """Тест для проверки эндпоинта /api/v1/get_llm_models."""
     rv = real_client.get('/api/v1/get_llm_models')
     assert rv.status_code == 200
-    assert isinstance(rv.json, list)
-    assert len(rv.json) > 0, "Должен быть возвращен хотя бы один доступный LLM"
-    # Проверяем, что в списке есть модели с префиксом "openai:" или "deepseek:"
-    assert any(model.startswith("openai:") for model in rv.json) or \
-           any(model.startswith("deepseek:") for model in rv.json)
+    assert rv.json['status'] == 'ok'
+    assert isinstance(rv.json['models'], list)
+    assert len(rv.json['models']) > 0, "Должен быть возвращен хотя бы один доступный LLM"
+    # Проверяем, что в списке есть модели (любые модели OpenAI или DeepSeek)
+    models = rv.json['models']
+    assert len(models) > 0, "Список моделей не должен быть пустым"

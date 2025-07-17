@@ -6,6 +6,7 @@ markdown
 beautifulsoup4
 markitdown[all]
 pytest
+pytest-timeout
 fpdf
 python-docx
 beautifulsoup4

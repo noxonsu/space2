@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchSeoPages() {
         showLoading(true);
         try {
-            const response = await fetch('/api/v1/seo_pages_list');
+            const response = await fetch('/admin/seo_pages_list');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Функция для загрузки доступных LLM моделей
     async function fetchLlmModels() {
         try {
-            const response = await fetch('/api/v1/get_llm_models');
+            const response = await fetch('/admin/get_llm_models');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }

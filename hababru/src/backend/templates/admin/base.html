@@ -2,6 +2,38 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // Global error handler to send errors to the backend
+        window.onerror = function(message, source, lineno, colno, error) {
+            const errorData = {
+                message: message,
+                url: source,
+                line: lineno,
+                col: colno,
+                error_obj: error ? error.stack : 'No error object'
+            };
+
+            console.error('Browser error caught (Admin):', errorData); // Добавлено для отладки
+
+            // Send error to backend
+            fetch('/api/v1/log_browser_error', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(errorData),
+            }).then(response => {
+                if (!response.ok) {
+                    console.error('Failed to send browser error log to backend (Admin):', response.statusText);
+                }
+            }).catch(e => {
+                console.error('Error sending browser error log to backend (Admin):', e);
+            });
+
+            // Allow default error handling to proceed
+            return false;
+        };
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}B2B SEO-Platform Admin{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">

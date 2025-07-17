@@ -150,7 +150,20 @@ def upload_contract():
                 with open(contract_file_path, 'w', encoding='utf-8') as f:
                     f.write(contract_text)
                 current_app.logger.info(f'API: Текст договора сохранен в кэш: {contract_file_path}')
-                return jsonify({"message": "Файл успешно загружен и обработан", "contract_id": file_hash}), 200
+                
+                # Создаем задачу анализа и получаем task_id
+                task_id = _cache_service.create_analysis_task(file_hash, filename)
+                current_app.logger.info(f'API: Создана задача анализа с ID: {task_id}')
+
+                # Запускаем анализ в отдельном потоке
+                app_context = current_app._get_current_object()
+                threading.Thread(
+                    target=copy_current_request_context(_run_analysis_task),
+                    args=(task_id, file_hash, contract_text, app_context)
+                ).start()
+                current_app.logger.info(f'API: Запущен фоновый анализ для задачи {task_id}')
+
+                return jsonify({"message": "Файл успешно загружен и обработан", "contract_id": file_hash, "task_id": task_id}), 200
             except Exception as e:
                 current_app.logger.error(f'API: Ошибка при сохранении текста договора в кэш: {e}')
                 return jsonify({"error": "Не удалось сохранить текст договора"}), 500

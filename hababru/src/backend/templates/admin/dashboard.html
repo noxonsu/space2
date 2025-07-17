@@ -122,7 +122,7 @@ class AdminDashboard {
 
     async loadStats() {
         try {
-            const response = await fetch('/api/v1/seo_pages_list');
+            const response = await fetch('/admin/seo_pages_list');
             if (!response.ok) throw new Error('Не удалось загрузить статистику');
             
             const pages = await response.json();
@@ -197,7 +197,7 @@ class AdminDashboard {
         container.innerHTML = '<div class="spinner"></div>';
 
         try {
-            const response = await fetch('/api/v1/products/stats');
+            const response = await fetch('/admin/products/stats');
             if (!response.ok) throw new Error('Не удалось загрузить статистику по продуктам');
 
             const stats = await response.json();

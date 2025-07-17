@@ -1,16 +1,22 @@
 """
 Конфигурация тестов для админки
 """
+import os
+import sys
 import pytest
 import tempfile
 import shutil
 from unittest.mock import MagicMock
-from src.backend.main import create_app
-from src.backend.services.llm_service import LLMService
-from src.backend.services.parsing_service import ParsingService
-from src.backend.services.cache_service import CacheService
-from src.backend.services.seo_service import SeoService
-from src.backend.services.seo_prompt_service import SeoPromptService
+
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from hababru.src.backend.main import create_app
+from hababru.src.backend.services.llm_service import LLMService
+from hababru.src.backend.services.parsing_service import ParsingService
+from hababru.src.backend.services.cache_service import CacheService
+from hababru.src.backend.services.seo_service import SeoService
+from hababru.src.backend.services.seo_prompt_service import SeoPromptService
 
 
 @pytest.fixture

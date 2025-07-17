@@ -3,41 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title | default("Сервис проверки договоров") }}</title>
+    <title>{{ page_title | default("B2B Платформа для Кастомных Решений") }}</title>
     {% if meta_keywords %}<meta name="keywords" content="{{ meta_keywords }}">{% endif %}
     {% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
     {% if related_keywords_meta %}<meta name="related-keywords" content="{{ related_keywords_meta | join(', ') }}">{% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <!-- Yandex.Metrika counter -->
-    <script type="text/javascript" >
-       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments}};
-       m[i].l=1*new Date();
-       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
 
-       ym(97234589, "init", {
-            clickmap:true,
-            trackLinks:true,
-            accurateTrackBounce:true,
-            webvisor:true
-       });
-    </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/97234589" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-    <!-- /Yandex.Metrika counter -->
 </head>
 <body>
     <header>
-        <h1>{{ page_h1 | default("Добро пожаловать в Сервис проверки договоров") }}</h1>
+        <h1>{{ page_h1 | default("Добро пожаловать на B2B Платформу для Кастомных Решений") }}</h1>
     </header>
 
     <main>
         {% if not is_seo_page %}
         <section id="about-service-mainpage-text" style="padding: 20px; background-color: #fff; border-bottom: 1px solid #eee;">
-             <p>Наш сервис помогает анализировать юридические документы с использованием передовых технологий искусственного интеллекта. Загрузите ваш договор, и мы проведем его детальную проверку, выявим потенциальные риски и предложим улучшения.</p>
+             <p>Наша платформа предлагает широкий спектр B2B-решений, разработанных с использованием передовых технологий искусственного интеллекта. Мы помогаем бизнесу оптимизировать процессы, анализировать данные и принимать обоснованные решения.</p>
         </section>
         {% endif %}
+
+        {# New section to display the list of products #}
+        <section id="product-list-section" style="padding: 20px; background-color: #f8f9fa; border-bottom: 1px solid #eee; margin-top: 20px;">
+            <h2>Наши продукты</h2>
+            <div id="product-list-container">
+                {# Product list will be loaded here by JavaScript #}
+                <p>Загрузка списка продуктов...</p>
+            </div>
+            <button id="test-error-button" style="margin-top: 20px; padding: 10px 15px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">Вызвать тестовую ошибку</button>
+        </section>
 
         {% if product_info and product_info.product_id == 'contract_analysis' %}
         <section id="upload-section">
@@ -135,7 +129,7 @@
         {% endif %}
         
         <section id="seo-links" style="padding: 20px; background-color: #fff; border-top: 1px solid #eee; margin-top: 20px;">
-            <h2>Полезные ссылки по проверке договоров</h2>
+            <h2>Полезные ссылки</h2>
             <ul>
                 <li><a href="{{ url_for('seo_page', slug='arendy') }}">Проверка договора аренды онлайн нейросетью. Анализ условий и консультаця</a></li>
                 <li><a href="{{ url_for('seo_page', slug='arendy-kvartiry') }}">Проверка договора аренды квартиры онлайн нейросетью. Анализ условий и консультаця</a></li>
@@ -164,20 +158,15 @@
 
     </main>
     <footer>
-        <p>&copy; 2025 Сервис проверки договоров</p>
+        <p>&copy; 2025 B2B Платформа для Кастомных Решений</p>
     </footer>
 
     <div id="app-config-data" style="display:none;">{{ app_config_json | safe }}</div>
     <script>
-        window.appConfig = {}; // Initialize an empty object
-        const appConfigDataElement = document.getElementById('app-config-data');
-        if (appConfigDataElement && appConfigDataElement.textContent) {
-            try {
-                window.appConfig = JSON.parse(appConfigDataElement.textContent);
-            } catch (e) {
-                console.error("Ошибка парсинга appConfigData:", e);
-            }
-        }
+        // Инициализируем window.appConfig как пустой объект, чтобы избежать TypeError
+        // Это гарантирует, что window.appConfig всегда будет существовать,
+        // даже если app-config-data div пуст или отсутствует.
+        window.appConfig = {};
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

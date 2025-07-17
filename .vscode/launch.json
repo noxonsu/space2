@@ -14,7 +14,7 @@
             }
         },
         {
-            "name": "habab Flask App",
+            "name": "hababru Flask App",
             "type": "python",
             "request": "launch",
             "module": "hababru.src.backend.main",
@@ -25,7 +25,7 @@
             "cwd": "${workspaceFolder}"
         },
         {
-            "name": "Python: Pytest",
+            "name": "hababru Python: Pytest",
             "type": "python",
             "request": "launch",
             "module": "pytest",

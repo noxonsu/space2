@@ -1,4 +1,5 @@
 import os
+import sys
 from flask import Flask, render_template, send_from_directory, abort, jsonify, request, redirect
 from dotenv import load_dotenv
 import subprocess
@@ -6,17 +7,21 @@ import io
 import threading
 import time
 
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
 # Импорты сервисов
-from src.backend.api.v1.contract_analyzer import contract_analyzer_bp
-from src.backend.api.v1.seo_tools import create_seo_tools_blueprint
-from src.backend.services.llm_service import LLMService
-from src.backend.services.seo_service import SeoService
-from src.backend.services.seo_prompt_service import SeoPromptService
-from src.backend.services.parsing_service import ParsingService
-from src.backend.services.cache_service import CacheService
-from src.backend.services.llms_txt_service import LlmsTxtService
-from src.backend.services.telegram_connector import TelegramConnector
-from src.backend.services.telegram_product_generator import TelegramProductGenerator
+from hababru.src.backend.api.v1.contract_analyzer import contract_analyzer_bp
+from hababru.src.backend.api.v1.seo_tools import create_seo_tools_blueprint
+from hababru.src.backend.api.v1.browser_log import browser_log_bp # Импортируем новый Blueprint
+from hababru.src.backend.services.llm_service import LLMService
+from hababru.src.backend.services.seo_service import SeoService
+from hababru.src.backend.services.seo_prompt_service import SeoPromptService
+from hababru.src.backend.services.parsing_service import ParsingService
+from hababru.src.backend.services.cache_service import CacheService
+from hababru.src.backend.services.llms_txt_service import LlmsTxtService
+from hababru.src.backend.services.telegram_connector import TelegramConnector
+from hababru.src.backend.services.telegram_product_generator import TelegramProductGenerator
 
 # Загрузка переменных окружения из .env файла
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
@@ -132,18 +137,47 @@ def create_app(
     )
 
     # Инициализация системы продуктов ПОСЛЕ инициализации сервисов
-    from .services.products import product_registry
-    from .services.products.contract_analysis import ContractAnalysisProduct
-    from .services.products.news_analysis import NewsAnalysisProduct
+    from hababru.src.backend.services.products import product_registry
+    from hababru.src.backend.services.product_data_loader import ProductDataLoader
+    from hababru.src.backend.services.products.contract_analysis import ContractAnalysisProduct
+    from hababru.src.backend.services.products.news_analysis import NewsAnalysisProduct
     
-    # Регистрация продуктов
-    contract_product = ContractAnalysisProduct(llm_service, parsing_service, cache_service)
-    news_product = NewsAnalysisProduct(llm_service)
+    # Создаем загрузчик продуктов
+    product_data_loader = ProductDataLoader()
     
-    product_registry.register_product(contract_product)
-    product_registry.register_product(news_product)
+    # Словарь для сопоставления product_id с классами продуктов
+    # В будущем можно расширить этот механизм, например, через фабрику или более сложную конфигурацию
+    product_class_map = {
+        "contract_analysis": ContractAnalysisProduct,
+        "news_analysis": NewsAnalysisProduct,
+        # Добавляйте сюда другие продукты по мере их появления
+    }
+
+    # Загружаем все доступные продукты и регистрируем их
+    all_product_data = product_data_loader.load_all_products()
     
-    app.logger.info(f"Зарегистрированы продукты: {list(product_registry.get_all_products().keys())}")
+    for product_id, data in all_product_data.items():
+        product_class = product_class_map.get(product_id)
+        if product_class:
+            try:
+                # Передаем необходимые зависимости в конструктор продукта
+                if product_id == "contract_analysis":
+                    product_instance = product_class(llm_service, parsing_service, cache_service)
+                elif product_id == "news_analysis":
+                    product_instance = product_class(llm_service)
+                else:
+                    # Для других продуктов, если они не требуют специфичных сервисов,
+                    # можно передавать только llm_service или вообще ничего
+                    product_instance = product_class(llm_service) 
+                
+                product_registry.register_product(product_instance)
+                app.logger.info(f"Зарегистрирован продукт: {product_id}")
+            except Exception as e:
+                app.logger.error(f"Ошибка при инициализации или регистрации продукта {product_id}: {e}")
+        else:
+            app.logger.warning(f"Неизвестный тип продукта '{product_id}'. Продукт не будет зарегистрирован.")
+    
+    app.logger.info(f"Всего зарегистрировано продуктов: {list(product_registry.get_all_products().keys())}")
 
     # Инициализация Telegram мониторинга (опционально)
     telegram_monitor = None
@@ -185,6 +219,7 @@ def create_app(
     # Регистрация Blueprint для API
     app.register_blueprint(contract_analyzer_bp, url_prefix='/api/v1')
     app.register_blueprint(create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service), url_prefix='/admin')
+    app.register_blueprint(browser_log_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
 
     @app.before_request
     def log_request_info():
@@ -477,7 +512,7 @@ def create_app(
             for product_data in test_products_data:
                 try:
                     # Создаем фейковое сообщение для тестирования
-                    from src.backend.services.telegram_connector import TelegramMessage
+                    from hababru.src.backend.services.telegram_connector import TelegramMessage
                     from datetime import datetime
                     
                     test_message = TelegramMessage(
@@ -534,19 +569,21 @@ def create_app(
     def get_products_list():
         """Получение списка всех продуктов"""
         try:
-            from src.backend.services.product_data_loader import ProductDataLoader
+            # Используем глобальный реестр продуктов
+            from hababru.src.backend.services.products import product_registry
             
-            loader = ProductDataLoader()
-            products = loader.get_all_products()
+            products = product_registry.get_all_products()
             
             products_list = []
-            for product_id, product_data in products.items():
+            for product_id, product_instance in products.items():
+                # Получаем информацию о продукте через его метод get_product_info
+                product_info = product_instance.get_product_info()
                 products_list.append({
                     "product_id": product_id,
-                    "name": product_data.get("name", "Без названия"),
-                    "description": product_data.get("description", "Без описания"),
-                    "category": product_data.get("category", "other"),
-                    "status": product_data.get("status", "active")
+                    "name": product_info.get("name", "Без названия"),
+                    "description": product_info.get("description", "Без описания"),
+                    "category": product_info.get("category", "other"),
+                    "status": product_info.get("status", "active")
                 })
             
             return jsonify({
@@ -561,6 +598,40 @@ def create_app(
                 "success": False,
                 "error": str(e)
             }), 500
+
+    # API для получения результатов промптов страницы
+    @app.route('/api/v1/get_page_prompt_results')
+    def get_page_prompt_results():
+        """Получение результатов промптов для конкретной страницы"""
+        slug = request.args.get('slug')
+        if not slug:
+            return jsonify({"error": "Slug is required"}), 400
+        
+        try:
+            cache_service = app.config.get('CACHE_SERVICE')
+            results = cache_service.get_all_prompt_results_for_page(slug)
+            return jsonify({
+                "status": "ok",
+                "results": results
+            })
+        except Exception as e:
+            app.logger.error(f"Ошибка получения результатов промптов для страницы {slug}: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    # API для получения доступных LLM моделей
+    @app.route('/api/v1/get_llm_models')
+    def get_llm_models():
+        """Получение списка доступных LLM моделей"""
+        try:
+            llm_service = app.config.get('LLM_SERVICE')
+            models = llm_service.get_available_models()
+            return jsonify({
+                "status": "ok",
+                "models": models
+            })
+        except Exception as e:
+            app.logger.error(f"Ошибка получения списка LLM моделей: {e}")
+            return jsonify({"error": str(e)}), 500
 
     # Обработчик завершения приложения для корректной остановки мониторинга
     @app.teardown_appcontext
@@ -579,4 +650,4 @@ if __name__ == '__main__':
         logging.warning(f"Не удалось убить процесс на порту 5001: {e}")
     
     app = create_app()
-    app.run(debug=True, port=5001)
+    app.run(debug=False, host='0.0.0.0', port=5001, use_reloader=False)
