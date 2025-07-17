@@ -373,14 +373,14 @@ class LLMService:
                 models = []
                 
                 # Фильтруем только текстовые модели
-                # allowed_models = [
-                #     'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4',
-                #     'gpt-3.5-turbo', 'gpt-3.5-turbo-16k'
-                # ]
+                allowed_models = [
+                    'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4',
+                    'gpt-3.5-turbo', 'gpt-3.5-turbo-16k'
+                ]
                 
                 for model in data.get('data', []):
                     model_id = model.get('id')
-                    if model_id: # and model_id in allowed_models:
+                    if model_id and model_id in allowed_models:
                         models.append(model_id)
                 
                 self.logger.info(f"Получены OpenAI модели: {models}")
@@ -392,7 +392,7 @@ class LLMService:
                 
         except Exception as e:
             self.logger.error(f"Ошибка запроса к OpenAI API: {e}")
-            return ["gpt-4o", "gpt-3.5-тurbo"]
+            return ["gpt-4o", "gpt-3.5-turbo"] # Исправлена опечатка "gpt-3.5-тurbo" на "gpt-3.5-turbo"
     
     def get_model_info(self, model: str) -> Dict[str, str]:
         """Возвращает информацию о модели"""

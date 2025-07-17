@@ -167,6 +167,50 @@
         // Это гарантирует, что window.appConfig всегда будет существовать,
         // даже если app-config-data div пуст или отсутствует.
         window.appConfig = {};
+
+        // Глобальный обработчик ошибок JavaScript
+        window.addEventListener('error', function(event) {
+            const errorData = {
+                message: event.error ? event.error.message : event.message,
+                url: event.filename || window.location.href,
+                line: event.lineno || 'N/A',
+                col: event.colno || 'N/A',
+                error_obj: event.error ? event.error.stack : 'N/A'
+            };
+            
+            // Отправляем ошибку на сервер
+            fetch('/api/v1/log_browser_error', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(errorData)
+            }).catch(function(fetchError) {
+                console.error('Не удалось отправить ошибку на сервер:', fetchError);
+            });
+        });
+
+        // Обработчик необработанных promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            const errorData = {
+                message: 'Unhandled Promise Rejection: ' + (event.reason ? event.reason.toString() : 'Unknown reason'),
+                url: window.location.href,
+                line: 'N/A',
+                col: 'N/A',
+                error_obj: event.reason ? event.reason.stack || event.reason.toString() : 'N/A'
+            };
+            
+            // Отправляем ошибку на сервер
+            fetch('/api/v1/log_browser_error', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(errorData)
+            }).catch(function(fetchError) {
+                console.error('Не удалось отправить promise rejection на сервер:', fetchError);
+            });
+        });
     </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

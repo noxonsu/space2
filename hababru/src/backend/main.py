@@ -138,46 +138,28 @@ def create_app(
 
     # Инициализация системы продуктов ПОСЛЕ инициализации сервисов
     from hababru.src.backend.services.products import product_registry
-    from hababru.src.backend.services.product_data_loader import ProductDataLoader
-    from hababru.src.backend.services.products.contract_analysis import ContractAnalysisProduct
-    from hababru.src.backend.services.products.news_analysis import NewsAnalysisProduct
+    from hababru.src.backend.services.product_factory import ProductFactory
     
-    # Создаем загрузчик продуктов
-    product_data_loader = ProductDataLoader()
+    # Создаем фабрику продуктов
+    product_factory = ProductFactory()
     
-    # Словарь для сопоставления product_id с классами продуктов
-    # В будущем можно расширить этот механизм, например, через фабрику или более сложную конфигурацию
-    product_class_map = {
-        "contract_analysis": ContractAnalysisProduct,
-        "news_analysis": NewsAnalysisProduct,
-        # Добавляйте сюда другие продукты по мере их появления
-    }
-
-    # Загружаем все доступные продукты и регистрируем их
-    all_product_data = product_data_loader.load_all_products()
+    # Регистрируем доступные зависимости
+    product_factory.register_dependency("llm_service", llm_service)
+    product_factory.register_dependency("parsing_service", parsing_service)
+    product_factory.register_dependency("cache_service", cache_service)
     
-    for product_id, data in all_product_data.items():
-        product_class = product_class_map.get(product_id)
-        if product_class:
-            try:
-                # Передаем необходимые зависимости в конструктор продукта
-                if product_id == "contract_analysis":
-                    product_instance = product_class(llm_service, parsing_service, cache_service)
-                elif product_id == "news_analysis":
-                    product_instance = product_class(llm_service)
-                else:
-                    # Для других продуктов, если они не требуют специфичных сервисов,
-                    # можно передавать только llm_service или вообще ничего
-                    product_instance = product_class(llm_service) 
-                
-                product_registry.register_product(product_instance)
-                app.logger.info(f"Зарегистрирован продукт: {product_id}")
-            except Exception as e:
-                app.logger.error(f"Ошибка при инициализации или регистрации продукта {product_id}: {e}")
-        else:
-            app.logger.warning(f"Неизвестный тип продукта '{product_id}'. Продукт не будет зарегистрирован.")
-    
-    app.logger.info(f"Всего зарегистрировано продуктов: {list(product_registry.get_all_products().keys())}")
+    # Создаем и регистрируем все активные продукты
+    try:
+        created_products = product_factory.create_all_active_products()
+        
+        for product_id, product_instance in created_products.items():
+            product_registry.register_product(product_instance)
+            app.logger.info(f"Зарегистрирован продукт: {product_id}")
+            
+        app.logger.info(f"Всего зарегистрировано продуктов: {list(product_registry.get_all_products().keys())}")
+        
+    except Exception as e:
+        app.logger.error(f"Ошибка при инициализации системы продуктов: {e}")
 
     # Инициализация Telegram мониторинга (опционально)
     telegram_monitor = None
@@ -301,8 +283,8 @@ def create_app(
 
 ## Продукты
 
-- [Анализ договоров]({base_url}/demo/contract_analysis): Демонстрация анализа юридических документов
-- [Мониторинг новостей]({base_url}/demo/news_analysis): Пример анализа отраслевых новостей
+- [Анализ договоров]({base_url}/contract_analysis): Демонстрация анализа юридических документов
+- [Мониторинг новостей]({base_url}/news_analysis): Пример анализа отраслевых новостей
 """.format(base_url=request.url_root.rstrip('/'))
             
             from flask import Response
@@ -367,7 +349,9 @@ def create_app(
     def seo_page(slug):
         app.logger.info(f"Запрос на SEO-страницу: /{slug}")
         # Добавляем 'api' в список зарезервированных слагов
-        if slug in ['css', 'js', 'assets', 'favicon.ico', 'robots.txt', 'api', 'data', 'dataaquisitionnoxon', 'dataaquisitionnoxon.pub', 'exportLinks.php', 'insertCategories.php', 'openai_admin.js', 'package.json', 'processed_videos_log.csv', 'README.md', 'robots.txt', 'sensoica_shortcode.php', 'showTasks.php', '1csync', 'ads', 'aeroclub', 'aml', 'amogt', 'apifront', 'asterisk', 'hababru', 'chemistry', 'content', 'data', 'fbads', 'figmar', 'flru', 'gpts', 'hims', 'megaplan', 'nastya', 'plugins', 'sashanoxonbot', 'themes', 'tts', 'wa', 'youtube', 'api/v1/run_openai_prompt']:
+        # Удаляем product_id из списка зарезервированных слагов, так как они теперь являются SEO-страницами
+        # Оставляем только те, которые действительно являются статическими файлами или служебными маршрутами
+        if slug in ['css', 'js', 'assets', 'favicon.ico', 'robots.txt', 'api', 'data', 'dataaquisitionnoxon', 'dataaquisitionnoxon.pub', 'exportLinks.php', 'insertCategories.php', 'openai_admin.js', 'package.json', 'processed_videos_log.csv', 'README.md', 'robots.txt', 'sensoica_shortcode.php', 'showTasks.php', '1csync', 'ads', 'aeroclub', 'aml', 'amogt', 'apifront', 'asterisk', 'hababru', 'chemistry', 'content', 'data', 'fbads', 'figmar', 'flru', 'gpts', 'hims', 'megaplan', 'nastya', 'plugins', 'sashanoxonbot', 'themes', 'tts', 'wa', 'youtube', 'api/v1/run_openai_prompt', 'admin', 'analyze', 'get_test_contract', 'get_page_prompt_results', 'get_llm_models', 'generate-test-products', 'products']:
             app.logger.warning(f"Запрос на зарезервированный slug: {slug}")
             abort(404)
         

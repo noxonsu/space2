@@ -1,0 +1,88 @@
+---
+# Метаданные продукта
+product_id: "example_product"
+name: "Название продукта"
+description: "Описание продукта для пользователей"
+version: "1.0"
+category: "category_name"  # legal, analytics, automation, etc.
+status: "inactive"  # active, inactive, development
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.example_product"
+  class_name: "ExampleProductClass"
+  dependencies:
+    - "llm_service"
+    # Дополнительные зависимости по необходимости:
+    # - "parsing_service"
+    # - "cache_service"
+    # - "other_service"
+
+# Демо-данные для отображения на странице продукта
+demo_data:
+  key_features:
+    - "Функция 1"
+    - "Функция 2"
+    - "Функция 3"
+  
+  target_audience:
+    - "Целевая аудитория 1"
+    - "Целевая аудитория 2"
+  
+  use_cases:
+    - "Сценарий использования 1"
+    - "Сценарий использования 2"
+
+# Информация о продукте для SEO
+product_info:
+  key_benefits:
+    - "Преимущество 1"
+    - "Преимущество 2"
+    - "Преимущество 3"
+  
+  target_audience:
+    - "Бизнес-аудитория 1"
+    - "Бизнес-аудитория 2"
+  
+  demo_available: true
+  screenshots: []
+
+# Связанные SEO страницы
+seo_pages:
+  - path: "seo-page-1"
+    title: "SEO страница 1"
+    description: "Описание SEO страницы 1"
+    category: "category_name"
+  - path: "seo-page-2"
+    title: "SEO страница 2"
+    description: "Описание SEO страницы 2"
+    category: "category_name"
+
+# Примеры для демонстрации
+demo_examples:
+  - path: "example_product"
+    title: "Демо продукта"
+    description: "Интерактивная демонстрация продукта"
+  - path: "api/sample-data"
+    title: "Пример данных"
+    description: "Типовые данные для тестирования"
+
+# SEO конфигурация
+seo:
+  keywords:
+    - "ключевое слово 1"
+    - "ключевое слово 2"
+    - "ключевое слово 3"
+  meta_description: "Мета-описание для поисковых систем"
+  og_title: "Заголовок для социальных сетей"
+  og_description: "Описание для социальных сетей"
+
+# Конфигурация для генерации контента
+content_generation:
+  enabled: true
+  templates:
+    - "template1.html"
+    - "template2.html"
+  prompts:
+    - "prompt1.txt"
+    - "prompt2.txt"

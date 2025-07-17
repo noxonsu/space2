@@ -56,7 +56,7 @@ class LlmsTxtService:
                 product_description = product_data.get("description", "")
                 
                 # Создаем ссылку на демо-страницу продукта
-                demo_url = f"{self.base_url}/demo/{product_id}"
+                demo_url = f"{self.base_url}/{product_id}" # Удален /demo/
                 content.append(f"- [{product_name}]({demo_url}): {product_description}")
                 
             except Exception as e:
@@ -68,17 +68,25 @@ class LlmsTxtService:
         # SEO страницы
         content.append("## SEO Страницы")
         content.append("")
-        content.append("- [Анализ договора аренды]({}/arendy): Демонстрационная страница анализа договоров аренды с примерами".format(self.base_url))
-        content.append("- [Анализ договора поставки]({}/postavki): SEO-оптимизированная страница для договоров поставки".format(self.base_url))
-        content.append("- [Мониторинг ВЭД новостей]({}/ved-news): Отраслевой мониторинг внешнеэкономической деятельности".format(self.base_url))
+        
+        # Динамически получаем SEO страницы из конфигурации продуктов
+        seo_pages = self._get_seo_pages_from_products()
+        for page in seo_pages:
+            page_url = f"{self.base_url}/{page['path']}"
+            content.append(f"- [{page['title']}]({page_url}): {page['description']}")
+        
         content.append("")
         
         # Примеры и демо
         content.append("## Примеры")
         content.append("")
-        content.append("- [Демо анализа договора]({}/demo/contract_analysis): Интерактивная демонстрация анализа юридических документов".format(self.base_url))
-        content.append("- [Демо мониторинга новостей]({}/demo/news_analysis): Пример анализа отраслевых новостей с ИИ".format(self.base_url))
-        content.append("- [Пример договора аренды]({}/api/sample-contract): Типовой договор для тестирования системы анализа".format(self.base_url))
+        
+        # Динамически получаем примеры из конфигурации продуктов
+        demo_examples = self._get_demo_examples_from_products()
+        for example in demo_examples:
+            example_url = f"{self.base_url}/{example['path']}"
+            content.append(f"- [{example['title']}]({example_url}): {example['description']}")
+        
         content.append("")
         
         # Опциональная секция с техническими деталями
@@ -103,7 +111,7 @@ class LlmsTxtService:
                 sections[product_id] = {
                     "name": product_data.get("name", product_id),
                     "description": product_data.get("description", ""),
-                    "demo_url": f"{self.base_url}/demo/{product_id}",
+                    "demo_url": f"{self.base_url}/{product_id}", # Удален /demo/
                     "seo_keywords": product_data.get("seo", {}).get("keywords", [])[:5]  # Первые 5 ключевых слов
                 }
             except Exception:
@@ -137,3 +145,56 @@ class LlmsTxtService:
                 break
         
         return h2_found
+    
+    def _get_seo_pages_from_products(self) -> list:
+        """Получает список SEO страниц из конфигурации всех продуктов"""
+        seo_pages = []
+        
+        available_products = self.product_loader.get_available_products()
+        for product_id in available_products:
+            try:
+                product_data = self.product_loader.load_product_data(product_id)
+                
+                # Проверяем что продукт активен
+                if product_data.get("status") != "active":
+                    continue
+                
+                # Получаем SEO страницы из конфигурации продукта
+                product_seo_pages = product_data.get("seo_pages", [])
+                seo_pages.extend(product_seo_pages)
+                
+            except Exception:
+                continue
+        
+        return seo_pages
+    
+    def _get_demo_examples_from_products(self) -> list:
+        """Получает список демо примеров из конфигурации всех продуктов"""
+        demo_examples = []
+        
+        available_products = self.product_loader.get_available_products()
+        for product_id in available_products:
+            try:
+                product_data = self.product_loader.load_product_data(product_id)
+                
+                # Проверяем что продукт активен
+                if product_data.get("status") != "active":
+                    continue
+                
+                # Получаем демо примеры из конфигурации продукта
+                product_demo_examples = product_data.get("demo_examples", [])
+                
+                # Обрабатываем разные форматы demo_examples
+                if isinstance(product_demo_examples, list):
+                    # Фильтруем только словари (игнорируем строки типа "sample_data")
+                    for example in product_demo_examples:
+                        if isinstance(example, dict) and "path" in example:
+                            demo_examples.append(example)
+                elif isinstance(product_demo_examples, dict):
+                    # Старый формат с sample_data - игнорируем
+                    continue
+                
+            except Exception:
+                continue
+        
+        return demo_examples

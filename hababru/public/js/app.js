@@ -18,6 +18,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAnalysisTaskId = null;
     let currentSelectedParagraphIndex = null;
 
+    // Function to log errors to server
+    async function logErrorToServer(error, context = '') {
+        try {
+            const errorData = {
+                message: error.message || error.toString(),
+                stack: error.stack || '',
+                url: window.location.href,
+                context: context,
+                timestamp: new Date().toISOString()
+            };
+
+            await fetch('/api/v1/log_browser_error', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(errorData)
+            });
+        } catch (logError) {
+            console.error('Не удалось отправить ошибку на сервер:', logError);
+        }
+    }
+
     // Data from SEO page (if applicable), read from hidden div
     // Corrected: Use window.appConfig directly and ensure appConfigDiv is correctly referenced
     const appConfigDiv = document.getElementById('app-config-data'); // Corrected reference
@@ -177,6 +200,63 @@ document.addEventListener('DOMContentLoaded', () => {
         showParagraphAnalysis(index); // Show its analysis
     }
 
+    // Function to show analysis for a specific paragraph
+    function showParagraphAnalysis(index) {
+        if (!analysisPanel || !currentAnalysisData || currentAnalysisData.length === 0) {
+            if (analysisPanel) analysisPanel.innerHTML = '<p>Анализ не доступен.</p>';
+            return;
+        }
+
+        if (index < 0 || index >= currentAnalysisData.length) {
+            analysisPanel.innerHTML = '<p>Некорректный индекс параграфа.</p>';
+            return;
+        }
+
+        const analysisItem = currentAnalysisData[index];
+        if (!analysisItem) {
+            analysisPanel.innerHTML = '<p>Анализ для этого параграфа не найден.</p>';
+            return;
+        }
+
+        // Create analysis HTML content
+        let analysisHtml = `<h3>Анализ параграфа ${index + 1}</h3>`;
+        
+        // Add original paragraph text if available
+        if (analysisItem.paragraph || analysisItem.original_paragraph) {
+            analysisHtml += `<div class="original-paragraph"><strong>Оригинальный текст:</strong><br>${analysisItem.paragraph || analysisItem.original_paragraph}</div><br>`;
+        }
+
+        // Add analysis content
+        if (analysisItem.analysis) {
+            analysisHtml += `<div class="analysis-content"><strong>Анализ:</strong><br>${analysisItem.analysis}</div>`;
+        } else if (analysisItem.issues && analysisItem.issues.length > 0) {
+            analysisHtml += `<div class="analysis-issues"><strong>Выявленные проблемы:</strong><ul>`;
+            analysisItem.issues.forEach(issue => {
+                analysisHtml += `<li>${issue}</li>`;
+            });
+            analysisHtml += `</ul></div>`;
+        } else {
+            analysisHtml += `<div class="no-analysis">Анализ для этого параграфа пока не выполнен.</div>`;
+        }
+
+        // Add recommendations if available
+        if (analysisItem.recommendations && analysisItem.recommendations.length > 0) {
+            analysisHtml += `<div class="recommendations"><strong>Рекомендации:</strong><ul>`;
+            analysisItem.recommendations.forEach(rec => {
+                analysisHtml += `<li>${rec}</li>`;
+            });
+            analysisHtml += `</ul></div>`;
+        }
+
+        // Add risk level if available
+        if (analysisItem.risk_level) {
+            const riskClass = analysisItem.risk_level.toLowerCase();
+            analysisHtml += `<div class="risk-level risk-${riskClass}"><strong>Уровень риска:</strong> ${analysisItem.risk_level}</div>`;
+        }
+
+        analysisPanel.innerHTML = analysisHtml;
+    }
+
     // Function to start analysis and poll for status
     async function startAnalysisAndPollStatus(contractTextMd) {
         // If there's an active task, clear the previous polling interval
@@ -258,6 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Критическая ошибка при запуске анализа или опросе:', error);
+            // Отправляем ошибку на сервер
+            logErrorToServer(error, 'startAnalysisAndPollStatus');
             if (analysisProgressDiv) analysisProgressDiv.textContent = `Критическая ошибка: ${error.message}`;
             if (analysisPanel) analysisPanel.innerHTML = `<p>Критическая ошибка: ${error.message}</p>`;
             if (pollingIntervalId) {
@@ -292,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('loadSampleContract: Критическая ошибка при загрузке примера:', error);
+            logErrorToServer(error, 'loadSampleContract');
             if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = 'Критическая ошибка при загрузке примера договора.';
             if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
         }
@@ -408,6 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('fetchProductList: Критическая ошибка при запросе списка продуктов:', error);
+            logErrorToServer(error, 'fetchProductList');
             if (productListContainer) {
                 productListContainer.innerHTML = `<p>Критическая ошибка при загрузке списка продуктов: ${error.message}</p>`;
             }
@@ -439,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(`loadTestContractAndAnalyze: Критическая ошибка при загрузке тестового файла ${fileName}:`, error);
+            logErrorToServer(error, 'loadTestContractAndAnalyze');
             if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Критическая ошибка при обработке тестового файла: ${fileName}.`;
             if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
         }
@@ -482,6 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error('analyzeButton: Критическая ошибка при загрузке файла:', error);
+                logErrorToServer(error, 'analyzeButton');
                 alert('Критическая ошибка при загрузке файла: ' + error.message);
                 if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = 'Ошибка при обработке файла.';
                 if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
@@ -511,6 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(`loadContractAndAnalyze: Критическая ошибка при загрузке текста договора для ID ${contractId}:`, error);
+            logErrorToServer(error, 'loadContractAndAnalyze');
             if (contractTextDisplayDiv) contractTextDisplayDiv.textContent = `Критическая ошибка при загрузке текста договора для ID ${contractId}.`;
             if (analysisPanel) analysisPanel.innerHTML = `<p>Произошла ошибка: ${error.message}</p>`;
         }

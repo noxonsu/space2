@@ -7,6 +7,13 @@ version: "1.0"
 category: "analytics"
 status: "active"
 
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.news_analysis"
+  class_name: "NewsAnalysisProduct"
+  dependencies:
+    - "llm_service"
+
 # Демо-данные
 demo_data:
   monitored_sectors:
@@ -194,9 +201,22 @@ seo:
       - "Ключевые участники рынка"
       - "Потенциальные риски и возможности"
 
-# Демо-примеры
+# Связанные SEO страницы
+seo_pages:
+  - path: "ved-news"
+    title: "Мониторинг ВЭД новостей"
+    description: "Отраслевой мониторинг внешнеэкономической деятельности"
+    category: "analytics"
+
+# Примеры для демонстрации
 demo_examples:
-  demo_news_templates:
+  - path: "news_analysis"
+    title: "Демо мониторинга новостей"
+    description: "Пример анализа отраслевых новостей с ИИ"
+
+# Демо-шаблоны новостей (для внутреннего использования)
+demo_news_templates:
+  templates:
     - title: "Новые изменения в регулировании сферы '{query}'"
       content: "Министерство объявило о важных изменениях в регулировании {query}. Эксперты отмечают положительное влияние на развитие отрасли."
       source: "РБК"
