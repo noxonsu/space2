@@ -334,6 +334,29 @@ const server = http.createServer((req, res) => {
         res.writeHead(500);
         res.end('Error fetching ScrapingDog credits');
       });
+  } else if (pathname.startsWith('/api/projects/') && pathname.endsWith('/parse') && method === 'POST') {
+    // Запуск парсинга для конкретного проекта
+    const projectId = pathname.split('/')[3];
+    
+    console.log(`🚀 Запуск парсинга для проекта: ${projectId}`);
+    
+    // Запускаем парсинг асинхронно
+    processNewsForProject(projectId)
+      .then(() => {
+        console.log(`✅ Парсинг для проекта ${projectId} завершен`);
+      })
+      .catch(err => {
+        console.error(`❌ Ошибка парсинга для проекта ${projectId}:`, err);
+      });
+    
+    // Сразу отвечаем, что парсинг запущен
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      message: `Парсинг для проекта ${projectId} запущен`,
+      projectId: projectId,
+      timestamp: new Date().toISOString()
+    }));
   }
   else {
     res.writeHead(404);
@@ -776,8 +799,12 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
 
         // Отправка в Telegram
         if (telegramBotToken && telegramChatId) {
-            let message = `🔥 ${processedNews.title_ru}\n\n`;
-            message += `📊 ${processedNews.summary_ru}\n\n`;
+            // Определяем источник заголовка
+            const titleSource = processedNews.title_ru ? 'OpenAI' : 'Исходный';
+            const finalTitle = processedNews.title_ru || item.title || 'Новость';
+            
+            let message = `🔥 ${finalTitle}\n📝 Заголовок: ${titleSource}\n\n`;
+            message += `📊 ${processedNews.summary_ru || 'Краткое содержание не получено'}\n\n`;
             
             if (processedNews.market_analytics) {
                 message += `📈 Аналитика:\n`;
@@ -820,7 +847,11 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
 
             message += `🔗 ${item.link}\n`;
             message += `📅 ${processedNews.pub_time || item.date || 'N/A'}\n`;
-            message += `📰 ${processedNews.source || item.source || 'N/A'}`;
+            message += `📰 ${processedNews.source || item.source || 'N/A'}\n\n`;
+            
+            // Добавляем полный ответ OpenAI
+            message += `🤖 Полный ответ OpenAI:\n`;
+            message += `\`\`\`json\n${JSON.stringify(processedNews, null, 2)}\n\`\`\``;
 
             if (processedNews.notification_level === 'CRITICAL') {
                 message = `🚨🚨🚨 CRITICAL ALERT 🚨🚨🚨\n\n` + message;

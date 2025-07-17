@@ -69,50 +69,81 @@ class DatabaseManager:
         return f"DRIVER={{{driver}}};SERVER={host},{port};DATABASE={db_name};UID={user};PWD={password};"
 
     def connect(self, db_name):
-        """Подключение к указанной базе данных"""
-        if db_name not in self.connections or not self.connections[db_name]:
+        """Подключение к указанной базе данных с проверкой валидности соединения"""
+        # Проверяем, есть ли соединение и является ли оно валидным
+        if db_name in self.connections and self.connections[db_name]:
             try:
-                print(f"Подключение к базе данных {db_name}...")
-                connection_string = self._build_connection_string(db_name)
-                self.connections[db_name] = pyodbc.connect(connection_string)
-                print(f"Успешное подключение к базе данных {db_name}")
+                # Проверяем соединение простым запросом
+                cursor = self.connections[db_name].cursor()
+                cursor.execute("SELECT 1")
+                cursor.close()
+                print(f"Соединение с {db_name} валидно")
+                return True
             except Exception as e:
-                print(f"Ошибка подключения к базе данных {db_name}: {e}")
+                print(f"Соединение с {db_name} не валидно: {e}. Пересоздаем...")
                 self.connections[db_name] = None
-                env_vars = {
-                    'DB_HOST': os.getenv('DB_HOST'),
-                    'DB_PORT': os.getenv('DB_PORT'),
-                    'DB_USER': os.getenv('DB_USER'),
-                    'DB_DRIVER': os.getenv('DB_DRIVER'),
-                    'DB_NAME_CURRENT_ATTEMPT': db_name
-                }
-                print(f"Проверьте переменные окружения: {env_vars}")
-                return False
-        return True
+        
+        # Создаем новое соединение
+        try:
+            print(f"Создание нового подключения к базе данных {db_name}...")
+            connection_string = self._build_connection_string(db_name)
+            # Добавляем таймаут для предотвращения зависания
+            self.connections[db_name] = pyodbc.connect(connection_string, timeout=30)
+            print(f"Успешное подключение к базе данных {db_name}")
+            return True
+        except Exception as e:
+            print(f"Ошибка подключения к базе данных {db_name}: {e}")
+            self.connections[db_name] = None
+            env_vars = {
+                'DB_HOST': os.getenv('DB_HOST'),
+                'DB_PORT': os.getenv('DB_PORT'),
+                'DB_USER': os.getenv('DB_USER'),
+                'DB_DRIVER': os.getenv('DB_DRIVER'),
+                'DB_NAME_CURRENT_ATTEMPT': db_name
+            }
+            print(f"Проверьте переменные окружения: {env_vars}")
+            return False
 
     def execute_query(self, query, db_name):
         """Выполнение SQL запроса в указанной базе данных"""
-        if not self.connect(db_name):
-            print(f"Не удалось подключиться к базе данных {db_name}")
-            return pd.DataFrame()
+        max_retries = 2
+        for attempt in range(max_retries):
+            if not self.connect(db_name):
+                print(f"Не удалось подключиться к базе данных {db_name} (попытка {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
+                    return pd.DataFrame()
+                continue
 
-        try:
-            print(f"Выполнение запроса в {db_name}: {query}")
-            df = pd.read_sql(query, self.connections[db_name])
-            print(f"Запрос выполнен в {db_name}, получено строк: {len(df)}")
-            if df.empty:
-                print(f"ВНИМАНИЕ: Запрос в {db_name} вернул пустой набор данных")
-            return df
-        except Exception as e:
-            print(f"Ошибка при выполнении запроса в {db_name}: {str(e)}")
             try:
-                test_query = "SELECT TOP 1 * FROM INFORMATION_SCHEMA.TABLES"
-                print(f"Выполнение диагностического запроса в {db_name}: {test_query}")
-                test_df = pd.read_sql(test_query, self.connections[db_name])
-                print(f"Диагностический запрос в {db_name} выполнен успешно, таблиц найдено: {len(test_df)}")
-            except Exception as test_e:
-                print(f"Диагностический запрос в {db_name} также не удался: {str(test_e)}")
-            raise e
+                print(f"Выполнение запроса в {db_name} (попытка {attempt + 1}): {query}")
+                df = pd.read_sql(query, self.connections[db_name])
+                print(f"Запрос выполнен в {db_name}, получено строк: {len(df)}")
+                if df.empty:
+                    print(f"ВНИМАНИЕ: Запрос в {db_name} вернул пустой набор данных")
+                return df
+            except Exception as e:
+                print(f"Ошибка при выполнении запроса в {db_name} (попытка {attempt + 1}): {str(e)}")
+                
+                # Если это ошибка соединения, сбрасываем соединение и повторяем попытку
+                if "Communication link failure" in str(e) or "08S01" in str(e):
+                    print(f"Обнаружена ошибка соединения, сбрасываем соединение с {db_name}")
+                    self.connections[db_name] = None
+                    if attempt < max_retries - 1:
+                        print(f"Повторяем попытку...")
+                        continue
+                
+                # Если это последняя попытка, выполняем диагностический запрос
+                if attempt == max_retries - 1:
+                    try:
+                        test_query = "SELECT TOP 1 * FROM INFORMATION_SCHEMA.TABLES"
+                        print(f"Выполнение диагностического запроса в {db_name}: {test_query}")
+                        test_df = pd.read_sql(test_query, self.connections[db_name])
+                        print(f"Диагностический запрос в {db_name} выполнен успешно, таблиц найдено: {len(test_df)}")
+                    except Exception as test_e:
+                        print(f"Диагностический запрос в {db_name} также не удался: {str(test_e)}")
+                    raise e
+                    
+        return pd.DataFrame()
 
     def get_table_statistics(self):
         """Получение общей статистики по таблицам из всех настроенных баз данных"""
