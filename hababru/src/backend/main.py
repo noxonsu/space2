@@ -344,14 +344,67 @@ def create_app(
             app.logger.error(f'API: Ошибка при чтении или обработке тестового файла: {e}', exc_info=True)
             return jsonify({"error": f"Ошибка при обработке тестового файла: {str(e)}"}), 500
 
+    # Маршрут для детальной страницы продукта
+    @app.route('/products/<product_id>')
+    def product_page(product_id):
+        app.logger.info(f"Запрос на страницу продукта: /products/{product_id}")
+        from hababru.src.backend.services.products import product_registry
+        product_instance = product_registry.get_product(product_id)
+        
+        if not product_instance:
+            app.logger.error(f"Продукт не найден для ID: {product_id}")
+            abort(404)
+            
+        product_info = product_instance.get_product_info()
+        
+        # Получаем SEO-страницу, связанную с этим продуктом, если она есть
+        # Предполагаем, что slug SEO-страницы может быть равен product_id
+        seo_page_data = None
+        try:
+            seo_page_data = seo_service.get_page_data(product_id)
+            app.logger.info(f"Найдена связанная SEO-страница для продукта {product_id}")
+        except FileNotFoundError:
+            app.logger.info(f"SEO-страница не найдена для продукта {product_id}. Это нормально, если продукт не имеет выделенной SEO-страницы.")
+            
+        contract_text_raw = None
+        analysis_results_raw = None
+        is_seo_page = False
+        
+        if seo_page_data:
+            contract_text_raw = seo_page_data.get('generated_contract_text')
+            analysis_results_raw = seo_page_data.get('analysis_results')
+            is_seo_page = True # Отмечаем как SEO-страницу, если есть связанные данные
+            
+        return render_template(
+            'index_template.html',
+            is_seo_page=is_seo_page,
+            main_keyword=product_info.get('name'), # Используем имя продукта как основной заголовок
+            product_data=product_info, # Передаем всю информацию о продукте
+            seo_page_contract_text_raw=contract_text_raw, # Для фронтенда
+            analysis_results_raw=analysis_results_raw # Для фронтенда
+        )
+
     # Маршрут для SEO-страниц
     @app.route('/<slug>')
     def seo_page(slug):
         app.logger.info(f"Запрос на SEO-страницу: /{slug}")
-        # Добавляем 'api' в список зарезервированных слагов
-        # Удаляем product_id из списка зарезервированных слагов, так как они теперь являются SEO-страницами
-        # Оставляем только те, которые действительно являются статическими файлами или служебными маршрутами
-        if slug in ['css', 'js', 'assets', 'favicon.ico', 'robots.txt', 'api', 'data', 'dataaquisitionnoxon', 'dataaquisitionnoxon.pub', 'exportLinks.php', 'insertCategories.php', 'openai_admin.js', 'package.json', 'processed_videos_log.csv', 'README.md', 'robots.txt', 'sensoica_shortcode.php', 'showTasks.php', '1csync', 'ads', 'aeroclub', 'aml', 'amogt', 'apifront', 'asterisk', 'hababru', 'chemistry', 'content', 'data', 'fbads', 'figmar', 'flru', 'gpts', 'hims', 'megaplan', 'nastya', 'plugins', 'sashanoxonbot', 'themes', 'tts', 'wa', 'youtube', 'api/v1/run_openai_prompt', 'admin', 'analyze', 'get_test_contract', 'get_page_prompt_results', 'get_llm_models', 'generate-test-products', 'products']:
+        # Список зарезервированных слагов, которые не должны быть SEO-страницами
+        # Удален 'products' из этого списка, так как теперь у него есть свой маршрут
+        reserved_slugs = [
+            'css', 'js', 'assets', 'favicon.ico', 'robots.txt', 'api', 'data', 
+            'dataaquisitionnoxon', 'dataaquisitionnoxon.pub', 'exportLinks.php', 
+            'insertCategories.php', 'openai_admin.js', 'package.json', 
+            'processed_videos_log.csv', 'README.md', 'robots.txt', 
+            'sensoica_shortcode.php', 'showTasks.php', '1csync', 'ads', 
+            'aeroclub', 'aml', 'amogt', 'apifront', 'asterisk', 'hababru', 
+            'chemistry', 'content', 'data', 'fbads', 'figmar', 'flru', 'gpts', 
+            'hims', 'megaplan', 'nastya', 'plugins', 'sashanoxonbot', 'themes', 
+            'tts', 'wa', 'youtube', 'api/v1/run_openai_prompt', 'admin', 
+            'analyze', 'get_test_contract', 'get_page_prompt_results', 
+            'get_llm_models', 'generate-test-products'
+        ]
+        
+        if slug in reserved_slugs:
             app.logger.warning(f"Запрос на зарезервированный slug: {slug}")
             abort(404)
         

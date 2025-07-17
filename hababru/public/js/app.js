@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 5px; background-color: #fff;">
                             <strong>${product.name}</strong> (${product.category || 'Без категории'})
                             <p>${product.description || 'Нет описания'}</p>
-                            <a href="/${product.product_id}" style="color: #007bff; text-decoration: none;">Подробнее</a>
+                            <a href="/products/${product.product_id}" style="color: #007bff; text-decoration: none;">Подробнее</a>
                         </div>
                     `;
                     productList.appendChild(listItem);

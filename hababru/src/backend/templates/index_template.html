@@ -33,7 +33,7 @@
             <button id="test-error-button" style="margin-top: 20px; padding: 10px 15px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">Вызвать тестовую ошибку</button>
         </section>
 
-        {% if product_info and product_info.product_id == 'contract_analysis' %}
+        {% if product_data and product_data.product_id == 'contract_analysis' %}
         <section id="upload-section">
             <h2>Загрузить другой договор</h2>
             <input type="file" id="contract-upload" accept=".pdf,.doc,.docx">
@@ -60,33 +60,33 @@
             </div>
         </section>
         
-        {% if product_info and product_info.get('name') %}
+        {% if product_data and product_data.get('name') %}
         <section id="product-info-section" class="product-info-section" style="padding: 20px; background-color: #f8f9fa; border: 1px solid #ddd; margin-top: 20px;">
-            <h2>О сервисе "{{ product_info.get('name') }}"</h2>
-            <p>{{ product_info.get('description', '') }}</p>
+            <h2>О сервисе "{{ product_data.get('name') }}"</h2>
+            <p>{{ product_data.get('description', '') }}</p>
             
-            {% if product_info.get('key_benefits') %}
+            {% if product_data.get('key_benefits') %}
             <h3>Ключевые преимущества:</h3>
             <ul class="product-benefits-list">
-                {% for benefit in product_info.get('key_benefits', []) %}
+                {% for benefit in product_data.get('key_benefits', []) %}
                     <li>{{ benefit }}</li>
                 {% endfor %}
             </ul>
             {% endif %}
             
-            {% if product_info.get('target_audience') %}
+            {% if product_data.get('target_audience') %}
             <h3>Для кого подходит:</h3>
             <ul class="target-audience-list">
-                {% for audience in product_info.get('target_audience', []) %}
+                {% for audience in product_data.get('target_audience', []) %}
                     <li>{{ audience }}</li>
                 {% endfor %}
             </ul>
             {% endif %}
             
-            {% if product_info.get('use_cases') %}
+            {% if product_data.get('use_cases') %}
             <h3>Сценарии использования:</h3>
             <ul class="use-cases-list">
-                {% for use_case in product_info.get('use_cases', []) %}
+                {% for use_case in product_data.get('use_cases', []) %}
                     <li>{{ use_case }}</li>
                 {% endfor %}
             </ul>
