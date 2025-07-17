@@ -71,6 +71,12 @@
         .btn-share:hover {
             background-color: #218838;
         }
+        .btn-parse {
+            background-color: #fd7e14;
+        }
+        .btn-parse:hover {
+            background-color: #e8690a;
+        }
         .project-item, .news-item {
             border: 1px solid #eee;
             margin-bottom: 10px;
@@ -300,6 +306,7 @@
 
                 <button onclick="updateProject()">Сохранить изменения</button>
                 <button class="btn-share" onclick="shareProject(currentProjectId, document.getElementById('editProjectName').value)">Поделиться</button>
+                <button class="btn-parse" onclick="startProjectParsing(currentProjectId)">🚀 Запустить парсинг</button>
                 <button class="btn-danger" onclick="deleteProject()">Удалить проект</button>
                 <button class="btn-secondary" onclick="showMainView()">Назад к проектам</button>
             </div>
@@ -397,6 +404,7 @@
                         <div class="project-actions">
                             <button onclick="viewProjectDetails('${project.id}')">Просмотр</button>
                             <button class="btn-share" onclick="shareProject('${project.id}', '${project.name.replace(/'/g, "\\'")}')">Поделиться</button>
+                            <button class="btn-parse" onclick="startProjectParsing('${project.id}')">🚀 Парсинг</button>
                             <button class="btn-danger" onclick="deleteProjectPrompt('${project.id}', event)">Удалить</button>
                         </div>
                     `;
@@ -670,6 +678,49 @@
         function showShareDialog(url, projectName) {
             const message = `Ссылка на проект "${projectName}":\n\n${url}\n\nСкопируйте эту ссылку вручную.`;
             alert(message);
+        }
+
+        async function startProjectParsing(projectId) {
+            const parseButton = document.querySelector('.btn-parse');
+            const originalText = parseButton.textContent;
+            
+            try {
+                // Отключаем кнопку и показываем индикатор загрузки
+                parseButton.disabled = true;
+                parseButton.textContent = '⏳ Запускаем парсинг...';
+                
+                const response = await fetch(`/api/projects/${projectId}/parse`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ ${result.message}\n\nПарсинг запущен в фоновом режиме. Обновите страницу через несколько минут, чтобы увидеть новые новости.`);
+                    
+                    // Обновляем список новостей через 3 секунды
+                    setTimeout(() => {
+                        loadProjectNews(projectId);
+                    }, 3000);
+                } else {
+                    alert(`❌ Ошибка: ${result.message || 'Неизвестная ошибка'}`);
+                }
+                
+            } catch (error) {
+                console.error('Error starting parsing:', error);
+                alert(`❌ Ошибка при запуске парсинга: ${error.message}`);
+            } finally {
+                // Восстанавливаем кнопку
+                parseButton.disabled = false;
+                parseButton.textContent = originalText;
+            }
         }
 
         // Автоматически открыть проект, если передан параметр project в URL
