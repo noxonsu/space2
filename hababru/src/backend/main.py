@@ -221,6 +221,11 @@ def create_app(
     app.register_blueprint(create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service), url_prefix='/admin')
     app.register_blueprint(browser_log_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
 
+    @app.after_request
+    def add_csp_header(response):
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self';"
+        return response
+
     @app.before_request
     def log_request_info():
         app.logger.info(f"Входящий запрос: {request.method} {request.path}")
