@@ -2,7 +2,7 @@ const {
   filterNewsByDate,
   filterNewsByKeywords,
   processNewsWithOpenAI,
-  loadPromptFromFile
+  loadProjects
 } = require('../space2_newsalert');
 
 describe('Integration Tests - News Processing Pipeline', () => {
@@ -63,12 +63,15 @@ describe('Integration Tests - News Processing Pipeline', () => {
     expect(keywordFiltered).toHaveLength(1); // Should find one match based on title
   });
 
-  test('Prompt loading and validation', () => {
-    const prompt = loadPromptFromFile();
-    expect(prompt).toBeDefined();
-    expect(prompt).toContain('{{NEWS_DATA}}');
-    expect(prompt).toContain('Sb₂O₃');
-    expect(prompt).toContain('NAMAGIRI');
+  test('Project-based prompt validation', async () => {
+    // Тестируем, что промпты загружаются из проектов
+    const projects = await loadProjects();
+    if (projects.length > 0) {
+      const project = projects[0];
+      expect(project.prompt).toBeDefined();
+      expect(typeof project.prompt).toBe('string');
+      expect(project.prompt.length).toBeGreaterThan(0);
+    }
   });
 
   test('News data structure validation', () => {

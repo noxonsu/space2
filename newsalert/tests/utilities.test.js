@@ -90,55 +90,6 @@ describe('Utility Functions and Error Handling', () => {
     });
   });
 
-  describe('File loading functions', () => {
-    test('loadKeywordsFromFile handles missing file', () => {
-      // Temporarily rename the file to simulate missing file
-      const keywordsPath = path.join(__dirname, '../.env_keys');
-      const backupPath = path.join(__dirname, '../.env_keys.backup');
-      
-      let fileRenamed = false;
-      if (fs.existsSync(keywordsPath)) {
-        fs.renameSync(keywordsPath, backupPath);
-        fileRenamed = true;
-      }
-
-      try {
-        const result = loadKeywordsFromFile();
-        // Should return default keywords or handle gracefully
-        expect(Array.isArray(result)).toBe(true);
-      } finally {
-        // Restore the file
-        if (fileRenamed) {
-          fs.renameSync(backupPath, keywordsPath);
-        }
-      }
-    });
-
-    test('loadPromptFromFile handles missing file', () => {
-      // Temporarily rename the file to simulate missing file
-      const promptPath = path.join(__dirname, '../.env_prompt');
-      const backupPath = path.join(__dirname, '../.env_prompt.backup');
-      
-      let fileRenamed = false;
-      if (fs.existsSync(promptPath)) {
-        fs.renameSync(promptPath, backupPath);
-        fileRenamed = true;
-      }
-
-      try {
-        const result = loadPromptFromFile();
-        // Should return fallback prompt
-        expect(typeof result).toBe('string');
-        expect(result.length).toBeGreaterThan(0);
-      } finally {
-        // Restore the file
-        if (fileRenamed) {
-          fs.renameSync(backupPath, promptPath);
-        }
-      }
-    });
-  });
-
   describe('Data validation', () => {
     test('validates news item structure', () => {
       const validNewsItem = {

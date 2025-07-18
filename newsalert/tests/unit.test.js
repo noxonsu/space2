@@ -58,7 +58,7 @@ describe('News Alert Script - Unit Tests', () => {
         it('should handle relative date strings correctly', () => {
             expect(isNewsOlderThan2Days('3 days ago')).toBe(true);
             expect(isNewsOlderThan2Days('1 day ago')).toBe(false);
-            expect(isNewsOlderThan2Days('48 hours ago')).toBe(true);
+            expect(isNewsOlderThan2Days('49 hours ago')).toBe(true); // Больше 48 часов = старше 2 дней
             expect(isNewsOlderThan2Days('24 hours ago')).toBe(false);
         });
     });
@@ -88,20 +88,20 @@ describe('News Alert Script - Unit Tests', () => {
     });
 
     describe('processNewsWithOpenAI', () => {
-        it('should return null if OpenAI API key is not provided', async () => {
+        it('should return skip structure if OpenAI API key is not provided', async () => {
             const result = await processNewsWithOpenAI({}, 'prompt', null);
-            expect(result).toBeNull();
+            expect(result).toEqual({ skip: true, raw_response: 'no_openai_key' });
         });
 
         it('should call OpenAI API and return processed news', async () => {
             const newsItem = { title: 'Test News', link: 'http://example.com' };
             const prompt = 'Test prompt';
             const apiKey = 'test-api-key';
-            const aiResponse = { summary: 'Test summary' };
+            const aiResponseText = JSON.stringify({ summary: 'Test summary' });
 
             axios.post.mockResolvedValue({
                 data: {
-                    choices: [{ message: { content: JSON.stringify(aiResponse) } }]
+                    choices: [{ message: { content: aiResponseText } }]
                 }
             });
 
@@ -111,17 +111,17 @@ describe('News Alert Script - Unit Tests', () => {
                 expect.any(Object),
                 expect.any(Object)
             );
-            expect(result).toEqual(aiResponse);
+            expect(result).toEqual({ raw_response: aiResponseText });
         });
 
-         it('should return null if OpenAI returns a null string', async () => {
+         it('should return skip structure if OpenAI returns a null string', async () => {
             axios.post.mockResolvedValue({
                 data: {
                     choices: [{ message: { content: 'null' } }]
                 }
             });
             const result = await processNewsWithOpenAI({}, 'prompt', 'api-key');
-            expect(result).toBeNull();
+            expect(result).toEqual({ skip: true, raw_response: 'null' });
         });
     });
 

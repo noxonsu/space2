@@ -408,6 +408,8 @@ async function triggerProjectParsing(projectId) {
         }
 
         console.log(`\n--- Manually triggering parsing for project: "${name}" (ID: ${projectId}) ---`);
+        console.log(`📝 Загружен промпт длиной: ${prompt ? prompt.length : 0} символов`);
+        console.log(`🔑 Первые 200 символов промпта: ${prompt ? prompt.substring(0, 200) : 'НЕТ ПРОМПТА'}...`);
 
         let allProcessedNewsCount = 0;
         for (const keyword of keywords) {
@@ -469,7 +471,7 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
     if (!openaiApiKey) {
         console.error('OpenAI API key not set. Skipping AI processing.');
         console.log('Skipping AI processing');
-        return null;
+        return { skip: true, raw_response: 'no_openai_key' };
     }
 
     // Добавляем текст статьи в newsItem если его нет
@@ -492,12 +494,13 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
 
     // Извлекаем системный промпт из общего промпта
     const systemPromptMatch = prompt.match(/^(.*?)(?=\n\n## INPUT|\n\nПроанализируй)/s);
-    const systemPrompt = systemPromptMatch ? systemPromptMatch[1].trim() : 'Ты — аналитик. Анализируешь новости согласно инструкциям. Возвращаешь JSON в точном формате или null.';
+    const systemPrompt = systemPromptMatch ? systemPromptMatch[1].trim() : 'Ты — аналитик. Анализируешь новости согласно инструкциям. Возвращаешь JSON в точном формате или слово "skip" если новость не подходит.';
     const userPrompt = prompt.replace(systemPrompt, '').trim();
 
     try {
         console.log(`Processing news with OpenAI: "${newsItem.title}"`);
         console.log(`  - Системный промпт: ${systemPrompt.substring(0, 100)}...`);
+        console.log(`  - Длина полного промпта: ${prompt.length} символов`);
         
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-4o',
@@ -531,7 +534,7 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
         // Если ответ пустой или null, пропускаем
         if (!aiResponse || aiResponse.toLowerCase() === 'null') {
             console.log(`  - OpenAI: новость не по теме или пустой ответ, пропускаем.`);
-            return null;
+            return { skip: true, raw_response: aiResponse };
         }
 
         console.log(`  - OpenAI: новость обработана успешно.`);
@@ -541,7 +544,7 @@ async function processNewsWithOpenAI(newsItem, promptTemplate, openaiApiKey) {
         if (error.response && error.response.data) {
             console.error('OpenAI API Error details:', error.response.data);
         }
-        return null;
+        return { skip: true, raw_response: `error: ${error.message}` };
     }
 }
 
@@ -758,8 +761,8 @@ async function processAndSendNews(projectId, keyword, newsItems, telegramChatId,
 
         // Новая логика обработки ответа OpenAI
         if (!aiResult || aiResult.skip) {
-            console.log(`- OpenAI пропустил новость (содержит "skip" или вернул null): "${item.title}"`);
-            newsToSave.push({ ...baseNewsItem, status: 'skipped_irrelevant', ai_response: aiResult ? aiResult.raw_response : 'null' });
+            console.log(`- OpenAI пропустил новость (содержит "skip" или произошла ошибка): "${item.title}"`);
+            newsToSave.push({ ...baseNewsItem, status: 'skipped_irrelevant', ai_response: aiResult ? aiResult.raw_response : 'no_response' });
             continue;
         }
 
@@ -907,12 +910,7 @@ module.exports = {
     saveBlacklist,
     addToBlacklist,
     isInBlacklist,
-    server, // Export the server instance
-    // Expose for initial project creation logic if needed in tests
-    KEYWORDS_FILE_PATH: path.join(__dirname, '.env_keys'), // Re-add for manual migration
-    PROMPT_FILE_PATH: path.join(__dirname, '.env_prompt'), // Re-add for manual migration
-    loadKeywordsFromFile, // Export for tests
-    loadPromptFromFile // Export for tests
+    server // Export the server instance
 };
 
 // Utility functions for filtering and processing
@@ -959,34 +957,6 @@ function filterNewsByKeywords(newsItems, keywords) {
       content.includes(keyword.toLowerCase())
     );
   });
-}
-
-function loadKeywordsFromFile() {
-  try {
-    if (fs.existsSync(KEYWORDS_FILE_PATH)) {
-      const keywordsContent = fs.readFileSync(KEYWORDS_FILE_PATH, 'utf8');
-      return keywordsContent.split('\n').filter(line => line.trim());
-    }
-  } catch (error) {
-    console.log('Error loading keywords file:', error.message);
-  }
-  
-  // Default keywords
-  return ['antimony', 'trioxide', 'sb2o3', 'antimony oxide'];
-}
-
-function loadPromptFromFile() {
-  try {
-    if (fs.existsSync(PROMPT_FILE_PATH)) {
-      return fs.readFileSync(PROMPT_FILE_PATH, 'utf8');
-    }
-  } catch (error) {
-    console.log('Error loading prompt file:', error.message);
-  }
-  
-  // Fallback prompt
-  return `Analyze this news item about Sb₂O₃ (Antimony Trioxide): {{NEWS_DATA}}
-Please provide a brief summary focusing on market impact.`;
 }
 
 // Функции для работы с блэклистом обработанных URL
