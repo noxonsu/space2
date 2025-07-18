@@ -13,6 +13,7 @@ import matplotlib.dates as mdates
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
+from sql_error_logger import sql_error_logger
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -554,6 +555,11 @@ def generate_sql():
         sql_query = llm_generator.generate_sql_query(user_query)
         return jsonify({"sql_query": sql_query})
     except Exception as e:
+        # Логируем ошибку генерации LLM
+        sql_error_logger.log_llm_generation_error(
+            user_query=user_query,
+            error_message=str(e)
+        )
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/generate-sql-with-prompt', methods=['POST'])
@@ -575,6 +581,11 @@ def generate_sql_with_prompt():
             "full_prompt": full_prompt
         })
     except Exception as e:
+        # Логируем ошибку генерации LLM (с промптом)
+        sql_error_logger.log_llm_generation_error(
+            user_query=user_query,
+            error_message=str(e)
+        )
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/execute-sql', methods=['POST'])
@@ -714,6 +725,19 @@ def execute_sql():
     except Exception as e:
         error_msg = f"Ошибка при выполнении SQL запроса: {str(e)}"
         print(error_msg)
+        
+        # Логируем ошибку для последующего анализа
+        sql_error_logger.log_sql_error(
+            user_query=user_query,
+            generated_sql=sql_query,
+            error_message=str(e),
+            error_type="SQL_EXECUTION_ERROR",
+            additional_info={
+                "database": db_name if 'db_name' in locals() else "UNKNOWN",
+                "table": first_table if 'first_table' in locals() else "UNKNOWN"
+            }
+        )
+        
         return jsonify({"error": error_msg}), 500
 
 @app.route('/api/execute-sql-with-chart', methods=['POST'])
@@ -852,7 +876,48 @@ def execute_sql_with_chart():
     except Exception as e:
         error_msg = f"Ошибка при выполнении SQL запроса: {str(e)}"
         print(error_msg)
+        
+        # Логируем ошибку для последующего анализа (для execute_sql_with_chart)
+        sql_error_logger.log_sql_error(
+            user_query=user_query,
+            generated_sql=sql_query,
+            error_message=str(e),
+            error_type="SQL_EXECUTION_ERROR_WITH_CHART",
+            additional_info={
+                "database": db_name if 'db_name' in locals() else "UNKNOWN",
+                "table": first_table if 'first_table' in locals() else "UNKNOWN",
+                "with_chart": True
+            }
+        )
+        
         return jsonify({"error": error_msg}), 500
+
+@app.route('/error-logs')
+def error_logs_page():
+    """Страница для просмотра логов ошибок"""
+    return render_template('error_logs.html')
+
+@app.route('/api/error-logs', methods=['GET'])
+def get_error_logs():
+    """API для получения списка ошибок из лога"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        errors = sql_error_logger.get_recent_errors(limit=limit)
+        return jsonify({
+            "errors": errors,
+            "total_returned": len(errors)
+        })
+    except Exception as e:
+        return jsonify({"error": f"Ошибка при получении логов: {str(e)}"}), 500
+
+@app.route('/api/error-stats', methods=['GET'])
+def get_error_stats():
+    """API для получения статистики ошибок"""
+    try:
+        stats = sql_error_logger.get_error_statistics()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": f"Ошибка при получении статистики: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("Запуск Flask приложения...")

@@ -75,6 +75,36 @@ The `Invalid column name 'Род груза'` error, which occurred when queryin
 **Important Note for 'Род груза' Queries**:
 If you need to query by 'Род груза' (Cargo Type) in the context of wagon data, the most suitable table is **`[OperativeReport].[dbo].[EnterpriseWagons]`**. This table contains both `[Дата]` and `[Род груза]`, allowing for analysis of annual wagon unloading by cargo type. Other tables that contain `[Род груза]` include `Cargo`, `FactLoading`, `VagonImport`, `ShipmentsToThePort`, `ShipsImport`, `WagonsOnTheWay`, and `WagonsPresence`.
 
+## Latest Updates (July 2025)
+
+### SQL Query Error Logging System
+A comprehensive error logging system has been implemented to track and analyze SQL query errors for debugging and improvement:
+
+- **Automatic Error Logging**: All SQL execution errors and LLM generation errors are automatically logged to `sql_errors.log`
+- **Error Analytics**: Track error patterns, most common issues, and system performance
+- **Web Interface**: Access error logs via `/error-logs` endpoint for easy review
+- **API Endpoints**: 
+  - `GET /api/error-logs?limit=N` - Retrieve recent errors
+  - `GET /api/error-stats` - Get error statistics
+
+### LLM Prompt Improvements
+The system prompt has been enhanced to fix common SQL generation issues:
+
+- **Text Search Rules**: Added explicit guidance for using LIKE operator for company name searches
+- **Date Range Rules**: Improved handling of date ranges to prevent type clash errors
+- **Better Examples**: Updated examples showing correct usage of LIKE operators and date arithmetic
+- **Error Prevention**: Added specific rules to avoid problematic SQL constructions
+
+### Database Connection Fixes
+- **ODBC Driver**: Properly installed and configured ODBC Driver 17 for SQL Server
+- **Connection Reliability**: Improved error handling and connection retry logic
+- **Multi-Database Support**: Enhanced support for queries across multiple databases
+
+### Key Fixes Implemented:
+1. **LIKE vs Equals**: LLM now uses `LIKE '%Еврохим%'` instead of `= 'Еврохим'` for company searches
+2. **Date Arithmetic**: Fixed date range queries to use proper CAST and DATEADD combinations
+3. **Type Clash Prevention**: Eliminated constructions that cause "date is incompatible with int" errors
+
 ## Architecture Diagram
 
 ```mermaid
