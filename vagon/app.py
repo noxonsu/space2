@@ -694,7 +694,7 @@ def execute_sql():
         
         # Создаем график если запрошено
         chart_base64 = None
-        if create_chart and len(result_df) > 0:
+        if create_chart and result_df.size > 1:
             # Всегда используем гистограмму (bar chart)
             chart_type = 'bar'
             print(f"DEBUG: Using 'bar' chart type for query: {user_query}")
@@ -846,7 +846,7 @@ def execute_sql_with_chart():
         chart_base64 = None
         create_chart = True  # Принудительно включаем создание графика
         
-        if create_chart and len(result_df) > 0:
+        if create_chart and result_df.size > 1:
             # Всегда используем гистограмму (bar chart)
             chart_type = 'bar'
             print(f"DEBUG: Using 'bar' chart type for query: {user_query}")
