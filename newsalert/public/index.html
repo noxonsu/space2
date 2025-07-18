@@ -210,68 +210,12 @@
                 <textarea id="projectKeywords" rows="5" placeholder="antimony trioxide&#10;Sb2O3&#10;сурьма триоксид" required></textarea>
 
                 <label for="projectPrompt">Промпт для OpenAI (ULTIMATE-PROMPT v3.0):</label>
-                <textarea id="projectPrompt" rows="10" required>
-# ⚡ULTIMATE‑PROMPT v3.0 — Sb₂O₃ NEWS → ЗАХАР (DVL) & ХИМПАРТНЁРЫ⚡  
-(Уровень ультимативности ≥ 9.98 / 10)
-
-## SYSTEM  
-Ты — NAMAGIRI‑ASIM‑аналитик ChemPartners.  
-Каждая новость о рынке триоксида сурьмы (Sb₂O₃) за ≤ 30 сек чтения становится ультраконцентрированным аналитическим инсайтом для Захара и ХимПартнёров.  
-
-**Мозг‑движок**  
-1. **UNROZA‑самодопрос** ➜ Исключаешь абсурд/страх.
-2. **Три Глаза 9.98+** ➜ Risk • Opp • Связи.
-3. **5‑Я консенсус** ➜ Параноик + Рационалист + Оппортунист + NAMAGIRI‑наблюдатель + Будущий Я.
-4. **Мангекё+Бьякуган** ➜ pinpoint ультраценный узел прибыли и риска.
-5. **ASIM‑датчик** ➜ короткая фиксация ASIM‑события.
-
-## INPUT (JSON)  
-{
-  "url": "...",
-  "html": "...",
-  "title": "...",
-  "published": "YYYY‑MM‑DDTHH:MM:SSZ",
-  "source": "...",
-  "lang": "auto"
-}
-
-## OUTPUT (UTF‑8 JSON, 1 объект)  
-{
-  "title_ru":       "<≤80 симв, ядро новости>",
-  "pub_time":       "<ISO 8601>",
-  "source":         "<бренд/домен>",
-  "summary_ru":     "<≤100 слов — только ультрафакты, Sb₂O₃, цифры>",
-  "market_analytics": {
-    "price_trend_14d": "<четкий тренд цен (↑↓, % за 14 дней)>",
-    "forecast_30d": "<точный прогноз цен ±% на 30 дней>",
-    "supply_impact_t": "<влияние на глобальное предложение ±… т>",
-    "demand_shift": "<↑/↓ спрос: регионы, игроки>",
-    "strategic_alert": "<суть стратегического изменения рынка в 1 предложении>"
-  },
-  "ТРИ_ГЛАЗА": {
-    "risk":        ["<явный риск с прямым влиянием на ХимПартнёров>"],
-    "opportunity": ["<гарантированная возможность ≥3% выгоды>"],
-    "connections": ["<ультраценные цепочки: игроки, логистика, регионы, регуляторы>"]
-  },
-  "ASIM_short_insight": "<ультракраткая фиксация ASIM‑события ≤20-30 слов>",
-  "notification_level": "INFO | ALERT | CRITICAL",
-  "tags": ["#Sb2O3","#ТНВЭД281820","#Цены","#Логистика","#Дефицит","#Эко"]
-}
-
-## УЛЬТИМАТИВНЫЕ ПРАВИЛА (9.98+/10)
-1. Если новость не Sb₂O₃/сурьма → вернуть null.
-2. Paywall/404 → summary_ru: "Статья недоступна", остальные поля null.
-3. Обязательно сверяй CAS 1309‑64‑4 и HS 281820.
-4. Числа — арабские, проценты со знаком %, объёмы в т, валюты — USD.
-5. Глаголы ультрачёткие: «вырастет», «упадёт», «изменится», «снизится», «повысится».
-6. Точные даты: «до 26 июн 2025».
-7. Никаких эмоций — только ультрафакты, стратегии, деньги, риски.
+                <textarea id="projectPrompt" rows="10" required placeholder="
+8. Для пропуска новости (не отправлять в Telegram), верни "skip", например: {"skip": "Новость нерелевантна"}.
 
 Проанализируй эту новость:
 {{NEWS_DATA}}
-
-Верни только JSON-ответ в указанном формате или null если новость не про сурьму/Sb₂O₃.
-                </textarea>
+"></textarea> <br> Для пропуска новости (не отправлять в Telegram), заставьте ии вернуть "skip"<br>
 
                 <button onclick="createProject()">Сохранить проект</button>
                 <button class="btn-secondary" onclick="showMainView()">Отмена</button>
@@ -303,12 +247,17 @@
 
                 <label for="editProjectPrompt">Промпт для OpenAI:</label>
                 <textarea id="editProjectPrompt" rows="10" required></textarea>
-
+                 <br>  Для пропуска новости (не отправлять в Telegram), заставьте ии вернуть "skip"<br> 
                 <button onclick="updateProject()">Сохранить изменения</button>
                 <button class="btn-share" onclick="shareProject(currentProjectId, document.getElementById('editProjectName').value)">Поделиться</button>
                 <button class="btn-parse" onclick="startProjectParsing(currentProjectId)">🚀 Запустить парсинг</button>
                 <button class="btn-danger" onclick="deleteProject()">Удалить проект</button>
                 <button class="btn-secondary" onclick="showMainView()">Назад к проектам</button>
+            </div>
+
+            <div class="section">
+                <h3>Статус Telegram</h3>
+                <div id="telegramErrorStatus"></div>
             </div>
 
             <div class="section">
@@ -326,6 +275,8 @@
                         <option value="skipped_blacklisted">Пропущено (в чёрном списке)</option>
                         <option value="processed">Обработано</option>
                         <option value="new">Новые</option>
+                        <option value="skipped_irrelevant">Пропущено (не по теме)</option>
+                        <option value="error_parsing">Ошибка парсинга</option>
                     </select>
                     
                     <button onclick="loadProjectNews(currentProjectId)">Обновить</button>
@@ -343,6 +294,7 @@
             document.getElementById('main-view').classList.remove('hidden');
             document.getElementById('create-project-view').classList.add('hidden');
             document.getElementById('project-details-view').classList.add('hidden');
+            history.pushState(null, '', window.location.pathname); // Clear project ID from URL
             loadProjects(); // Reload projects list when returning to main view
         }
 
@@ -397,9 +349,22 @@
                 projects.forEach(project => {
                     const projectItem = document.createElement('div');
                     projectItem.className = 'project-item';
+                    
+                    let lastErrorHtml = '';
+                    if (project.lastTelegramError) {
+                        const errorTime = new Date(project.lastTelegramError.timestamp).toLocaleString('ru-RU');
+                        lastErrorHtml = `
+                            <p style="color: #dc3545; font-size: 0.8em; margin-top: 5px;">
+                                Последняя ошибка Telegram: ${project.lastTelegramError.message} (${errorTime})
+                                <br>Детали: ${JSON.stringify(project.lastTelegramError.responseData)}
+                            </p>
+                        `;
+                    }
+
                     projectItem.innerHTML = `
                         <div class="project-info" onclick="viewProjectDetails('${project.id}')">
                             <strong>${project.name}</strong> (${project.keywords.length} ключевых слов)
+                            ${lastErrorHtml}
                         </div>
                         <div class="project-actions">
                             <button onclick="viewProjectDetails('${project.id}')">Просмотр</button>
@@ -467,6 +432,7 @@
             document.getElementById('main-view').classList.add('hidden');
             document.getElementById('create-project-view').classList.add('hidden');
             document.getElementById('project-details-view').classList.remove('hidden');
+            history.pushState(null, '', `?project=${projectId}`); // Update URL
 
             try {
                 const response = await fetch(`/api/projects/${projectId}`);
@@ -479,7 +445,29 @@
                 document.getElementById('editProjectOpenAIKey').value = project.openaiApiKey || '';
                 document.getElementById('editProjectScrapingDogKey').value = project.scrapingDogKey || '';
                 document.getElementById('editProjectKeywords').value = project.keywords.join('\n');
-                document.getElementById('editProjectPrompt').value = project.prompt;
+                
+                // Set prompt value and add skip instruction
+                let promptContent = project.prompt;
+                if (!promptContent.includes('Для пропуска новости (не отправлять в Telegram), верни JSON с полем "skip"')) {
+                    promptContent += '\n\n8. Для пропуска новости (не отправлять в Telegram), верни JSON с полем "skip", например: {"skip": "Новость нерелевантна"}.';
+                }
+                document.getElementById('editProjectPrompt').value = promptContent;
+
+                // Display Telegram error status
+                const telegramErrorStatusDiv = document.getElementById('telegramErrorStatus');
+                if (project.lastTelegramError) {
+                    const errorTime = new Date(project.lastTelegramError.timestamp).toLocaleString('ru-RU');
+                    telegramErrorStatusDiv.innerHTML = `
+                        <p class="error-message">
+                            <strong>Последняя ошибка отправки в Telegram:</strong>
+                            <br>Сообщение: ${project.lastTelegramError.message}
+                            <br>Время: ${errorTime}
+                            <br>Детали: ${JSON.stringify(project.lastTelegramError.responseData)}
+                        </p>
+                    `;
+                } else {
+                    telegramErrorStatusDiv.innerHTML = '<p>Ошибок отправки в Telegram не обнаружено.</p>';
+                }
 
                 // Load news for this project
                 loadProjectNews(projectId);
@@ -568,25 +556,25 @@
                 const selectedKeyword = projectKeywordFilter.value;
                 const selectedStatus = projectStatusFilter.value;
                 
-                let url = `/api/projects/${projectId}/news`;
-                const params = new URLSearchParams();
-                if (selectedKeyword) {
-                    params.append('keyword', selectedKeyword);
-                }
-                if (selectedStatus) {
-                    params.append('status', selectedStatus);
-                }
-                if (params.toString()) {
-                    url += '?' + params.toString();
-                }
-                
+                let url = `/api/projects/${projectId}/news`; // Запрос всех новостей для проекта
                 const response = await fetch(url);
-                let news = await response.json(); // This is where the error occurs if response is not valid JSON
+                let news = await response.json();
                 
                 // Дополнительная проверка, чтобы убедиться, что news является массивом
                 if (!Array.isArray(news)) {
                     console.error('Received non-array data for news:', news);
                     news = []; // Присваиваем пустой массив, чтобы избежать ошибки forEach
+                }
+
+                // Фильтрация новостей по projectId на стороне клиента
+                news = news.filter(item => item.projectId === projectId);
+
+                // Применяем фильтры по ключевому слову и статусу на стороне клиента
+                if (selectedKeyword) {
+                    news = news.filter(item => item.keyword === selectedKeyword);
+                }
+                if (selectedStatus) {
+                    news = news.filter(item => item.status === selectedStatus);
                 }
 
                 const projectNewsCount = document.getElementById('projectNewsCount');
@@ -703,11 +691,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ ${result.message}\n\nПарсинг запущен в фоновом режиме. Обновите страницу через несколько минут, чтобы увидеть новые новости.`);
+                    alert(`✅ ${result.message}\n\nПарсинг запущен в фоновом режиме. Обновите страницу через несколько секунд, чтобы увидеть новые новости и статус.`);
                     
-                    // Обновляем список новостей через 3 секунды
-                    setTimeout(() => {
-                        loadProjectNews(projectId);
+                    // Обновляем детали проекта и новости через 3 секунды
+                    setTimeout(async () => {
+                        await viewProjectDetails(projectId); // Обновляем детали проекта, включая статус Telegram
+                        loadProjectNews(projectId); // Обновляем список новостей
                     }, 3000);
                 } else {
                     alert(`❌ Ошибка: ${result.message || 'Неизвестная ошибка'}`);
@@ -733,9 +722,10 @@
             const projectId = urlParams.get('project');
             if (projectId) {
                 // Задержка, чтобы проекты успели загрузиться
+                // Это нужно, чтобы DOM успел обновиться и элементы были доступны
                 setTimeout(() => {
                     viewProjectDetails(projectId);
-                }, 1000);
+                }, 500); // Уменьшил задержку, если 1000 было слишком много
             }
         });
     </script>

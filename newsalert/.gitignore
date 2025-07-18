@@ -15,3 +15,5 @@ projects.json
 
 # PM2
 .pm2/
+processed_urls_blacklist.json
+fetched_news.json

@@ -203,7 +203,7 @@ Access the web-based admin panel at: **http://localhost:3656**
     *   Edit project settings.
     *   View news items specific to that project.
     *   Filter news by keyword within the project.
-    *   Toggle to view the full JSON response from OpenAI for each news item.
+    *   View processed news items with full AI analysis (raw OpenAI response).
 
 ## 🧪 Testing Architecture
 
@@ -285,7 +285,7 @@ Response:
 The ULTIMATE-PROMPT v3.0 can be customized for each project in the Admin Dashboard. Key placeholders:
 - `{{NEWS_DATA}}` - Replaced with actual news content
 - System-level instructions for market analysis
-- Output format specifications (JSON)
+- Output format specifications (raw text)
 
 ### Keyword Optimization
 Keywords are configured per project in the Admin Dashboard and support:
@@ -310,30 +310,7 @@ Currently supports Telegram with plans for:
 
 ### Notification Format:
 ```
-🔥 CRITICAL: Sb₂O₃ Market Alert
-
-📰 Заголовок: Пожар остановил китайский завод Sb₂O₃ (8 000 т)
-📅 Время: 2025-06-24T09:00:00Z
-📰 Источник: Fastmarkets
-
-📊 АНАЛИТИКА:
-💰 Тренд цен (14д): ↑+12% (14 270 → 15 980 USD/т)
-🔮 Прогноз (30д): +8–14% (17 250–18 200 USD/т) 
-📦 Влияние на предложение: -8 000 т
-📈 Сдвиг спроса: ↑спрос в Турции +15%
-
-⚠️ РИСКИ:
-• Ценовой скачок +15% в течение 2 недель
-• Задержки поставок из Китая
-
-💡 ВОЗМОЖНОСТИ:  
-• Закупка до роста экономия ≥8%
-• Перепродажа запасов +10% прибыли
-
-🎯 КЛЮЧЕВОЙ ИНСАЙТ:
-Срочный переход Китая на турецкое сырьё — риск роста мировых цен на Sb₂O₃ на 10–15%
-
-#Sb2O3 #ТНВЭД281820 #Цены #Дефицит
+[Сырой ответ от OpenAI. Если он содержит "CRITICAL", то будет добавлен префикс "🚨🚨🚨 CRITICAL ALERT 🚨🚨🚨"]
 ```
 
 ## 🔒 Security & Best Practices
