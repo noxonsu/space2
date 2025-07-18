@@ -166,11 +166,43 @@
         .status-new {
             color: #007bff;
         }
+        .breadcrumbs {
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .breadcrumbs a {
+            color: #007bff;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+        .breadcrumbs a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumbs .separator {
+            margin: 0 8px;
+            color: #6c757d;
+        }
+        .breadcrumbs .current {
+            color: #495057;
+            font-weight: 500;
+        }
+        .nav-buttons {
+            margin-bottom: 15px;
+        }
+        .nav-buttons button {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>News Alert Admin Panel</h1>
+        
+        <!-- Navigation breadcrumbs -->
+        <nav id="breadcrumbs" class="breadcrumbs"></nav>
 
         <div id="main-view">
             <!-- ScrapingDog Credits Section -->
@@ -188,6 +220,9 @@
         </div>
 
         <div id="create-project-view" class="hidden">
+            <div class="nav-buttons">
+                <button class="btn-secondary" onclick="showMainView()">← На главную</button>
+            </div>
             <h2>Создать новый проект</h2>
             <div class="section">
                 <label for="projectName">Название проекта:</label>
@@ -223,6 +258,10 @@
         </div>
 
         <div id="project-details-view" class="hidden">
+            <div class="nav-buttons">
+                <button class="btn-secondary" onclick="showMainView()">← На главную</button>
+                <button class="btn-secondary" onclick="showMainView()">Список проектов</button>
+            </div>
             <h2 id="projectDetailsTitle"></h2>
             <div class="section">
                 <h3>Настройки проекта</h3>
@@ -295,6 +334,7 @@
             document.getElementById('create-project-view').classList.add('hidden');
             document.getElementById('project-details-view').classList.add('hidden');
             history.pushState(null, '', window.location.pathname); // Clear project ID from URL
+            updateBreadcrumbs('main');
             loadProjects(); // Reload projects list when returning to main view
         }
 
@@ -302,6 +342,7 @@
             document.getElementById('main-view').classList.add('hidden');
             document.getElementById('create-project-view').classList.remove('hidden');
             document.getElementById('project-details-view').classList.add('hidden');
+            updateBreadcrumbs('create');
             // Clear form fields
             document.getElementById('projectName').value = '';
             document.getElementById('projectTelegramChatId').value = '';
@@ -310,6 +351,33 @@
             document.getElementById('projectScrapingDogKey').value = '';
             document.getElementById('projectKeywords').value = '';
             // Keep default prompt
+        }
+
+        function updateBreadcrumbs(currentView, projectName = null) {
+            const breadcrumbsElement = document.getElementById('breadcrumbs');
+            let breadcrumbsHTML = '';
+            
+            switch(currentView) {
+                case 'main':
+                    breadcrumbsHTML = '<span class="current">Главная</span>';
+                    break;
+                case 'create':
+                    breadcrumbsHTML = `
+                        <a href="#" onclick="showMainView()">Главная</a>
+                        <span class="separator">></span>
+                        <span class="current">Создание проекта</span>
+                    `;
+                    break;
+                case 'project':
+                    breadcrumbsHTML = `
+                        <a href="#" onclick="showMainView()">Главная</a>
+                        <span class="separator">></span>
+                        <span class="current">${projectName || 'Проект'}</span>
+                    `;
+                    break;
+            }
+            
+            breadcrumbsElement.innerHTML = breadcrumbsHTML;
         }
 
         async function loadScrapingDogCredits() {
@@ -439,6 +507,8 @@
                 const project = await response.json();
 
                 document.getElementById('projectDetailsTitle').textContent = `Проект: ${project.name}`;
+                updateBreadcrumbs('project', project.name);
+                
                 document.getElementById('editProjectName').value = project.name;
                 document.getElementById('editProjectTelegramChatId').value = project.telegramChatId || '';
                 document.getElementById('editProjectTelegramBotToken').value = project.telegramBotToken || ''; // Set new field value
@@ -446,12 +516,8 @@
                 document.getElementById('editProjectScrapingDogKey').value = project.scrapingDogKey || '';
                 document.getElementById('editProjectKeywords').value = project.keywords.join('\n');
                 
-                // Set prompt value and add skip instruction
-                let promptContent = project.prompt;
-                if (!promptContent.includes('Для пропуска новости (не отправлять в Telegram), верни JSON с полем "skip"')) {
-                    promptContent += '\n\n8. Для пропуска новости (не отправлять в Telegram), верни JSON с полем "skip", например: {"skip": "Новость нерелевантна"}.';
-                }
-                document.getElementById('editProjectPrompt').value = promptContent;
+                // Set prompt value without automatic modification
+                document.getElementById('editProjectPrompt').value = project.prompt;
 
                 // Display Telegram error status
                 const telegramErrorStatusDiv = document.getElementById('telegramErrorStatus');
@@ -726,6 +792,9 @@
                 setTimeout(() => {
                     viewProjectDetails(projectId);
                 }, 500); // Уменьшил задержку, если 1000 было слишком много
+            } else {
+                // Если нет параметра проекта, показываем главную страницу
+                updateBreadcrumbs('main');
             }
         });
     </script>
