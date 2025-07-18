@@ -142,12 +142,12 @@ class SeoService:
         app_config_json_escaped = html.escape(json.dumps(template_data_json))
 
         # Выбираем шаблон в зависимости от продукта
-        template_name = 'index_template.html'  # По умолчанию для contract_analysis
+        template_name = 'index_template.html'  # По умолчанию
         
         if product and product.product_id == 'news_analysis':
             template_name = 'news_analysis_template.html'
         elif product and product.product_id == 'contract_analysis':
-            template_name = 'index_template.html'
+            template_name = 'contract_analysis_template.html'
         # Для новых продуктов можно добавить другие шаблоны
         
         if logger:

@@ -374,6 +374,17 @@ def create_app(
             contract_text_raw = seo_page_data.get('generated_contract_text')
             analysis_results_raw = seo_page_data.get('analysis_results')
             is_seo_page = True # Отмечаем как SEO-страницу, если есть связанные данные
+        
+        # Для продукта анализа договоров используем отдельный шаблон
+        if product_id == 'contract_analysis':
+            return render_template(
+                'contract_analysis_template.html',
+                is_seo_page=is_seo_page,
+                main_keyword=product_info.get('name'), # Используем имя продукта как основной заголовок
+                product_data=product_info, # Передаем всю информацию о продукте
+                seo_page_contract_text_raw=contract_text_raw, # Для фронтенда
+                analysis_results_raw=analysis_results_raw # Для фронтенда
+            )
             
         return render_template(
             'index_template.html',

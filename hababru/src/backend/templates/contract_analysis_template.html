@@ -3,42 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title | default("B2B Платформа для Кастомных Решений") }}</title>
+    <title>{{ page_title | default("Анализ договоров - B2B Платформа для Кастомных Решений") }}</title>
     {% if meta_keywords %}<meta name="keywords" content="{{ meta_keywords }}">{% endif %}
     {% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
     {% if related_keywords_meta %}<meta name="related-keywords" content="{{ related_keywords_meta | join(', ') }}">{% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-
 </head>
 <body>
     <header>
-        <h1>{{ page_h1 | default("Добро пожаловать на B2B Платформу для Кастомных Решений") }}</h1>
+        <h1>{{ page_h1 | default("Анализ договоров") }}</h1>
     </header>
 
     <main>
-        {# Секция "О сервисе" показывается только на главной странице (не на SEO страницах) #}
-        {% if not is_seo_page %}
-        <section id="about-service-mainpage-text" style="padding: 20px; background-color: #fff; border-bottom: 1px solid #eee;">
-             <p>Наша платформа предлагает широкий спектр B2B-решений, разработанных с использованием передовых технологий искусственного интеллекта. Мы помогаем бизнесу оптимизировать процессы, анализировать данные и принимать обоснованные решения.</p>
-        </section>
-        
-        {# Секция с продуктами показывается только на главной странице (не на страницах продуктов и не на SEO страницах) #}
-        {% if not product_data %}
-        <section id="product-list-section" style="padding: 20px; background-color: #f8f9fa; border-bottom: 1px solid #eee; margin-top: 20px;">
-            <h2>Наши продукты</h2>
-            <div id="product-list-container">
-                {# Product list will be loaded here by JavaScript #}
-                <p>Загрузка списка продуктов...</p>
+        <!-- Секция загрузки договора - только для анализа договоров -->
+        <section id="upload-section">
+            <h2>Загрузить договор для анализа</h2>
+            <input type="file" id="contract-upload" accept=".pdf,.doc,.docx">
+            <button id="analyze-button">Анализировать</button>
+            <div id="analysis-progress" style="margin-top: 10px; font-weight: bold;"></div>
+            <div id="progress-bar-container" style="width: 100%; background-color: #e9e9e9; border-radius: 5px; margin-top: 10px; display: none;">
+                <div id="progress-bar" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 5px; text-align: center; line-height: 20px; color: white;">0%</div>
             </div>
         </section>
-        {% endif %}
-        {% endif %}
 
-        {# Убрана секция загрузки договора - теперь она только в contract_analysis_template.html #}
-
-        {# Убрана секция main-content с договором и анализом - теперь она только в contract_analysis_template.html #}
+        <!-- Основной контент - договор и анализ -->
+        <section id="main-content" class="two-column-layout">
+            <div id="contract-view-container">
+                <h2>Договор</h2>
+                <div id="contract-text-display">
+                    <!-- Текст договора будет загружен сюда -->
+                </div>
+            </div>
+            <div id="analysis-panel-container">
+                <h2>Анализ договора</h2>
+                <div id="analysis-results">
+                    <!-- Результаты анализа будут отображены здесь -->
+                </div>
+            </div>
+        </section>
         
+        <!-- Информация о продукте -->
         {% if product_data and product_data.get('name') %}
         <section id="product-info-section" class="product-info-section" style="padding: 20px; background-color: #f8f9fa; border: 1px solid #ddd; margin-top: 20px;">
             <h2>О сервисе "{{ product_data.get('name') }}"</h2>
@@ -73,6 +78,7 @@
         </section>
         {% endif %}
 
+        <!-- Демо контент -->
         {% if demo_content and demo_content.get('demo_screenshot_description') %}
         <section id="demo-section" class="demo-section" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
             <h2>Как это работает</h2>
@@ -89,6 +95,7 @@
         </section>
         {% endif %}
         
+        <!-- SEO контент -->
         {% if page_text_content %}
         <section id="page-specific-content" class="page-content" style="padding: 20px; background-color: #fff; border: 1px solid #ddd; margin-top: 20px;">
             <h2>Подробнее о {{ main_keyword }}</h2>
@@ -96,6 +103,7 @@
         </section>
         {% endif %}
 
+        <!-- Связанные ключевые слова -->
         {% if related_keywords_list %}
         <section id="related-keywords-section" class="related-keywords-section" style="padding: 20px; background-color: #fff; border-top: 1px solid #ddd; margin-top: 20px;">
             <h2>Связанные ключевые слова</h2>
@@ -107,6 +115,7 @@
         </section>
         {% endif %}
         
+        <!-- SEO ссылки -->
         <section id="seo-links" style="padding: 20px; background-color: #fff; border-top: 1px solid #eee; margin-top: 20px;">
             <h2>Полезные ссылки</h2>
             <ul>
@@ -134,8 +143,8 @@
                 <li><a href="{{ url_for('seo_page', slug='zayma') }}">Проверка договора займа онлайн нейросетью. Анализ условий и консультаця</a></li>
             </ul>
         </section>
-
     </main>
+
     <footer>
         <p>&copy; 2025 B2B Платформа для Кастомных Решений</p>
     </footer>
@@ -143,8 +152,6 @@
     <div id="app-config-data" style="display:none;">{{ app_config_json | safe }}</div>
     <script>
         // Инициализируем window.appConfig как пустой объект, чтобы избежать TypeError
-        // Это гарантирует, что window.appConfig всегда будет существовать,
-        // даже если app-config-data div пуст или отсутствует.
         window.appConfig = {};
 
         // Глобальный обработчик ошибок JavaScript
