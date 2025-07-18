@@ -239,8 +239,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 except Exception as chart_e:
                     logger.error(f"Ошибка при декодировании/отправке графика: {chart_e}")
                     await update.message.reply_text("❌ Не удалось отобразить график.")
-            else:
-                await update.message.reply_text("ℹ️ График не был сгенерирован (возможно, недостаточно данных или тип запроса не подходит для визуализации).")
         else:
             await update.message.reply_text("ℹ️ Запрос не вернул данных.")
 
