@@ -6,6 +6,14 @@ description: Инструмент для автоматизации квалиф
 version: '1.0'
 category: ai
 status: active
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.hr_dialogue_mimic"
+  class_name: "HrDialogueMimicProduct"
+  dependencies:
+    - "llm_service"
+
 demo_data:
   key_features:
   - Автоматическая квалификация кандидатов через Telegram

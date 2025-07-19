@@ -4,6 +4,11 @@ description: Демонстрационный AI инструмент для а�
 version: '1.0'
 category: ai
 status: active
+product_class:
+  module: hababru.src.backend.services.products.test_ai_tool
+  class_name: TestAiToolProduct
+  dependencies:
+  - llm_service
 demo_data:
   key_features:
   - Обработка текста
@@ -22,3 +27,37 @@ seo:
   - AI инструмент
   - автоматизация
   - машинное обучение
+interfaces:
+  input:
+    type: object
+    properties:
+      test_query:
+        type: string
+        description: Тестовый запрос для AI инструмента
+        example: Проанализируй эффективность маркетинговой кампании
+      parameters:
+        type: object
+        description: Дополнительные параметры для анализа
+        properties:
+          model:
+            type: string
+            description: Модель AI для использования
+            example: gpt-4
+          temperature:
+            type: number
+            description: Температура генерации (0-1)
+            example: 0.7
+    required:
+    - test_query
+  output:
+    type: object
+    properties:
+      ai_response:
+        type: string
+        description: Ответ AI системы
+      analysis_metrics:
+        type: object
+        description: Метрики анализа
+      recommendations:
+        type: array
+        description: Рекомендации на основе анализа

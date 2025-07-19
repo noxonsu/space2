@@ -20,7 +20,7 @@ class SeoService:
         from flask import current_app # Импортируем здесь, чтобы избежать циклических зависимостей на уровне модуля
         return current_app.logger if current_app else None
 
-    def render_seo_page(self, slug: str) -> str:
+    def render_seo_page(self, slug: str, product_data: dict = None) -> str:
         logger = self._get_logger()
         page_dir = os.path.join(self.content_base_path, slug)
         source_md_path = os.path.join(page_dir, 'source.md')
@@ -123,6 +123,14 @@ class SeoService:
             "analysis_results_raw": demo_data.get("analysis_results", analysis_results)
         }
         
+        # Если переданы данные продукта, добавляем их в template_data
+        if product_data:
+            template_data["product_data"] = product_data
+            template_data["is_seo_page"] = False  # Это страница продукта, а не SEO-страница
+            if logger:
+                logger.info(f"SeoService: Добавлены данные продукта для '{slug}': {product_data.get('product_id', 'unknown')}")
+        
+        
         # Convert relevant data to JSON strings here
         template_data_json = {
             "isSeoPage": template_data["is_seo_page"],
@@ -146,17 +154,11 @@ class SeoService:
         # Escape the JSON string for embedding within a JavaScript string literal
         app_config_json_escaped = html.escape(json.dumps(template_data_json))
 
-        # Выбираем шаблон в зависимости от продукта
-        template_name = 'index_template.html'  # По умолчанию
-        
-        if product and product.product_id == 'news_analysis':
-            template_name = 'news_analysis_template.html'
-        elif product and product.product_id == 'contract_analysis':
-            template_name = 'contract_analysis_template.html'
-        # Для новых продуктов можно добавить другие шаблоны
+        # Всегда используем index_template.html
+        template_name = 'index_template.html'
         
         if logger:
-            logger.info(f"SeoService: Используем шаблон '{template_name}' для продукта '{product.product_id if product else 'default'}'")
+            logger.info(f"SeoService: Используем единый шаблон '{template_name}' для всех SEO-страниц.")
 
         return render_template(template_name, **template_data, app_config_json=app_config_json_escaped)
 
@@ -336,6 +338,7 @@ class SeoService:
             'main_keyword': front_matter.get('main_keyword', slug),
             'related_keywords': front_matter.get('related_keywords', []),
             'content': page_text_content,
+            'page_text_content_html': markdown.markdown(page_text_content), # Добавляем HTML-версию контента
             'product_id': front_matter.get('product_id'),
             'product_info': product_info,
             'demo_available': demo_available,

@@ -4,6 +4,15 @@ description: Инструмент для мониторинга mempool Bitcoin 
   работу в условиях файрвола.
 version: '1.0'
 category: analytics
+status: "active"
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.bitcoin_mempool_explorer"
+  class_name: "BitcoinMempoolExplorerProduct"
+  dependencies:
+    - "llm_service"
+
 demo_data:
   key_features:
   - Мониторинг mempool Bitcoin в реальном времени

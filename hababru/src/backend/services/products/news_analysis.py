@@ -187,3 +187,19 @@ class NewsAnalysisProduct(BaseProduct):
             "neutral": 0.3,
             "negative": 0.1
         })
+
+    def get_demo_content(self) -> Dict[str, Any]:
+        """Возвращает демо-контент для показа на SEO-странице"""
+        seo_data = self.product_data.get("seo", {})
+        demo_content = seo_data.get("demo_content", {})
+        
+        return {
+            "demo_queries": demo_content.get("demo_queries", []),
+            "sample_analysis": demo_content.get("sample_analysis", {}),
+            "monitoring_sectors": demo_content.get("monitoring_sectors", []),
+            "analysis_metrics": demo_content.get("analysis_metrics", [])
+        }
+
+    def get_seo_keywords(self) -> List[str]:
+        """Возвращает список ключевых слов для SEO"""
+        return self.product_data.get("seo", {}).get("keywords", [])

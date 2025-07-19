@@ -1,0 +1,116 @@
+product_id: habab_site_presentations
+name: Презентационный сайт по брендбуку
+description: Создание одностраничного сайта для презентации с кнопками 'Купить' ведущими
+  в Telegram, полностью соответствующего брендбуку.
+version: '1.0'
+category: marketing
+status: active
+product_class:
+  module: hababru.src.backend.services.products.site_presentations
+  class_name: SitePresentationsProduct
+  dependencies:
+  - llm_service
+  - parsing_service
+  - cache_service
+demo_data:
+  key_features:
+  - Быстрое создание сайта по предоставленной презентации и брендбуку
+  - Интеграция с Telegram для покупки
+  - Соответствие бренд-стандартам из презентации
+  supported_formats:
+  - PDF
+  - изображения
+  processing_time: До 1 рабочего дня
+  accuracy: 100%
+product_info:
+  key_benefits:
+  - Быстрое создание профессионального сайта по брендбуку
+  - Увеличение конверсии благодаря прямым ссылкам в Telegram
+  - Полное соответствие фирменным требованиям и дизайну
+  target_audience:
+  - Маркетинговые отделы компаний
+  - Бренд-менеджеры
+  - Малый и средний бизнес, нуждающийся в презентационных сайтах
+  use_cases:
+  - Создание презентационного сайта для рекламных кампаний
+  - Быстрая верстка сайта по брендбуку для новых продуктов
+  - Публикация корпоративных презентаций в виде сайта
+  demo_available: true
+  screenshots:
+  - photo_AgACAgIAAyEFAASV5AxgAAMaaGfEeDjNIDujVIDZjHBsFiGDNKwAAgvxMRvhyOlICB6AU1cqj0E
+  pricing:
+    basic: От 5000 рублей за создание одностраничного сайта
+    professional: От 15000 рублей с дополнительно настроенными интеграциями
+    enterprise: Индивидуальные условия для крупных клиентов
+interfaces:
+  input:
+    type: object
+    properties:
+      company_name:
+        type: string
+        description: Название компании для сайта
+        example: ООО "Технологии будущего"
+      business_type:
+        type: string
+        description: Тип бизнеса
+        example: IT-консалтинг
+        enum:
+        - IT-услуги
+        - Производство
+        - Торговля
+        - Консалтинг
+        - Финансы
+        - Образование
+      target_audience:
+        type: string
+        description: Целевая аудитория
+        example: B2B клиенты, средний и крупный бизнес
+      key_services:
+        type: string
+        description: Ключевые услуги (через запятую)
+        example: Разработка ПО, Консалтинг, Техподдержка
+    required:
+    - company_name
+    - business_type
+  output:
+    type: object
+    properties:
+      website_structure:
+        type: object
+        description: Структура сайта с разделами и контентом
+      generated_content:
+        type: array
+        description: Сгенерированный контент для страниц
+      design_recommendations:
+        type: array
+        description: Рекомендации по дизайну
+seo:
+  keywords:
+  - презентационный сайт
+  - создание сайта
+  - одностраничник
+  - по брендбуку
+  - сайт под презентацию
+  - корпоративный сайт
+  - бизнес сайт
+  - сайт по брендбуку
+  - быстрый сайт
+  - заказать сайт
+  - сайт для презентации
+  - интеграция с Telegram
+  - брандбуковый сайт
+  - создание сайта по PDF
+  - маркетинговый сайт
+  demo_content:
+    demo_queries:
+    - Создай сайт по презентации
+    - Быстрый сайт для презентации продукта
+    sample_results:
+      website_url: https://примерсайт.com
+      description: Одностраничный сайт по брендбуку с кнопками купить, ведущими в
+        Telegram
+demo_examples:
+  sample_data:
+  - example: Презентация продукта X в PDF, брендбук и картинки
+    result: Создан сайт с дизайном, соответствующим брендбуку, и кнопками 'Купить'
+      ведущими в Telegram

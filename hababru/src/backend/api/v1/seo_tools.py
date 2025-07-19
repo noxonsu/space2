@@ -5,20 +5,34 @@ import markdown
 from flask import current_app
 import logging
 from datetime import datetime # Добавляем импорт datetime
-from src.backend.services.llm_service import LLMService # Импортируем LLMService
-from src.backend.services.products import product_registry
-from src.backend.services.telegram_connector import TelegramConnector
-from src.backend.services.telegram_product_generator import TelegramProductGenerator, TelegramMessage
+from ...services.llm_service import LLMService # Импортируем LLMService
+from ...services.products import product_registry
+from ...services.telegram_connector import TelegramConnector
+from ...services.telegram_product_generator import TelegramProductGenerator, TelegramMessage
 
-def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> Blueprint:
+def create_seo_tools_blueprint(seo_service, seo_prompt_service) -> Blueprint:
     """Создает Blueprint для SEO и Telegram инструментов"""
     
     blueprint = Blueprint('seo_tools', __name__)
     
     # Инициализируем Telegram сервисы
     telegram_connector = None
-    product_generator = TelegramProductGenerator(llm_service=llm_service)
+    # product_generator теперь будет инициализироваться внутри функций,
+    # чтобы иметь доступ к current_app.config.get('LLM_SERVICE')
     
+    def get_llm_service_instance():
+        """Вспомогательная функция для получения LLMService из current_app.config"""
+        llm_service_instance = current_app.config.get('LLM_SERVICE')
+        if not llm_service_instance:
+            current_app.logger.error("LLMService не инициализирован в app.config.")
+            raise RuntimeError("LLMService не инициализирован")
+        return llm_service_instance
+
+    def get_product_generator_instance():
+        """Вспомогательная функция для получения TelegramProductGenerator"""
+        llm_service_instance = get_llm_service_instance()
+        return TelegramProductGenerator(llm_service=llm_service_instance)
+
     def get_telegram_connector():
         """Ленивая инициализация Telegram коннектора"""
         nonlocal telegram_connector
@@ -109,10 +123,12 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
         force_new_run = data.get('force_new_run', False) # Новый параметр
         selected_model = data.get('selected_model') # Новый параметр: выбранная модель LLM
 
+        llm_service_instance = get_llm_service_instance() # Получаем LLMService здесь
+
         # Устанавливаем выбранную модель в LLMService перед выполнением промпта
         if selected_model:
             try:
-                llm_service.set_current_model(selected_model)
+                llm_service_instance.set_current_model(selected_model)
                 app_logger.info(f"LLMService: Установлена модель для выполнения промпта: {selected_model}")
             except ValueError as e:
                 app_logger.error(f"Ошибка установки модели LLM: {e}")
@@ -207,13 +223,9 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
     @blueprint.route('/get_llm_models', methods=['GET'])
     def get_llm_models():
         app_logger = current_app.logger if current_app else logging.getLogger(__name__)
-        # Используем llm_service, переданный в create_seo_tools_blueprint
-        if not llm_service:
-            app_logger.error("LLMService не инициализирован в Blueprint.")
-            return jsonify({"error": "LLMService не инициализирован"}), 500
-        
         try:
-            available_models = llm_service.get_available_models()
+            llm_service_instance = get_llm_service_instance() # Получаем LLMService здесь
+            available_models = llm_service_instance.get_available_models()
             app_logger.info(f"Возвращен список доступных LLM моделей: {available_models}")
             return jsonify(available_models), 200
         except Exception as e:
@@ -634,7 +646,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             })
             
         except Exception as e:
-            logger.error(f"Ошибка получения Telegram сообщений: {e}")
+            current_app.logger.error(f"Ошибка получения Telegram сообщений: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Ошибка получения сообщений: {str(e)}'
@@ -674,13 +686,14 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                     'error': 'Сообщение не найдено'
                 }), 404
             
+            product_generator_instance = get_product_generator_instance() # Получаем генератор здесь
             # Генерируем продукт
-            result = product_generator.generate_product_from_message(target_message)
+            result = product_generator_instance.generate_product_from_message(target_message)
             
             return jsonify(result)
             
         except Exception as e:
-            logger.error(f"Ошибка генерации продукта: {e}")
+            current_app.logger.error(f"Ошибка генерации продукта: {e}") # Используем current_app.logger
             return jsonify({
                 'success': False,
                 'error': f'Ошибка генерации: {str(e)}'
@@ -720,12 +733,13 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                     'error': 'Сообщение не найдено'
                 }), 404
             
+            product_generator_instance = get_product_generator_instance() # Получаем генератор здесь
             # Проверяем на дубли
-            duplicate_id = product_generator._check_semantic_duplicate(target_message)
+            duplicate_id = product_generator_instance._check_semantic_duplicate(target_message)
             
             if duplicate_id:
                 # Получаем информацию о дубликате
-                existing_products = product_generator._get_existing_products_with_data()
+                existing_products = product_generator_instance._get_existing_products_with_data()
                 duplicate_product = existing_products.get(duplicate_id, {})
                 
                 return jsonify({
@@ -742,7 +756,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                 })
                 
         except Exception as e:
-            logger.error(f"Ошибка проверки дублей: {e}")
+            current_app.logger.error(f"Ошибка проверки дублей: {e}") # Используем current_app.logger
             return jsonify({
                 'success': False,
                 'error': f'Ошибка проверки: {str(e)}'
@@ -752,7 +766,8 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
     def get_existing_products():
         """Получение списка существующих продуктов"""
         try:
-            existing_products = product_generator._get_existing_products_with_data()
+            product_generator_instance = get_product_generator_instance() # Получаем генератор здесь
+            existing_products = product_generator_instance._get_existing_products_with_data()
             
             products_list = []
             for product_id, product_data in existing_products.items():
@@ -771,7 +786,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             })
             
         except Exception as e:
-            logger.error(f"Ошибка получения продуктов: {e}")
+            current_app.logger.error(f"Ошибка получения списка продуктов: {e}") # Используем current_app.logger
             return jsonify({
                 'success': False,
                 'error': f'Ошибка получения продуктов: {str(e)}'
@@ -819,20 +834,22 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             # Устанавливаем выбранную модель
             if selected_model:
                 try:
-                    llm_service.set_current_model(selected_model)
-                    logger.info(f"Установлена модель для регенерации: {selected_model}")
+                    llm_service_instance = get_llm_service_instance() # Получаем LLMService здесь
+                    llm_service_instance.set_current_model(selected_model)
+                    current_app.logger.info(f"Установлена модель для регенерации: {selected_model}")
                 except ValueError as e:
-                    logger.error(f"Ошибка установки модели: {e}")
+                    current_app.logger.error(f"Ошибка установки модели: {e}")
                     return jsonify({
                         'success': False,
                         'error': f'Некорректная модель: {str(e)}'
                     }), 400
             
+            product_generator_instance = get_product_generator_instance() # Получаем генератор здесь
             # Проверяем на дубли только если не принудительная регенерация
             if not force_regenerate:
-                duplicate_id = product_generator._check_semantic_duplicate(target_message)
+                duplicate_id = product_generator_instance._check_semantic_duplicate(target_message)
                 if duplicate_id:
-                    existing_products = product_generator._get_existing_products_with_data()
+                    existing_products = product_generator_instance._get_existing_products_with_data()
                     duplicate_product = existing_products.get(duplicate_id, {})
                     
                     return jsonify({
@@ -844,7 +861,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                     })
             
             # Генерируем продукт с выбранной моделью
-            result = product_generator.generate_product_from_message(target_message)
+            result = product_generator_instance.generate_product_from_message(target_message)
             
             # Добавляем информацию о модели в результат
             if result.get('success'):
@@ -854,7 +871,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             return jsonify(result)
             
         except Exception as e:
-            logger.error(f"Ошибка регенерации продукта: {e}")
+            current_app.logger.error(f"Ошибка регенерации продукта: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Ошибка регенерации: {str(e)}'
@@ -864,13 +881,14 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
     def get_available_models():
         """Получение списка доступных моделей для генерации"""
         try:
-            models = llm_service.get_available_models()
-            current_model = llm_service.get_current_model()
+            llm_service_instance = get_llm_service_instance() # Получаем LLMService здесь
+            models = llm_service_instance.get_available_models()
+            current_model = llm_service_instance.current_model_full_id if llm_service_instance.current_model_full_id else "" # Изменено: используем current_model_full_id и проверяем на None
             
             # Добавляем информацию о каждой модели
             models_info = []
             for model in models:
-                model_info = llm_service.get_model_info(model)
+                model_info = llm_service_instance.get_model_info(model)
                 models_info.append({
                     'id': model,
                     'name': model,
@@ -887,7 +905,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             })
             
         except Exception as e:
-            logger.error(f"Ошибка получения моделей: {e}")
+            current_app.logger.error(f"Ошибка получения моделей: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Ошибка получения моделей: {str(e)}'
@@ -899,7 +917,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
         try:
             data = request.get_json()
             
-            selected_model = data.get('model', 'deepseek-chat')
+            selected_model = data.get('model', 'deepseek:deepseek-chat') # Изменено: дефолтная модель с префиксом
             product_ids = data.get('product_ids', [])
             
             if not product_ids:
@@ -908,18 +926,20 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                     'error': 'Не указаны product_ids для перегенерации'
                 }), 400
             
+            llm_service_instance = get_llm_service_instance() # Получаем LLMService здесь
             # Устанавливаем выбранную модель
             try:
-                llm_service.set_current_model(selected_model)
-                logger.info(f"Установлена модель для массовой регенерации: {selected_model}")
+                llm_service_instance.set_current_model(selected_model)
+                current_app.logger.info(f"Установлена модель для массовой регенерации: {selected_model}")
             except ValueError as e:
                 return jsonify({
                     'success': False,
                     'error': f'Некорректная модель: {str(e)}'
                 }), 400
             
+            product_generator_instance = get_product_generator_instance() # Получаем генератор здесь
             # Получаем существующие продукты
-            existing_products = product_generator._get_existing_products_with_data()
+            existing_products = product_generator_instance._get_existing_products_with_data()
             
             results = {
                 'success': True,
@@ -952,12 +972,12 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                     
                     # Удаляем старый файл продукта
                     import os
-                    old_file_path = product_generator.products_dir / f"{product_id}.yaml"
+                    old_file_path = product_generator_instance.products_dir / f"{product_id}.yaml" # Изменено
                     if old_file_path.exists():
                         os.remove(old_file_path)
                     
                     # Перегенерируем продукт
-                    result = product_generator.generate_product_from_message(temp_message)
+                    result = product_generator_instance.generate_product_from_message(temp_message)
                     
                     if result.get('success'):
                         results['regenerated'] += 1
@@ -976,7 +996,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
                         })
                         
                 except Exception as e:
-                    logger.error(f"Ошибка регенерации продукта {product_id}: {e}")
+                    current_app.logger.error(f"Ошибка регенерации продукта {product_id}: {e}")
                     results['failed'] += 1
                     results['results'].append({
                         'product_id': product_id,
@@ -987,7 +1007,7 @@ def create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service) -> 
             return jsonify(results)
             
         except Exception as e:
-            logger.error(f"Ошибка массовой регенерации: {e}")
+            current_app.logger.error(f"Ошибка массовой регенерации: {e}")
             return jsonify({
                 'success': False,
                 'error': f'Ошибка массовой регенерации: {str(e)}'

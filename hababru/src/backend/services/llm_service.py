@@ -316,12 +316,14 @@ class LLMService:
         # Добавляем модели DeepSeek
         if self.deepseek_api_key:
             deepseek_models = self._get_deepseek_models()
-            unique_models.update(deepseek_models)
+            # Добавляем префикс "deepseek:" к моделям DeepSeek
+            unique_models.update([f"deepseek:{model}" for model in deepseek_models])
         
         # Добавляем модели OpenAI
         if self.openai_api_key:
             openai_models = self._get_openai_models()
-            unique_models.update(openai_models)
+            # Добавляем префикс "openai:" к моделям OpenAI
+            unique_models.update([f"openai:{model}" for model in openai_models])
         
         # Возвращаем отсортированный список
         return sorted(list(unique_models))
@@ -392,40 +394,176 @@ class LLMService:
                 
         except Exception as e:
             self.logger.error(f"Ошибка запроса к OpenAI API: {e}")
-            return ["gpt-4o", "gpt-3.5-turbo"] # Исправлена опечатка "gpt-3.5-тurbo" на "gpt-3.5-turbo"
+            return ["gpt-4o", "gpt-3.5-turbo"]
     
-    def get_model_info(self, model: str) -> Dict[str, str]:
+    def get_model_info(self, model_full_id: str) -> Dict[str, str]: # Изменено: теперь принимает model_full_id
         """Возвращает информацию о модели"""
+        parts = model_full_id.split(':', 1)
+        if len(parts) != 2:
+            # Если формат некорректный, возвращаем общую информацию
+            return {
+                "provider": "Unknown",
+                "description": "Неизвестная модель",
+                "context_length": "Unknown"
+            }
+        
+        model_type, model_name = parts[0], parts[1]
+
         model_info = {
-            "deepseek-chat": {
+            "deepseek:deepseek-chat": { # Изменено
                 "provider": "DeepSeek",
                 "description": "Универсальная модель для диалогов",
                 "context_length": "32k"
             },
-            "deepseek-coder": {
+            "deepseek:deepseek-coder": { # Изменено
                 "provider": "DeepSeek", 
                 "description": "Модель для программирования",
                 "context_length": "16k"
             },
-            "gpt-4o": {
+            "openai:gpt-4o": { # Изменено
                 "provider": "OpenAI",
                 "description": "Новейшая модель GPT-4 Omni",
                 "context_length": "128k"
             },
-            "gpt-4": {
+            "openai:gpt-4": { # Изменено
                 "provider": "OpenAI",
                 "description": "Продвинутая модель GPT-4",
                 "context_length": "8k"
             },
-            "gpt-3.5-turbo": {
+            "openai:gpt-3.5-turbo": { # Изменено
                 "provider": "OpenAI",
                 "description": "Быстрая модель GPT-3.5",
                 "context_length": "16k"
             }
         }
         
-        return model_info.get(model, {
+        return model_info.get(model_full_id, { # Изменено
             "provider": "Unknown",
             "description": "Неизвестная модель",
             "context_length": "Unknown"
         })
+
+    def generate_html_from_presentation(self, presentation_data: Dict[str, Any], 
+                                       website_structure: Dict[str, Any], 
+                                       telegram_contact: str = "@company_contact") -> str:
+        """
+        Генерирует HTML код сайта на основе данных презентации
+        """
+        if self.logger:
+            self.logger.info("LLMService: Генерация HTML из презентации")
+        
+        try:
+            company_name = presentation_data.get('company_name', 'Ваша компания')
+            colors = presentation_data.get('colors', ['#007bff', '#6c757d'])
+            primary_color = colors[0] if colors else '#007bff'
+            
+            sections_html = []
+            
+            # Генерируем HTML для каждой секции
+            for section in website_structure.get('sections', []):
+                section_type = section.get('type', 'section')
+                title = section.get('title', '')
+                content = section.get('content', '')
+                
+                if section_type == 'hero':
+                    sections_html.append(f"""
+                    <section class="hero">
+                        <div class="container">
+                            <h1>{title}</h1>
+                            <p>{content}</p>
+                            <a href="https://t.me/{telegram_contact.replace('@', '')}" class="buy-button" target="_blank">
+                                Связаться в Telegram
+                            </a>
+                        </div>
+                    </section>
+                    """)
+                elif section_type == 'contact':
+                    sections_html.append(f"""
+                    <section class="section contact">
+                        <div class="container text-center">
+                            <h2>{title}</h2>
+                            <p>{content}</p>
+                            <a href="https://t.me/{telegram_contact.replace('@', '')}" class="buy-button" target="_blank">
+                                Купить в Telegram
+                            </a>
+                        </div>
+                    </section>
+                    """)
+                else:
+                    sections_html.append(f"""
+                    <section class="section">
+                        <div class="container">
+                            <h2>{title}</h2>
+                            <p>{content}</p>
+                        </div>
+                    </section>
+                    """)
+            
+            # Собираем полный HTML
+            html_template = f"""
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>{company_name}</title>
+                <link rel="stylesheet" href="styles.css">
+            </head>
+            <body>
+                {''.join(sections_html)}
+                
+                <footer style="background: #333; color: white; text-align: center; padding: 20px 0;">
+                    <div class="container">
+                        <p>&copy; 2025 {company_name}. Все права защищены.</p>
+                        <p>Связаться с нами: <a href="https://t.me/{telegram_contact.replace('@', '')}" 
+                           style="color: {primary_color};">{telegram_contact}</a></p>
+                    </div>
+                </footer>
+            </body>
+            </html>
+            """
+            
+            if self.logger:
+                self.logger.info("LLMService: HTML успешно сгенерирован")
+            
+            return html_template.strip()
+            
+        except Exception as e:
+            error_msg = f"LLMService: Ошибка генерации HTML: {e}"
+            if self.logger:
+                self.logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+
+    def generate_response(self, prompt: str) -> str:
+        """
+        Генерирует ответ от LLM на основе промпта
+        """
+        if self.logger:
+            self.logger.info(f"LLMService: Генерация ответа для промпта (первые 100 символов): {prompt[:100]}...")
+        
+        try:
+            if not self.current_model_type:
+                raise ValueError("Не установлена текущая модель")
+            
+            # Формируем запрос в зависимости от провайдера
+            if self.current_model_type == "openai":
+                response = self._make_openai_request([
+                    {"role": "user", "content": prompt}
+                ])
+            elif self.current_model_type == "deepseek":
+                response = self._make_deepseek_request([
+                    {"role": "user", "content": prompt}
+                ])
+            else:
+                raise ValueError(f"Неподдерживаемый тип модели: {self.current_model_type}")
+            
+            if self.logger:
+                self.logger.info("LLMService: Ответ успешно получен")
+            
+            return response
+            
+        except Exception as e:
+            error_msg = f"LLMService: Ошибка генерации ответа: {e}"
+            if self.logger:
+                self.logger.error(error_msg)
+            raise RuntimeError(error_msg) from e

@@ -12,6 +12,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 # Импорты сервисов
 from hababru.src.backend.api.v1.contract_analyzer import contract_analyzer_bp
+from hababru.src.backend.api.v1.site_presentations import site_presentations_bp
+from hababru.src.backend.api.v1.amoexcel_googledrive_sync import amoexcel_googledrive_sync_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.bitcoin_mempool_explorer import bitcoin_mempool_explorer_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.crm_automation import crm_automation_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.hr_dialogue_mimic import hr_dialogue_mimic_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.telephony_dashboard import telephony_dashboard_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.test_ai_tool import test_ai_tool_bp # Импортируем новый Blueprint
+from hababru.src.backend.api.v1.youtube_telegram_scraper import youtube_telegram_scraper_bp # Импортируем новый Blueprint
 from hababru.src.backend.api.v1.seo_tools import create_seo_tools_blueprint
 from hababru.src.backend.api.v1.browser_log import browser_log_bp # Импортируем новый Blueprint
 from hababru.src.backend.services.llm_service import LLMService
@@ -33,13 +41,14 @@ import logging
 class TelegramMonitoringThread:
     """Класс для управления мониторингом Telegram в отдельном потоке"""
     
-    def __init__(self, telegram_connector, telegram_generator, check_interval=300):
+    def __init__(self, telegram_connector, check_interval=300): # Удаляем telegram_generator из аргументов
         self.telegram_connector = telegram_connector
-        self.telegram_generator = telegram_generator
-        self.check_interval = check_interval  # 5 минут по умолчанию
+        self.check_interval = check_interval
         self.monitoring_thread = None
         self.stop_monitoring = False
         self.logger = logging.getLogger(__name__)
+        # telegram_generator будет инициализирован внутри _monitor_loop, чтобы иметь доступ к current_app
+        self.telegram_generator = None 
     
     def start_monitoring(self):
         """Запуск мониторинга в отдельном потоке"""
@@ -58,6 +67,18 @@ class TelegramMonitoringThread:
     
     def _monitor_loop(self):
         """Основной цикл мониторинга"""
+        # Инициализируем telegram_generator здесь, чтобы иметь доступ к current_app
+        if self.telegram_generator is None:
+            try:
+                llm_service_instance = current_app.config.get('LLM_SERVICE')
+                if not llm_service_instance:
+                    self.logger.error("LLMService не инициализирован в app.config для TelegramMonitoringThread.")
+                    return # Не можем продолжить без LLMService
+                self.telegram_generator = TelegramProductGenerator(llm_service=llm_service_instance)
+            except Exception as e:
+                self.logger.error(f"Ошибка инициализации TelegramProductGenerator в мониторинге: {e}")
+                return # Не можем продолжить без генератора
+
         while not self.stop_monitoring:
             try:
                 # Получаем новые сообщения
@@ -158,6 +179,19 @@ def create_app(
             
         app.logger.info(f"Всего зарегистрировано продуктов: {list(product_registry.get_all_products().keys())}")
         
+        # Регистрируем связи между продуктами и SEO-страницами
+        try:
+            # Связываем продукт анализа новостей с его SEO-страницами
+            product_registry.map_seo_page_to_product('monitoring-novostey', 'news_analysis')
+            product_registry.map_seo_page_to_product('monitoring-ved-novostey', 'news_analysis')
+            product_registry.map_seo_page_to_product('monitoring-finansovyh-novostey', 'news_analysis')
+            product_registry.map_seo_page_to_product('monitoring-it-novostey', 'news_analysis')
+            product_registry.map_seo_page_to_product('monitoring-pravovyh-izmeneniy', 'news_analysis')
+            product_registry.map_seo_page_to_product('monitoring-logisticheskih-novostey', 'news_analysis')
+            app.logger.info("Зарегистрированы связи между продуктами и SEO-страницами")
+        except Exception as e:
+            app.logger.warning(f"Ошибка при регистрации связей продуктов с SEO-страницами: {e}")
+        
     except Exception as e:
         app.logger.error(f"Ошибка при инициализации системы продуктов: {e}")
 
@@ -197,15 +231,24 @@ def create_app(
     app.config['CACHE_SERVICE'] = cache_service
     app.config['SEO_SERVICE'] = seo_service # Добавляем SEO_SERVICE в app.config
     app.config['SEO_PROMPT_SERVICE'] = seo_prompt_service
+    app.config['PRODUCT_FACTORY'] = product_factory # Добавляем PRODUCT_FACTORY в app.config
 
     # Регистрация Blueprint для API
     app.register_blueprint(contract_analyzer_bp, url_prefix='/api/v1')
-    app.register_blueprint(create_seo_tools_blueprint(seo_service, seo_prompt_service, llm_service), url_prefix='/admin')
+    app.register_blueprint(site_presentations_bp, url_prefix='/api/v1')
+    app.register_blueprint(amoexcel_googledrive_sync_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(bitcoin_mempool_explorer_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(crm_automation_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(hr_dialogue_mimic_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(telephony_dashboard_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(test_ai_tool_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(youtube_telegram_scraper_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
+    app.register_blueprint(create_seo_tools_blueprint(seo_service, seo_prompt_service), url_prefix='/admin')
     app.register_blueprint(browser_log_bp, url_prefix='/api/v1') # Регистрируем новый Blueprint
 
     @app.after_request
     def add_csp_header(response):
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self';"
+        response.headers['Content-Security-Policy'] = "default-src 'self' https://mc.yandex.com; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://mc.yandex.com; font-src 'self'; connect-src 'self' https://mc.yandex.com;"
         return response
 
     @app.before_request
@@ -246,6 +289,23 @@ def create_app(
     @app.route('/assets/<path:filename>')
     def serve_assets(filename):
         return send_from_directory(os.path.join(app.static_folder, 'assets'), filename)
+
+    @app.route('/sites/<site_id>/')
+    def serve_generated_site(site_id):
+        """Обслуживание созданных презентационных сайтов"""
+        sites_dir = os.path.join(app.root_path, 'public', 'sites', site_id)
+        index_file = os.path.join(sites_dir, 'index.html')
+        
+        if not os.path.exists(index_file):
+            abort(404)
+        
+        return send_from_directory(sites_dir, 'index.html')
+
+    @app.route('/sites/<site_id>/<path:filename>')
+    def serve_site_assets(site_id, filename):
+        """Обслуживание ресурсов сайтов (CSS, JS, изображения)"""
+        sites_dir = os.path.join(app.root_path, 'public', 'sites', site_id)
+        return send_from_directory(sites_dir, filename)
 
     @app.route('/favicon.ico')
     def favicon():
@@ -349,51 +409,43 @@ def create_app(
     def product_page(product_id):
         app.logger.info(f"Запрос на страницу продукта: /products/{product_id}")
         from hababru.src.backend.services.products import product_registry
+        from hababru.src.backend.services.product_data_loader import ProductDataLoader
+        
         product_instance = product_registry.get_product(product_id)
         
         if not product_instance:
             app.logger.error(f"Продукт не найден для ID: {product_id}")
             abort(404)
             
-        product_info = product_instance.get_product_info()
-        
-        # Получаем SEO-страницу, связанную с этим продуктом, если она есть
-        # Предполагаем, что slug SEO-страницы может быть равен product_id
-        seo_page_data = None
+        # Загружаем данные продукта для передачи в шаблон
         try:
-            seo_page_data = seo_service.get_page_data(product_id)
-            app.logger.info(f"Найдена связанная SEO-страница для продукта {product_id}")
-        except FileNotFoundError:
-            app.logger.info(f"SEO-страница не найдена для продукта {product_id}. Это нормально, если продукт не имеет выделенной SEO-страницы.")
+            loader = ProductDataLoader()
+            product_data = loader.load_product_data(product_id)
+            app.logger.info(f"Загружены данные продукта: {product_id}")
             
-        contract_text_raw = None
-        analysis_results_raw = None
-        is_seo_page = False
-        
-        if seo_page_data:
-            contract_text_raw = seo_page_data.get('generated_contract_text')
-            analysis_results_raw = seo_page_data.get('analysis_results')
-            is_seo_page = True # Отмечаем как SEO-страницу, если есть связанные данные
-        
-        # Для продукта анализа договоров используем отдельный шаблон
-        if product_id == 'contract_analysis':
-            return render_template(
-                'contract_analysis_template.html',
-                is_seo_page=is_seo_page,
-                main_keyword=product_info.get('name'), # Используем имя продукта как основной заголовок
-                product_data=product_info, # Передаем всю информацию о продукте
-                seo_page_contract_text_raw=contract_text_raw, # Для фронтенда
-                analysis_results_raw=analysis_results_raw # Для фронтенда
-            )
-            
-        return render_template(
-            'index_template.html',
-            is_seo_page=is_seo_page,
-            main_keyword=product_info.get('name'), # Используем имя продукта как основной заголовок
-            product_data=product_info, # Передаем всю информацию о продукте
-            seo_page_contract_text_raw=contract_text_raw, # Для фронтенда
-            analysis_results_raw=analysis_results_raw # Для фронтенда
-        )
+            # Пытаемся загрузить SEO-страницу для контента, но с данными продукта
+            try:
+                html_content = seo_service.render_seo_page(product_id, product_data=product_data)
+                app.logger.info(f"Страница продукта '{product_id}' успешно отрендерена через SeoService с данными продукта.")
+                return html_content
+            except FileNotFoundError:
+                # Если SEO-страница не найдена, рендерим базовую страницу продукта
+                app.logger.info(f"SEO-страница не найдена для продукта '{product_id}', рендерим базовую страницу")
+                
+                # Подготавливаем данные для шаблона
+                template_data = {
+                    'product_data': product_data,
+                    'page_title': product_data.get('name', 'Продукт'),
+                    'page_content': f"<h1>{product_data.get('name', 'Продукт')}</h1><p>{product_data.get('description', '')}</p>",
+                    'is_seo_page': False,
+                    'product_info': product_data
+                }
+                
+                return render_template('index_template.html', **template_data)
+                
+        except Exception as e:
+            app.logger.exception(f"Ошибка при загрузке данных продукта '{product_id}': {e}")
+            abort(500)
 
     # Маршрут для SEO-страниц
     @app.route('/<slug>')
@@ -412,7 +464,7 @@ def create_app(
             'hims', 'megaplan', 'nastya', 'plugins', 'sashanoxonbot', 'themes', 
             'tts', 'wa', 'youtube', 'api/v1/run_openai_prompt', 'admin', 
             'analyze', 'get_test_contract', 'get_page_prompt_results', 
-            'get_llm_models', 'generate-test-products'
+            'get_llm_models', 'generate-test-products', 'sites'
         ]
         
         if slug in reserved_slugs:
@@ -530,8 +582,13 @@ def create_app(
         try:
             app.logger.info("Начинаем генерацию тестовых продуктов")
             
+            # Получаем llm_service из app.config
+            llm_service_instance = app.config.get('LLM_SERVICE')
+            if not llm_service_instance:
+                raise RuntimeError("LLMService не инициализирован для генерации тестовых продуктов.")
+
             # Создаем генератор продуктов
-            product_generator = TelegramProductGenerator(llm_service=llm_service)
+            product_generator = TelegramProductGenerator(llm_service=llm_service_instance)
             
             # Тестовые данные для генерации продуктов
             test_products_data = [

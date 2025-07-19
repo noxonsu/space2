@@ -5,6 +5,14 @@ description: Автоматизированная система для эксп
 version: '1.0'
 category: automation
 status: active
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.amoexcel_googledrive_sync"
+  class_name: "AmoexcelGoogledriveSyncProduct"
+  dependencies:
+    - "llm_service"
+
 demo_data:
   key_features:
   - Автоматический экспорт лидов из AMOCRM в Excel

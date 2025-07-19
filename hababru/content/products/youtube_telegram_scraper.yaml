@@ -1,9 +1,18 @@
-product_id: habab_youtube_telegram_scraper
+product_id: youtube_telegram_scraper
 name: YouTube-Тelegram Аккаунт Система
 description: Автоматизированная система поиска Telegram аккаунтов админов каналов
   на основе данных с YouTube API для холодных продаж.
 version: '1.0'
 category: automation
+status: active
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.youtube_telegram_scraper"
+  class_name: "YoutubeTelegramScraperProduct"
+  dependencies:
+    - "llm_service"
+
 demo_data:
   key_features:
   - Автоматический поиск каналов по ключевым словам через YouTube API

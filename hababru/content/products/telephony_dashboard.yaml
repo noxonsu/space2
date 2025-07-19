@@ -1,10 +1,19 @@
-product_id: telephony_dashboard_2025
+product_id: telephony_dashboard
 name: Веб-версия аналитического дашборда для телефонии
 description: Интерактивный веб-дashboard для анализа звонков в виртуальной АТС, обеспечивающий
   хранение данных на сервере клиента и интеграцию с speech-to-text, семантическим
   анализом и системой авторизации.
 version: '1.0'
 category: analytics
+status: active
+
+# Конфигурация класса продукта
+product_class:
+  module: "hababru.src.backend.services.products.telephony_dashboard"
+  class_name: "TelephonyDashboardProduct"
+  dependencies:
+    - "llm_service"
+
 demo_data:
   key_features:
   - Отображение работы виртуальной АТС с множеством операторов

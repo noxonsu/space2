@@ -613,4 +613,144 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Обработка формы создания презентационных сайтов
+    const presentationForm = document.getElementById('presentation-upload-form');
+    if (presentationForm) {
+        const createSiteBtn = document.getElementById('create-site-btn');
+        const demoSiteBtn = document.getElementById('demo-site-btn');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const uploadResult = document.getElementById('upload-result');
+        const resultTitle = document.getElementById('result-title');
+        const resultMessage = document.getElementById('result-message');
+        const resultLink = document.getElementById('result-link');
+
+        // Обработчик отправки формы
+        presentationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const files = document.getElementById('presentation-files').files;
+            const companyName = document.getElementById('company-name').value;
+            const telegramContact = document.getElementById('telegram-contact').value;
+
+            // Проверяем наличие файлов
+            if (files.length === 0) {
+                alert('Пожалуйста, выберите файлы для загрузки');
+                return;
+            }
+
+            // Добавляем файлы в FormData
+            for (let file of files) {
+                formData.append('files', file);
+            }
+            
+            // Добавляем дополнительные параметры
+            if (companyName) formData.append('company_name', companyName);
+            if (telegramContact) formData.append('telegram_contact', telegramContact);
+
+            await createPresentationSite(formData, false);
+        });
+
+        // Обработчик демо-кнопки
+        demoSiteBtn.addEventListener('click', async () => {
+            const companyName = document.getElementById('company-name').value || 'Demo Company';
+            const telegramContact = document.getElementById('telegram-contact').value || '@demo_company';
+
+            const demoData = {
+                company_name: companyName,
+                telegram_contact: telegramContact
+            };
+
+            await createPresentationSite(demoData, true);
+        });
+
+        async function createPresentationSite(data, isDemo = false) {
+            try {
+                // Показываем прогресс
+                uploadProgress.style.display = 'block';
+                uploadResult.style.display = 'none';
+                createSiteBtn.disabled = true;
+                demoSiteBtn.disabled = true;
+
+                // Анимация прогресса
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 20;
+                    if (progress > 90) progress = 90;
+                    progressBar.style.width = progress + '%';
+                }, 500);
+
+                const endpoint = isDemo ? '/api/v1/demo' : '/api/v1/create';
+                const options = {
+                    method: 'POST'
+                };
+
+                if (isDemo) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = JSON.stringify(data);
+                } else {
+                    options.body = data; // FormData
+                }
+
+                const response = await fetch(endpoint, options);
+                const result = await response.json();
+
+                // Завершаем прогресс
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    uploadProgress.style.display = 'none';
+                    showResult(result);
+                    createSiteBtn.disabled = false;
+                    demoSiteBtn.disabled = false;
+                }, 1000);
+
+            } catch (error) {
+                console.error('Ошибка создания сайта:', error);
+                uploadProgress.style.display = 'none';
+                showResult({
+                    success: false,
+                    error: 'Произошла ошибка при создании сайта: ' + error.message
+                });
+                createSiteBtn.disabled = false;
+                demoSiteBtn.disabled = false;
+                logErrorToServer(error, 'createPresentationSite');
+            }
+        }
+
+        function showResult(result) {
+            uploadResult.style.display = 'block';
+            
+            if (result.success) {
+                uploadResult.style.backgroundColor = '#d4edda';
+                uploadResult.style.borderColor = '#c3e6cb';
+                uploadResult.style.color = '#155724';
+                
+                resultTitle.textContent = '✅ Сайт успешно создан!';
+                resultMessage.innerHTML = `
+                    <p><strong>Компания:</strong> ${result.company_name || 'Не указана'}</p>
+                    <p><strong>Telegram:</strong> ${result.telegram_contact || 'Не указан'}</p>
+                    <p><strong>Количество секций:</strong> ${result.sections_count || 'Не указано'}</p>
+                `;
+                
+                if (result.website_url) {
+                    resultLink.href = result.website_url;
+                    resultLink.style.display = 'inline-block';
+                    resultLink.textContent = 'Открыть созданный сайт';
+                }
+            } else {
+                uploadResult.style.backgroundColor = '#f8d7da';
+                uploadResult.style.borderColor = '#f5c6cb';
+                uploadResult.style.color = '#721c24';
+                
+                resultTitle.textContent = '❌ Ошибка создания сайта';
+                resultMessage.textContent = result.error || 'Неизвестная ошибка';
+                resultLink.style.display = 'none';
+            }
+        }
+    }
+
 });

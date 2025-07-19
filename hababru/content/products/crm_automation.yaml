@@ -4,6 +4,11 @@ description: Умный помощник для автоматизации CRM-�
 version: '1.0'
 category: automation
 status: active
+product_class:
+  module: hababru.src.backend.services.products.crm_automation
+  class_name: CrmAutomationProduct
+  dependencies:
+  - llm_service
 demo_data:
   key_features:
   - Автоматическое заполнение карточек клиентов
@@ -35,3 +40,44 @@ seo:
   - CRM с ИИ
   - управление клиентами
   - автоматизация бизнеса
+interfaces:
+  input:
+    type: object
+    properties:
+      entity_type:
+        type: string
+        description: Тип сущности для автоматизации (лид, сделка, контакт)
+        example: лид
+        enum:
+        - лид
+        - сделка
+        - контакт
+        - задача
+      action:
+        type: string
+        description: Действие для выполнения
+        example: создать
+        enum:
+        - создать
+        - обновить
+        - удалить
+        - получить
+      data:
+        type: string
+        description: Данные для обработки в формате JSON
+        example: '{"name": "Иван Иванов", "phone": "+7999..."}'
+    required:
+    - entity_type
+    - action
+  output:
+    type: object
+    properties:
+      status:
+        type: string
+        description: Статус выполнения операции
+      result:
+        type: object
+        description: Результат операции
+      message:
+        type: string
+        description: Сообщение о результате

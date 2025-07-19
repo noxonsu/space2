@@ -78,9 +78,9 @@ def client(mock_services):
 def test_run_openai_prompt_success(client, mock_services): # Добавляем mock_services в аргументы
     mock_llm_service, mock_seo_prompt_service_instance = mock_services
     
-    print(f"\nОтправка запроса на /api/v1/run_openai_prompt с payload: {json.dumps(TEST_PAYLOAD, indent=2)}")
+    print(f"\nОтправка запроса на /admin/run_openai_prompt с payload: {json.dumps(TEST_PAYLOAD, indent=2)}")
     
-    response = client.post('/api/v1/run_openai_prompt', json=TEST_PAYLOAD)
+    response = client.post('/admin/run_openai_prompt', json=TEST_PAYLOAD)
     
     print(f"Статус ответа: {response.status_code}")
     print(f"Тело ответа: {response.text}")

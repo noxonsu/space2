@@ -9,23 +9,7 @@
     {% if related_keywords_meta %}<meta name="related-keywords" content="{{ related_keywords_meta | join(', ') }}">{% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <!-- Yandex.Metrika counter -->
-    <script type="text/javascript" >
-       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments}};
-       m[i].l=1*new Date();
-       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
-
-       ym(97234589, "init", {
-            clickmap:true,
-            trackLinks:true,
-            accurateTrackBounce:true,
-            webvisor:true
-       });
-    </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/97234589" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-    <!-- /Yandex.Metrika counter -->
+    
 </head>
 <body>
     <header>
@@ -164,16 +148,16 @@
         </section>
         {% endif %}
         
+        {% if related_seo_pages_list %}
         <section id="seo-links" style="padding: 20px; background-color: #fff; border-top: 1px solid #eee; margin-top: 20px;">
             <h2>Полезные ссылки по мониторингу новостей</h2>
             <ul>
-                <li><a href="{{ url_for('seo_page', slug='monitoring-ved-novostey') }}">Мониторинг новостей ВЭД</a></li>
-                <li><a href="{{ url_for('seo_page', slug='analiz-novostey-logistiki') }}">Анализ новостей логистики</a></li>
-                <li><a href="{{ url_for('seo_page', slug='monitoring-regulyatornyh-izmeneniy') }}">Мониторинг регуляторных изменений</a></li>
-                <li><a href="{{ url_for('seo_page', slug='analiz-finansovyh-novostey') }}">Анализ финансовых новостей</a></li>
-                <li><a href="{{ url_for('seo_page', slug='monitoring-it-trendov') }}">Мониторинг IT трендов</a></li>
+                {% for page in related_seo_pages_list %}
+                    <li><a href="{{ url_for('seo_page', slug=page.slug) }}">{{ page.title }}</a></li>
+                {% endfor %}
             </ul>
         </section>
+        {% endif %}
 
     </main>
     <footer>
