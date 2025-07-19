@@ -277,24 +277,25 @@ const server = http.createServer((req, res) => {
             if (updatedProject.telegramBotToken === '') updatedProject.telegramBotToken = undefined;
             if (updatedProject.telegramChatId === '') updatedProject.telegramChatId = undefined;
             projects[index] = { ...projects[index], ...updatedProject, id: projectId }; // Ensure ID is not changed
-            return saveProjects(projects);
+            return saveProjects(projects)
+              .then(() => {
+                res.writeHead(200);
+                res.end('Project updated');
+              })
+              .catch(err => {
+                console.error('Error saving updated project:', err);
+                res.writeHead(500);
+                res.end('Error updating project');
+              });
           } else {
             res.writeHead(404);
             res.end('Project not found');
-            return; // Do not propagate error, just end response
           }
-        })
-        .then(() => {
-          res.writeHead(200);
-          res.end('Project updated');
         })
         .catch(err => {
-          // Only send 500 if it's not the "Project not found" error already handled
-          if (err !== 'Project not found') {
-            console.error('Error updating project:', err);
-            res.writeHead(500);
-            res.end('Error updating project');
-          }
+          console.error('Error loading projects for update:', err);
+          res.writeHead(500);
+          res.end('Error updating project');
         });
     });
   } else if (pathname.startsWith('/api/projects/') && method === 'DELETE') {
@@ -304,24 +305,25 @@ const server = http.createServer((req, res) => {
         const initialLength = projects.length;
         const newProjects = projects.filter(p => p.id !== projectId);
         if (newProjects.length < initialLength) {
-          return saveProjects(newProjects);
+          return saveProjects(newProjects)
+            .then(() => {
+              res.writeHead(200);
+              res.end('Project deleted');
+            })
+            .catch(err => {
+              console.error('Error saving projects after deletion:', err);
+              res.writeHead(500);
+              res.end('Error deleting project');
+            });
         } else {
           res.writeHead(404);
           res.end('Project not found');
-          return; // Do not propagate error, just end response
         }
-      })
-      .then(() => {
-        res.writeHead(200);
-        res.end('Project deleted');
       })
       .catch(err => {
-        // Only send 500 if it's not the "Project not found" error already handled
-        if (err !== 'Project not found') {
-          console.error('Error deleting project:', err);
-          res.writeHead(500);
-          res.end('Error deleting project');
-        }
+        console.error('Error loading projects for deletion:', err);
+        res.writeHead(500);
+        res.end('Error deleting project');
       });
   } else if (pathname === '/api/scrapingdog-credits' && method === 'GET') {
     fetchScrapingDogCredits()
@@ -360,6 +362,38 @@ const server = http.createServer((req, res) => {
       success: true, 
       message: `Парсинг для проекта ${projectId} запущен`,
       projectId: projectId,
+      timestamp: new Date().toISOString()
+    }));
+  } else if (pathname === '/api/parse-projects' && method === 'GET') {
+    const projectId = parsedUrl.query.projectId;
+    
+    console.log(`🚀 Запрос на запуск парсинга: ${projectId ? `проекта ID: ${projectId}` : 'всех проектов'}`);
+    
+    // Запускаем парсинг асинхронно
+    if (projectId) {
+      triggerProjectParsing(projectId)
+        .then(() => {
+          console.log(`✅ Парсинг для проекта ${projectId} завершен`);
+        })
+        .catch(err => {
+          console.error(`❌ Ошибка парсинга для проекта ${projectId}:`, err);
+        });
+    } else {
+      processProjects()
+        .then(() => {
+          console.log(`✅ Парсинг всех проектов завершен`);
+        })
+        .catch(err => {
+          console.error(`❌ Ошибка парсинга всех проектов:`, err);
+        });
+    }
+    
+    // Сразу отвечаем, что парсинг запущен
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      message: `Парсинг ${projectId ? `проекта ${projectId}` : 'всех проектов'} запущен`,
+      projectId: projectId || 'all',
       timestamp: new Date().toISOString()
     }));
   }

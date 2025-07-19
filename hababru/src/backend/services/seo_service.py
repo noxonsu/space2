@@ -56,14 +56,19 @@ class SeoService:
         
         if product and product.product_id == 'contract_analysis':
             # Для анализа договоров ищем сгенерированный договор
-            contract_file_path = os.path.join(page_dir, 'generated_contract.txt')
+            contract_file_path = os.path.join(page_dir, 'example_data.txt')
             generated_contract_text = ""
             
             if os.path.exists(contract_file_path):
                 with open(contract_file_path, 'r', encoding='utf-8') as f:
-                    generated_contract_text = f.read()
+                    full_demo_content = f.read()
+                
+                demo_parts = full_demo_content.split('---', 2)
+                if len(demo_parts) >= 3:
+                    generated_contract_text = demo_parts[2].strip()
+                else:
+                    generated_contract_text = full_demo_content.strip()
             elif demo_content.get('demo_contract_text'):
-                # Используем демо-текст из продукта
                 generated_contract_text = demo_content['demo_contract_text']
             
             if generated_contract_text:
@@ -437,6 +442,9 @@ class SeoService:
         """Генерирует демо-договор для SEO-страницы анализа договоров"""
         demo_text = demo_content.get('demo_contract_text', '')
         if demo_text:
-            contract_file_path = os.path.join(page_dir, 'generated_contract.txt')
+            contract_file_path = os.path.join(page_dir, 'example_data.txt')
+            # Добавляем YAML Front Matter, если его нет, чтобы соответствовать формату source.md
+            # В данном случае, просто записываем текст, предполагая, что он уже отформатирован или не требует YAML.
+            # Если demo_text не содержит YAML, то при чтении в render_seo_page он будет обработан как обычный текст.
             with open(contract_file_path, 'w', encoding='utf-8') as f:
                 f.write(demo_text)

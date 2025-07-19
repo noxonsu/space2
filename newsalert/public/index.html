@@ -204,20 +204,31 @@
         <!-- Navigation breadcrumbs -->
         <nav id="breadcrumbs" class="breadcrumbs"></nav>
 
-        <div id="main-view">
-            <!-- ScrapingDog Credits Section -->
-            <div class="section">
-                <h2>Статус ScrapingDog API</h2>
-                <div id="scrapingDogCredits">Загрузка...</div>
-            </div>
+            <div id="main-view">
+                <!-- ScrapingDog Credits Section -->
+                <div class="section">
+                    <h2>Статус ScrapingDog API</h2>
+                    <div id="scrapingDogCredits">Загрузка...</div>
+                </div>
 
-            <!-- Projects List Section -->
-            <div class="section">
-                <h2>Проекты</h2>
-                <button onclick="showCreateProjectForm()">Создать новый проект</button>
-                <div id="projectsList"></div>
+                <!-- Projects List Section -->
+                <div class="section">
+                    <h2>Проекты</h2>
+                    <button onclick="showCreateProjectForm()">Создать новый проект</button>
+                    <div id="projectsList"></div>
+                </div>
+
+                <!-- Cron Parsing Section -->
+                <div class="section">
+                    <h2>Запуск парсинга по расписанию (Cron)</h2>
+                    <p>Используйте эти кнопки для ручного запуска парсинга или для настройки внешних крон-задач.</p>
+                    <button class="btn-parse" onclick="startAllProjectsParsing()">🚀 Запустить парсинг всех проектов</button>
+                    <br><br>
+                    <label for="cronProjectId">ID проекта для запуска:</label>
+                    <input type="text" id="cronProjectId" placeholder="Оставьте пустым для всех проектов">
+                    <button class="btn-parse" onclick="startCronProjectParsing()">🚀 Запустить парсинг проекта по ID</button>
+                </div>
             </div>
-        </div>
 
         <div id="create-project-view" class="hidden">
             <div class="nav-buttons">
@@ -775,6 +786,57 @@
                 // Восстанавливаем кнопку
                 parseButton.disabled = false;
                 parseButton.textContent = originalText;
+            }
+        }
+
+        async function startAllProjectsParsing() {
+            const button = document.querySelector('.section button.btn-parse'); // Select the first parse button in the cron section
+            const originalText = button.textContent;
+            try {
+                button.disabled = true;
+                button.textContent = '⏳ Запускаем парсинг всех...';
+                const response = await fetch('/api/parse-projects');
+                const result = await response.json();
+                if (result.success) {
+                    alert(`✅ ${result.message}\n\nПарсинг запущен в фоновом режиме.`);
+                } else {
+                    alert(`❌ Ошибка: ${result.message || 'Неизвестная ошибка'}`);
+                }
+            } catch (error) {
+                console.error('Error starting all projects parsing:', error);
+                alert(`❌ Ошибка при запуске парсинга всех проектов: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+
+        async function startCronProjectParsing() {
+            const projectId = document.getElementById('cronProjectId').value.trim();
+            const button = document.querySelector('#cronProjectId + .btn-parse'); // Select the parse button next to cronProjectId input
+            const originalText = button.textContent;
+
+            if (!projectId) {
+                alert('Пожалуйста, введите ID проекта или оставьте поле пустым для запуска всех проектов (используйте кнопку выше).');
+                return;
+            }
+
+            try {
+                button.disabled = true;
+                button.textContent = `⏳ Запускаем парсинг ${projectId}...`;
+                const response = await fetch(`/api/parse-projects?projectId=${projectId}`);
+                const result = await response.json();
+                if (result.success) {
+                    alert(`✅ ${result.message}\n\nПарсинг запущен в фоновом режиме.`);
+                } else {
+                    alert(`❌ Ошибка: ${result.message || 'Неизвестная ошибка'}`);
+                }
+            } catch (error) {
+                console.error('Error starting project parsing by ID:', error);
+                alert(`❌ Ошибка при запуске парсинга проекта по ID: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
 

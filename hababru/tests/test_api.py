@@ -183,7 +183,7 @@ def test_seo_page_content_display(client, mock_services):
 
     seo_page_dir = os.path.join(os.path.dirname(__file__), '..', 'content', 'seo_pages', 'arendy')
     source_md_path = os.path.join(seo_page_dir, 'source.md')
-    generated_contract_path = os.path.join(seo_page_dir, 'generated_contract.txt')
+    generated_contract_path = os.path.join(seo_page_dir, 'example_data.txt')
 
     with open(source_md_path, 'r', encoding='utf-8') as f:
         source_content = f.read()
@@ -247,7 +247,7 @@ def test_seo_page_ipotechnyh_dogovorov_content_display(client, mock_services):
 
     seo_page_dir = os.path.join(os.path.dirname(__file__), '..', 'content', 'seo_pages', 'ipotechnyh-dogovorov')
     source_md_path = os.path.join(seo_page_dir, 'source.md')
-    generated_contract_path = os.path.join(seo_page_dir, 'generated_contract.txt')
+    generated_contract_path = os.path.join(seo_page_dir, 'example_data.txt')
 
     with open(source_md_path, 'r', encoding='utf-8') as f:
         source_content = f.read()

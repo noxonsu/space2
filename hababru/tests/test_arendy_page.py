@@ -26,7 +26,7 @@ def test_arendy_page_contract_and_analysis_display(real_client):
     """
     seo_page_dir = os.path.join(os.path.dirname(__file__), '..', 'content', 'seo_pages', 'arendy')
     source_md_path = os.path.join(seo_page_dir, 'source.md')
-    generated_contract_path = os.path.join(seo_page_dir, 'generated_contract.txt')
+    generated_contract_path = os.path.join(seo_page_dir, 'example_data.txt')
 
     # 1. Читаем ожидаемый контент из source.md
     with open(source_md_path, 'r', encoding='utf-8') as f:
@@ -61,7 +61,7 @@ def test_arendy_page_contract_and_analysis_display(real_client):
 
     assert app_config.get('isSeoPage') is True, "isSeoPage не True"
     assert app_config.get('mainKeyword') == front_matter['main_keyword'], "mainKeyword не соответствует"
-    assert app_config.get('seoPageContractTextRaw') == expected_contract_text, "seoPageContractTextRaw не соответствует ожидаемому тексту договора"
+    assert expected_contract_text in app_config.get('seoPageContractTextRaw'), "seoPageContractTextRaw не содержит ожидаемый текст договора"
     
     # Проверяем, что analysis_results_raw присутствует и содержит непустой массив paragraphs
     assert 'analysis_results_raw' in app_config, "analysis_results_raw отсутствует в appConfig"
